@@ -1,0 +1,13 @@
+UX/UI Design: Veritasor Authentication Suite
+I worked on the end-to-end authentication flow for Veritasor, a high-security enterprise intelligence platform. My goal was to balance a sophisticated, "pro-tech" aesthetic with a frictionless user experience for corporate clients.
+
+Key Contributions
+Secure Onboarding: Designed a multi-input signup flow featuring real-time password strength validation and integrated OAuth options (Google and LinkedIn) to reduce drop-off rates.
+
+Intuitive Password Recovery: Streamlined the "Forgot Password" journey with a minimalist interface that emphasizes security while providing clear calls to action.
+
+Dark Mode Visual Identity: Developed a cohesive dark-themed UI utilizing deep indigos and vibrant "Action Blue" accents to convey trust, stability, and "Trusted Security" (the Veritasor Engine).
+
+Micro-interactions: Implemented clear input states, iconography for better affordance, and responsive layout structures for a seamless desktop experience.
+
+figma link: https://www.figma.com/design/iiJC76tgZiO4ZAU5gvmNhu/Veritas-Login-screen?node-id=1-223&t=rSlnndhCYxCpgNbZ-0
