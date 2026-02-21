@@ -1,0 +1,48 @@
+1. Onboarding & High-Trust Empty State
+Focus: Security and the "dApp" experience.
+
+Main Headline: Welcome to Crowdfund. Let’s fuel your community.
+
+Sub-headline: Connect your wallet or bank to start managing your decentralized impact in real-time.
+
+Primary CTA: [Connect Wallet / Integration]
+
+Secondary CTA: [View Security Protocol]
+
+Security Insight Box: * Header: Your keys, your capital.
+
+Body: Secure your account with FaceID Quick Access or set up your 3-step recovery protocol. Most integrations take less than 2 minutes to sync.
+
+Compliance Footer: Network Status: Online | ISO 27001 & SOC2 Type II Compliant.
+
+2. Active Dashboard (Impact & Capital)
+Focus: Measuring growth and network health.
+
+KPI Cards
+Total Impact Raised: $48,290.00 (+8.2% vs last month)
+
+Avg. Community Pledge: $1,240.00 (+3.1% vs last month)
+
+Primary Chart (Growth Velocity)
+Title: Network Growth
+
+Subtitle: Real-time comparison of decentralized contributions.
+
+Legend: [Blue Dot] Current Cycle [Grey Dot] Previous Cycle
+
+Sidebar & Widgets
+Security Status Widget: * Title: Account Health
+
+Body: Your 3-step recovery is 75% configured. Complete it to maximize your vault security.
+
+Button: [Finish Security Setup]
+
+Activity Feed:
+
+Event 1: New smart contract interaction — $1,450.00 (14 mins ago)
+
+Event 2: New node integration added (2 hours ago)
+
+Event 3: Quarterly transparency report generated (Yesterday)
+
+figma link https://www.figma.com/design/iiJC76tgZiO4ZAU5gvmNhu/Veritas-Login-screen?node-id=19-532&t=Q6ZkTvJvb5L3KEdw-0
