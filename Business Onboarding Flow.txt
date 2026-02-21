@@ -1,0 +1,80 @@
+I designed a complete multi-step onboarding flow that guides new businesses from signup completion to their first attestation. The goal was to create a welcoming, secure, and non-intimidating experience for Web3 newcomers while maintaining clarity and strong visual hierarchy.
+
+The onboarding flow includes:
+
+Welcome Screen
+
+Business Profile Setup
+
+Stellar Wallet Connection
+
+First Integration Setup
+
+Onboarding Completion
+
+UX Approach
+
+Ability to skip steps and return to previous steps
+
+Inline validation and error handling for all forms
+
+Educational tooltips and “Why this matters” explanations
+
+Card-based integration selection for simplicity
+
+Smooth micro-interactions and feedback states
+
+Fully responsive (mobile-first approach)
+
+Designed in both Light and Dark mode
+
+The experience focuses on reducing Web3 complexity, improving trust, and ensuring users always know what step they are on.
+
+Key Features
+
+Stepper component with active/completed states
+
+Business form with validation and helper text
+
+Stellar wallet connection screen with clear education
+
+Integration selection (API, No-Code, Manual) with expandable setup
+
+Completion screen with animated success state and setup summary
+
+Empty states and validation feedback across all steps
+
+Reusable onboarding-specific component system
+
+Design System
+
+Clean SaaS layout
+
+Strong CTA hierarchy
+
+Clear spacing system
+
+Accessible contrast for Light & Dark themes
+
+Reusable components for frontend implementation
+
+Deliverables
+
+User flow diagram
+
+Wireframes
+
+High-fidelity mockups (Light & Dark mode)
+
+Interactive prototype
+
+Component library
+
+Responsive designs
+
+Developer annotations
+
+Figma Link:
+https://www.figma.com/design/hM0yV83dCn8LYxZ7wDJI6m/Veritasor-Design-Business-Onboarding-Flow-and-Welcome-Experience?node-id=0-1&t=K3ArHzy9lh7RalMc-1
+
+If you want, I can also make it even shorter (ultra-concise version) or slightly more senior-level and strategic sounding depending on who will review it.
