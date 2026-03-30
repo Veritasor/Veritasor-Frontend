@@ -17,6 +17,7 @@ export default function Layout() {
         <nav style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <Link to="/">Dashboard</Link>
           <Link to="/attestations">Attestations</Link>
+          <Link to="/login">Login</Link>
         </nav>
       </aside>
       <main style={{ flex: 1, padding: '2rem' }}>
