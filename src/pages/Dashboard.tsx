@@ -1,21 +1,15 @@
 export default function Dashboard() {
   return (
-    <div>
-      <h1 style={{ marginTop: 0 }}>Dashboard</h1>
-      <p style={{ color: 'var(--muted)' }}>
-        Connect your revenue sources and manage attestations from here.
-      </p>
-      <section
-        style={{
-          marginTop: '2rem',
-          padding: '1.5rem',
-          background: 'var(--surface)',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-        }}
-      >
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Quick actions</h2>
-        <ul style={{ color: 'var(--muted)' }}>
+    <div className="page">
+      <header className="page-header">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-description">
+          Connect your revenue sources and manage attestations from here.
+        </p>
+      </header>
+      <section className="page-card">
+        <h2 className="page-card-title">Quick actions</h2>
+        <ul className="page-list">
           <li>Connect Stripe, Razorpay, or Shopify (coming soon)</li>
           <li>Trigger monthly revenue report</li>
           <li>View attestation history</li>

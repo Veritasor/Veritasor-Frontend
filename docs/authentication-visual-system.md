@@ -14,16 +14,16 @@ Create a cohesive, accessible visual system for authentication screens that engi
 ## Visual System Tokens
 
 - Typography scale
-- `eyebrow`: 0.78rem, 700, uppercase
-- `label/body`: 0.92rem to 0.95rem
-- `panel title`: clamp(1.8rem, 4vw, 3rem)
-- `hero title`: clamp(2rem, 5vw, 4.5rem)
+- `eyebrow`: `--text-xs`, 700, uppercase
+- `label/body`: `--text-sm` to `--text-md`
+- `panel title`: `--text-display`
+- `hero title`: `--text-hero`
 
 - Spacing scale
-- `container padding`: 1rem mobile, 1.5rem tablet, 3rem desktop
-- `form gap`: 1.25rem
-- `input/message gap`: 0.5rem
-- `section gap`: 2rem
+- `container padding`: `--space-4` mobile, `--space-6` tablet, `--space-12` desktop
+- `form gap`: `--space-5`
+- `input/message gap`: `--space-2`
+- `section gap`: `--space-8`
 
 - Surfaces and borders
 - shared auth shell uses a glass surface with `var(--surface)` and a single border token
@@ -42,7 +42,7 @@ Create a cohesive, accessible visual system for authentication screens that engi
 - Focus is visible on links, inputs, and buttons through a 3px outline plus offset
 - Contrast assumptions use near-white text on deep navy surfaces and tinted status backgrounds with readable foreground colors
 - Keyboard flow is linear: brand link, form fields, inline recovery link where present, checkbox, then actions
-- Touch targets use a minimum height of `3.5rem`
+- Touch targets use a minimum height of `--space-touch`
 - Mobile-first layout avoids horizontal scrolling and stacks all actions into one column below `720px`
 
 ## Acceptance Criteria
