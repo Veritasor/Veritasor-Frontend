@@ -1,6 +1,10 @@
 import AttestationProgress from '../components/AttestationProgress'
 
-export default function Attestations() {
+type AttestationsProps = {
+  stepDurationMs?: number
+}
+
+export default function Attestations({ stepDurationMs }: AttestationsProps) {
   return (
     <div>
       <h1 style={{ marginTop: 0 }}>Attestations</h1>
@@ -8,7 +12,7 @@ export default function Attestations() {
         Revenue attestations published on Stellar. Merkle roots and metadata are stored on-chain.
       </p>
 
-      <AttestationProgress />
+      <AttestationProgress stepDurationMs={stepDurationMs} />
     </div>
   )
 }

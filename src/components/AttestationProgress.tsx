@@ -67,7 +67,11 @@ function getStatusTone(phase: AttestationPhase) {
   return 'var(--accent)'
 }
 
-export default function AttestationProgress() {
+interface AttestationProgressProps {
+  stepDurationMs?: number
+}
+
+export default function AttestationProgress({ stepDurationMs = 1100 }: AttestationProgressProps) {
   const [phase, setPhase] = useState<AttestationPhase>('idle')
   const [activeStep, setActiveStep] = useState(0)
   const [message, setMessage] = useState('Ready to generate a new revenue attestation.')
@@ -82,23 +86,23 @@ export default function AttestationProgress() {
     setMessage(`${currentStep.title} is in progress.`)
 
     if (activeStep === ATTESTATION_STEPS.length) {
-      const completionTimer = window.setTimeout(() => {
+      const completionTimer = setTimeout(() => {
         setPhase('complete')
         setMessage('Attestation successfully published on Stellar. You can start another report when needed.')
-      }, 1100)
+      }, stepDurationMs)
 
-      return () => window.clearTimeout(completionTimer)
+      return () => clearTimeout(completionTimer)
     }
 
-    const stepTimer = window.setTimeout(() => {
+    const stepTimer = setTimeout(() => {
       if (wasCanceled) {
         return
       }
 
       setActiveStep((current) => Math.min(ATTESTATION_STEPS.length, current + 1))
-    }, 1100)
+    }, stepDurationMs)
 
-    return () => window.clearTimeout(stepTimer)
+    return () => clearTimeout(stepTimer)
   }, [activeStep, phase, wasCanceled])
 
   const startAttestation = () => {
