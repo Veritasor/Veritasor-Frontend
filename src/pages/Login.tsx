@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom'
-import AuthShell from '../components/AuthShell'
+import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import AuthShell from '../components/AuthShell';
 
 const highlights = [
   'Enterprise-grade verification for revenue attestations',
@@ -8,6 +9,8 @@ const highlights = [
 ]
 
 export default function Login() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <AuthShell
       eyebrow="Authentication"
@@ -44,15 +47,23 @@ export default function Login() {
               Forgot password?
             </Link>
           </div>
-          <input
-            id="login-password"
-            className="auth-input auth-input-error"
-            type="password"
-            placeholder="Enter your password"
-            autoComplete="current-password"
-            aria-describedby="login-password-error"
-            defaultValue="badpass"
-          />
+          <div className="auth-input-toggle-group">
+            <input
+              id="login-password"
+              className="auth-input auth-input-error"
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              aria-describedby="login-password-error"
+              defaultValue="badpass"
+            />
+            <button
+              type="button"
+              className="auth-toggle-btn"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() => setShowPassword(!showPassword)}
+            >{showPassword ? "Hide" : "Show"}</button>
+          </div>
           <p id="login-password-error" className="auth-message auth-message-error" role="alert">
             Your password must include at least 12 characters and one symbol.
           </p>
