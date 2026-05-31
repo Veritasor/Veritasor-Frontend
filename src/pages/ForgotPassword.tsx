@@ -1,4 +1,6 @@
+import React, { useState } from 'react'
 import AuthShell from '../components/AuthShell'
+import { useToast } from '../components/ToastContext'
 
 const highlights = [
   'Recovery actions stay calm and minimal to keep attention on the primary next step',
@@ -7,6 +9,25 @@ const highlights = [
 ]
 
 export default function ForgotPassword() {
+  const { addToast } = useToast()
+  const [email, setEmail] = useState('')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!email.trim() || !email.includes('@')) {
+      addToast('Please enter a valid verified email address.', 'error')
+      return
+    }
+
+    addToast(`A secure recovery link has been sent to ${email}.`, 'success')
+    setEmail('')
+  }
+
+  const handleContactSupport = () => {
+    addToast('Opening support contact channels in a new window.', 'info')
+  }
+
   return (
     <AuthShell
       eyebrow="Recovery"
@@ -19,7 +40,7 @@ export default function ForgotPassword() {
       sideDescription="Recovery states reuse the same accessible card, message, and button tokens so the UI feels familiar even when the journey changes."
       sideHighlights={highlights}
     >
-      <form className="auth-form">
+      <form className="auth-form" onSubmit={handleSubmit}>
         <div className="auth-input-group">
           <label className="auth-label" htmlFor="recovery-email">
             Verified email
@@ -30,6 +51,8 @@ export default function ForgotPassword() {
             type="email"
             placeholder="security@veritasor.com"
             autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             aria-describedby="recovery-email-help"
           />
           <p id="recovery-email-help" className="auth-message">
@@ -49,7 +72,7 @@ export default function ForgotPassword() {
           <button type="submit" className="auth-button auth-button-primary">
             Send reset link
           </button>
-          <button type="button" className="auth-button auth-button-secondary">
+          <button type="button" className="auth-button auth-button-secondary" onClick={handleContactSupport}>
             Contact support
           </button>
         </div>
