@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import Login from '../pages/Login'
 import Signup from '../pages/Signup'
 import ForgotPassword from '../pages/ForgotPassword'
+import App from '../App'
 
 function renderWithRouter(element: ReactElement) {
   return render(<MemoryRouter>{element}</MemoryRouter>)
@@ -40,5 +41,20 @@ describe('authentication screens visual system', () => {
     expect(screen.getByLabelText(/verified email/i)).toHaveAttribute('type', 'email')
     expect(screen.getByRole('status')).toHaveTextContent(/recent reset attempts/i)
     expect(screen.getByRole('button', { name: /send reset link/i })).toBeInTheDocument()
+  })
+})
+
+describe('not-found route', () => {
+  it('orients users on unknown routes with safe navigation links', () => {
+    render(
+      <MemoryRouter initialEntries={['/missing-page']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: /we could not find that page/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /back to dashboard/i })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: /go to login/i })).toHaveAttribute('href', '/login')
+    expect(screen.getByLabelText(/additional support links/i)).toBeInTheDocument()
   })
 })
