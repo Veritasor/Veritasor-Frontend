@@ -5,18 +5,9 @@ export default function Attestations() {
       <p style={{ color: 'var(--muted)' }}>
         Revenue attestations published on Stellar. Merkle roots and metadata are stored on-chain.
       </p>
-      <section
-        style={{
-          marginTop: '2rem',
-          padding: '1.5rem',
-          background: 'var(--surface)',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-        }}
-      >
-        <p style={{ color: 'var(--muted)', margin: 0 }}>
-          No attestations yet. Run a revenue report from the dashboard to create one.
-        </p>
+        <section className="card" role="region" aria-labelledby="attestations-card-header">
+          <h2 id="attestations-card-header" className="card-header" style={{ marginTop: 0, fontSize: '1rem' }}>Attestation Info</h2>
+          <p className="card-body" style={{ color: 'var(--muted)', margin: 0 }}>No attestations yet. Run a revenue report from the dashboard to create one.</p>
       </section>
     </div>
   )
