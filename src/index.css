@@ -393,3 +393,76 @@ a:focus-visible {
     padding: 3rem;
   }
 }
+
+/* ==========================================================================
+   Accessibility utilities
+   See docs/uiux/landmarks-and-skip-link.md
+   ========================================================================== */
+
+/*
+ * Visually hidden, but available to screen readers. Add `.focusable` so the
+ * element becomes visible when it receives keyboard focus.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sr-only.focusable:focus,
+.sr-only.focusable:focus-within {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/*
+ * Skip-to-content link (WCAG 2.4.1 Bypass Blocks). Off-screen until focused,
+ * then slides into the top-left corner so keyboard / screen-reader users can
+ * jump straight to <main id="main-content">.
+ */
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  transform: translateY(-150%);
+  padding: 0.75rem 1.25rem;
+  background: var(--surface-strong);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 0 0 var(--radius-sm) 0;
+  outline: 3px solid rgba(94, 234, 212, 0.45);
+  outline-offset: 2px;
+  transition: transform 0.15s ease-in-out;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip-link {
+    transition: none;
+  }
+}
+
+/* The main region is a programmatic focus target; suppress its focus ring. */
+.app-main:focus,
+.app-main:focus-visible {
+  outline: none;
+}
