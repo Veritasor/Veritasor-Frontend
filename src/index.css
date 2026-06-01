@@ -56,11 +56,14 @@ input {
   font: inherit;
 }
 
-button:focus-visible,
-input:focus-visible,
-a:focus-visible {
-  outline: 3px solid rgba(94, 234, 212, 0.35);
-  outline-offset: 3px;
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible,
+.focus-ring:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .auth-page {
