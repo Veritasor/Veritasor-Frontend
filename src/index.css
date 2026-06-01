@@ -396,3 +396,138 @@ input {
     padding: 3rem;
   }
 }
+
+/* Loading Skeleton Styles */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.1) 0%,
+    rgba(148, 163, 184, 0.2) 50%,
+    rgba(148, 163, 184, 0.1) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-sm);
+  animation: shimmer 2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: pulse 2s infinite;
+  }
+}
+
+.skeleton-text {
+  height: 1rem;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-text-short {
+  width: 60%;
+}
+
+.skeleton-text-medium {
+  width: 80%;
+}
+
+.skeleton-card {
+  padding: 1.5rem;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.skeleton-card-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.skeleton-row-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border-radius: 8px 8px 0 0;
+}
+
+.skeleton-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.skeleton-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-metric-label {
+  height: 0.75rem;
+  width: 100px;
+}
+
+.skeleton-metric-value {
+  height: 1.5rem;
+  width: 60%;
+}
+
+.loading-region[aria-busy="true"] {
+  pointer-events: none;
+}
+
+.loading-region[aria-busy="true"] .skeleton {
+  display: block;
+}
+
+.loading-content {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Responsive adjustments for loading states */
+@media (max-width: 640px) {
+  .skeleton-row {
+    grid-template-columns: 1fr;
+  }
+
+  .skeleton-row-header {
+    grid-template-columns: 1fr;
+    display: none;
+  }
+
+  .skeleton-metric-value {
+    width: 80%;
+  }
+}
