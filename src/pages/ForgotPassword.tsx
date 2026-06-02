@@ -1,12 +1,33 @@
+import React, { useState } from 'react'
 import AuthShell from '../components/AuthShell'
+import { useToast } from '../components/ToastContext'
 
 const highlights = [
-  'Recovery actions stay calm and minimal to keep attention on the primary next step',
-  'Success and caution messages use shared semantics and consistent spacing',
-  'Touch targets remain full-width on mobile for dependable tap behavior',
-]
+  "Recovery actions stay calm and minimal to keep attention on the primary next step",
+  "Success and caution messages use shared semantics and consistent spacing",
+  "Touch targets remain full-width on mobile for dependable tap behavior",
+];
 
 export default function ForgotPassword() {
+  const { addToast } = useToast()
+  const [email, setEmail] = useState('')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!email.trim() || !email.includes('@')) {
+      addToast('Please enter a valid verified email address.', 'error')
+      return
+    }
+
+    addToast(`A secure recovery link has been sent to ${email}.`, 'success')
+    setEmail('')
+  }
+
+  const handleContactSupport = () => {
+    addToast('Opening support contact channels in a new window.', 'info')
+  }
+
   return (
     <AuthShell
       eyebrow="Recovery"
@@ -19,7 +40,7 @@ export default function ForgotPassword() {
       sideDescription="Recovery states reuse the same accessible card, message, and button tokens so the UI feels familiar even when the journey changes."
       sideHighlights={highlights}
     >
-      <form className="auth-form">
+      <form className="auth-form" onSubmit={handleSubmit}>
         <div className="auth-input-group">
           <label className="auth-label" htmlFor="recovery-email">
             Verified email
@@ -30,30 +51,44 @@ export default function ForgotPassword() {
             type="email"
             placeholder="security@veritasor.com"
             autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             aria-describedby="recovery-email-help"
           />
-          <p id="recovery-email-help" className="auth-message">
-            Recovery links expire after 15 minutes and invalidate any older reset requests.
+          <p
+            id="recovery-email-help"
+            className="auth-message auth-message-help"
+          >
+            Recovery links expire after 15 minutes and invalidate any older
+            reset requests.
           </p>
         </div>
 
         <div className="auth-message auth-message-success" role="status">
-          Recent reset attempts are shown on the next screen so users can confirm whether support action is needed.
+          <span aria-hidden="true" className="auth-message-icon">
+            ✓
+          </span>
+          Recent reset attempts are shown on the next screen so users can
+          confirm whether support action is needed.
         </div>
 
         <div className="auth-message auth-message-warning">
-          If your workspace uses SSO, direct password reset should remain a secondary option below SSO assistance.
+          <span aria-hidden="true" className="auth-message-icon">
+            ⚠
+          </span>
+          If your workspace uses SSO, direct password reset should remain a
+          secondary option below SSO assistance.
         </div>
 
         <div className="auth-actions">
           <button type="submit" className="auth-button auth-button-primary">
             Send reset link
           </button>
-          <button type="button" className="auth-button auth-button-secondary">
+          <button type="button" className="auth-button auth-button-secondary" onClick={handleContactSupport}>
             Contact support
           </button>
         </div>
       </form>
     </AuthShell>
-  )
+  );
 }
