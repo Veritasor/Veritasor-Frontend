@@ -1,13 +1,15 @@
-import { Link } from 'react-router-dom'
-import AuthShell from '../components/AuthShell'
+import { Link } from "react-router-dom";
+import AuthShell from "../components/AuthShell";
 
 const highlights = [
-  'Enterprise-grade verification for revenue attestations',
-  'Keyboard-first forms with visible focus and inline guidance',
-  'Reusable error, loading, and disabled states across every auth entry point',
-]
+  "Enterprise-grade verification for revenue attestations",
+  "Keyboard-first forms with visible focus and inline guidance",
+  "Reusable error, loading, and disabled states across every auth entry point",
+];
 
 export default function Login() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <AuthShell
       eyebrow="Authentication"
@@ -53,7 +55,14 @@ export default function Login() {
             aria-describedby="login-password-error"
             defaultValue="badpass"
           />
-          <p id="login-password-error" className="auth-message auth-message-error" role="alert">
+          <p
+            id="login-password-error"
+            className="auth-message auth-message-error"
+            role="alert"
+          >
+            <span aria-hidden="true" className="auth-message-icon">
+              !
+            </span>
             Your password must include at least 12 characters and one symbol.
           </p>
         </div>
@@ -70,11 +79,15 @@ export default function Login() {
           <button type="button" className="auth-button auth-button-secondary">
             Continue with Google
           </button>
-          <button type="button" className="auth-button auth-button-ghost" disabled>
+          <button
+            type="button"
+            className="auth-button auth-button-ghost"
+            disabled
+          >
             SSO loading...
           </button>
         </div>
       </form>
     </AuthShell>
-  )
+  );
 }
