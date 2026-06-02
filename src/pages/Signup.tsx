@@ -1,4 +1,5 @@
-import AuthShell from '../components/AuthShell'
+import { useState } from 'react';
+
 
 const highlights = [
   'Clear field grouping keeps legal, team, and security details easy to scan',
@@ -7,6 +8,8 @@ const highlights = [
 ]
 
 export default function Signup() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <AuthShell
       eyebrow="Create account"
@@ -65,14 +68,22 @@ export default function Signup() {
           <label className="auth-label" htmlFor="signup-password">
             Password
           </label>
-          <input
-            id="signup-password"
-            className="auth-input"
-            type="password"
-            placeholder="Create a strong password"
-            autoComplete="new-password"
-            aria-describedby="signup-password-help"
-          />
+          <div className="auth-input-toggle-group">
+            <input
+              id="signup-password"
+              className="auth-input"
+              type={showPassword ? "text" : "password"}
+              placeholder="Create a strong password"
+              autoComplete="new-password"
+              aria-describedby="signup-password-help"
+            />
+            <button
+              type="button"
+              className="auth-toggle-btn"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() => setShowPassword(!showPassword)}
+            >{showPassword ? "Hide" : "Show"}</button>
+          </div>
           <p id="signup-password-help" className="auth-message">
             Use 12+ characters with uppercase, lowercase, number, and symbol.
           </p>
