@@ -8,6 +8,8 @@ const highlights = [
 ];
 
 export default function Login() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <AuthShell
       eyebrow="Authentication"

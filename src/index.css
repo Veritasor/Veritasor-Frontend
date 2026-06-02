@@ -234,9 +234,9 @@ a:focus-visible {
   border-color: rgba(173, 192, 217, 0.45);
 }
 
-.auth-input:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 0.3rem rgba(96, 165, 250, 0.16);
+.auth-input-toggle-group {
+  position: relative;
+  display: flex;
 }
 
 ..auth-input-error {

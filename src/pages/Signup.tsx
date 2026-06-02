@@ -7,6 +7,8 @@ const highlights = [
 ];
 
 export default function Signup() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <AuthShell
       eyebrow="Create account"
