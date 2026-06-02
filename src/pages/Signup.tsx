@@ -1,12 +1,14 @@
-import AuthShell from '../components/AuthShell'
+import AuthShell from "../components/AuthShell";
 
 const highlights = [
-  'Clear field grouping keeps legal, team, and security details easy to scan',
-  'Password requirements are visible before submission to reduce recovery loops',
-  'Responsive spacing keeps the full flow usable without horizontal scrolling',
-]
+  "Clear field grouping keeps legal, team, and security details easy to scan",
+  "Password requirements are visible before submission to reduce recovery loops",
+  "Responsive spacing keeps the full flow usable without horizontal scrolling",
+];
 
 export default function Signup() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <AuthShell
       eyebrow="Create account"
@@ -73,7 +75,10 @@ export default function Signup() {
             autoComplete="new-password"
             aria-describedby="signup-password-help"
           />
-          <p id="signup-password-help" className="auth-message">
+          <p
+            id="signup-password-help"
+            className="auth-message auth-message-help"
+          >
             Use 12+ characters with uppercase, lowercase, number, and symbol.
           </p>
         </div>
@@ -83,12 +88,17 @@ export default function Signup() {
           <span className="auth-strength-bar auth-strength-bar-active" />
           <span className="auth-strength-bar auth-strength-bar-active" />
           <span className="auth-strength-bar" />
-          <p className="auth-strength-copy">Strong enough for a production workspace</p>
+          <p className="auth-strength-copy">
+            Strong enough for a production workspace
+          </p>
         </div>
 
         <label className="auth-checkbox">
           <input type="checkbox" />
-          <span>I agree to the terms, privacy policy, and audit logging requirements.</span>
+          <span>
+            I agree to the terms, privacy policy, and audit logging
+            requirements.
+          </span>
         </label>
 
         <div className="auth-actions">
@@ -101,5 +111,5 @@ export default function Signup() {
         </div>
       </form>
     </AuthShell>
-  )
+  );
 }

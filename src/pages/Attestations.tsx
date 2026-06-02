@@ -12,6 +12,13 @@ const STATUS_COLORS = {
 }
 
 export default function Attestations() {
+  // Simulated loading state - in production, this would be driven by data fetching
+  const [isLoading] = useState(false)
+
+  if (isLoading) {
+    return <AttestationsSkeleton />
+  }
+
   return (
     <div>
       <h1 style={{ marginTop: 0 }}>Attestations</h1>
