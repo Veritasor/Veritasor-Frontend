@@ -27,6 +27,8 @@ export default defineConfig({
       },
       include: [
         'src/components/AuthShell.tsx',
+        'src/components/TopAppBar.tsx',
+        'src/components/Layout.tsx',
         'src/pages/Login.tsx',
         'src/pages/Signup.tsx',
         'src/pages/ForgotPassword.tsx',
