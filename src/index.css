@@ -17,7 +17,7 @@
   --warning: #fbbf24;
   --warning-soft: rgba(251, 191, 36, 0.14);
   --shadow-lg: 0 28px 60px rgba(2, 6, 23, 0.45);
-  --font-sans: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: "DM Sans", "Segoe UI", system-ui, sans-serif;
   --radius-sm: 0.75rem;
   --radius-md: 1.25rem;
   --radius-lg: 1.75rem;
@@ -31,7 +31,11 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   background:
-    radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 32%),
+    radial-gradient(
+      circle at top left,
+      rgba(45, 212, 191, 0.18),
+      transparent 32%
+    ),
     radial-gradient(circle at right, rgba(59, 130, 246, 0.22), transparent 28%),
     linear-gradient(180deg, #091325 0%, #050b14 100%);
   color: var(--text);
@@ -216,7 +220,10 @@ a:focus-visible {
   border-radius: var(--radius-sm);
   background: rgba(15, 23, 42, 0.82);
   color: var(--text);
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
 }
 
 .auth-input::placeholder {
@@ -227,23 +234,49 @@ a:focus-visible {
   border-color: rgba(173, 192, 217, 0.45);
 }
 
-.auth-input:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 0.3rem rgba(96, 165, 250, 0.16);
+.auth-input-toggle-group {
+  position: relative;
+  display: flex;
 }
 
-.auth-input-error {
+..auth-input-error {
   border-color: var(--danger);
   background: var(--danger-soft);
 }
 
 .auth-message {
+  display: block;
+  margin-top: 0.45rem;
   font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.auth-message-help {
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.auth-message-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: currentColor;
+  font-size: 0.95rem;
 }
 
 .auth-message-error,
 .auth-message-success,
 .auth-message-warning {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: flex-start;
   padding: 0.9rem 1rem;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
