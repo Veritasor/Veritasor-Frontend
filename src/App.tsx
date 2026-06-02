@@ -18,6 +18,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="attestations" element={<Attestations />} />
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }
