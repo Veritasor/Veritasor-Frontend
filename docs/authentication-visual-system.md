@@ -14,16 +14,16 @@ Create a cohesive, accessible visual system for authentication screens that engi
 ## Visual System Tokens
 
 - Typography scale
-- `eyebrow`: 0.78rem, 700, uppercase
-- `label/body`: 0.92rem to 0.95rem
-- `panel title`: clamp(1.8rem, 4vw, 3rem)
-- `hero title`: clamp(2rem, 5vw, 4.5rem)
+- `eyebrow`: `--text-xs`, 700, uppercase
+- `label/body`: `--text-sm` to `--text-md`
+- `panel title`: `--text-display`
+- `hero title`: `--text-hero`
 
 - Spacing scale
-- `container padding`: 1rem mobile, 1.5rem tablet, 3rem desktop
-- `form gap`: 1.25rem
-- `input/message gap`: 0.5rem
-- `section gap`: 2rem
+- `container padding`: `--space-4` mobile, `--space-6` tablet, `--space-12` desktop
+- `form gap`: `--space-5`
+- `input/message gap`: `--space-2`
+- `section gap`: `--space-8`
 
 - Surfaces and borders
 - shared auth shell uses a glass surface with `var(--surface)` and a single border token
@@ -36,13 +36,24 @@ Create a cohesive, accessible visual system for authentication screens that engi
 - Secondary actions stay outlined to avoid competing with the main completion path
 - Ghost/disabled actions are visually quieter and never outrank the primary CTA
 - Error, success, and warning states share the same spacing and border radius so validation feels systematic instead of ad hoc
+- Validation and status banners use the same rounded message containers and icon + text layout for consistency
+
+## Validation and Messaging Pattern
+
+- Use `auth-message` for all follow-up copy under form fields and for page-level banners.
+- Use `auth-message-help` for field-level guidance that is not an error, and keep it visually subtle.
+- Use `auth-message-error`, `auth-message-success`, and `auth-message-warning` for exposed feedback panels.
+- Field-level errors are placed directly under the associated input and linked with `aria-describedby`.
+- Error panels use `role="alert"` to announce the message immediately.
+- Success panels use `role="status"` for polite announcements, while warnings remain visible without interrupting focus flow.
+- Every exposed feedback panel includes a decorative icon via `auth-message-icon` to reinforce meaning without relying on color alone.
 
 ## Accessibility Notes
 
 - Focus is visible on links, inputs, and buttons through a 3px outline plus offset
 - Contrast assumptions use near-white text on deep navy surfaces and tinted status backgrounds with readable foreground colors
 - Keyboard flow is linear: brand link, form fields, inline recovery link where present, checkbox, then actions
-- Touch targets use a minimum height of `3.5rem`
+- Touch targets use a minimum height of `--space-touch`
 - Mobile-first layout avoids horizontal scrolling and stacks all actions into one column below `720px`
 
 ## Acceptance Criteria
