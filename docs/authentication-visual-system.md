@@ -36,6 +36,17 @@ Create a cohesive, accessible visual system for authentication screens that engi
 - Secondary actions stay outlined to avoid competing with the main completion path
 - Ghost/disabled actions are visually quieter and never outrank the primary CTA
 - Error, success, and warning states share the same spacing and border radius so validation feels systematic instead of ad hoc
+- Validation and status banners use the same rounded message containers and icon + text layout for consistency
+
+## Validation and Messaging Pattern
+
+- Use `auth-message` for all follow-up copy under form fields and for page-level banners.
+- Use `auth-message-help` for field-level guidance that is not an error, and keep it visually subtle.
+- Use `auth-message-error`, `auth-message-success`, and `auth-message-warning` for exposed feedback panels.
+- Field-level errors are placed directly under the associated input and linked with `aria-describedby`.
+- Error panels use `role="alert"` to announce the message immediately.
+- Success panels use `role="status"` for polite announcements, while warnings remain visible without interrupting focus flow.
+- Every exposed feedback panel includes a decorative icon via `auth-message-icon` to reinforce meaning without relying on color alone.
 
 ## Accessibility Notes
 

@@ -1,10 +1,10 @@
-import AuthShell from '../components/AuthShell'
+import AuthShell from "../components/AuthShell";
 
 const highlights = [
-  'Recovery actions stay calm and minimal to keep attention on the primary next step',
-  'Success and caution messages use shared semantics and consistent spacing',
-  'Touch targets remain full-width on mobile for dependable tap behavior',
-]
+  "Recovery actions stay calm and minimal to keep attention on the primary next step",
+  "Success and caution messages use shared semantics and consistent spacing",
+  "Touch targets remain full-width on mobile for dependable tap behavior",
+];
 
 export default function ForgotPassword() {
   return (
@@ -32,17 +32,29 @@ export default function ForgotPassword() {
             autoComplete="email"
             aria-describedby="recovery-email-help"
           />
-          <p id="recovery-email-help" className="auth-message">
-            Recovery links expire after 15 minutes and invalidate any older reset requests.
+          <p
+            id="recovery-email-help"
+            className="auth-message auth-message-help"
+          >
+            Recovery links expire after 15 minutes and invalidate any older
+            reset requests.
           </p>
         </div>
 
         <div className="auth-message auth-message-success" role="status">
-          Recent reset attempts are shown on the next screen so users can confirm whether support action is needed.
+          <span aria-hidden="true" className="auth-message-icon">
+            ✓
+          </span>
+          Recent reset attempts are shown on the next screen so users can
+          confirm whether support action is needed.
         </div>
 
         <div className="auth-message auth-message-warning">
-          If your workspace uses SSO, direct password reset should remain a secondary option below SSO assistance.
+          <span aria-hidden="true" className="auth-message-icon">
+            ⚠
+          </span>
+          If your workspace uses SSO, direct password reset should remain a
+          secondary option below SSO assistance.
         </div>
 
         <div className="auth-actions">
@@ -55,5 +67,5 @@ export default function ForgotPassword() {
         </div>
       </form>
     </AuthShell>
-  )
+  );
 }
