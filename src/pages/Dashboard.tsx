@@ -1,32 +1,27 @@
 import { useState } from 'react'
-import { useToast } from '../components/ToastContext'
+import { DashboardSkeleton } from '../components/SkeletonLoader'
 
+/**
+ * Dashboard Page
+ *
+ * Displays key metrics and quick actions for revenue management.
+ * Implements loading skeleton for improved perceived performance.
+ *
+ * Accessibility:
+ * - aria-busy attribute on loading states
+ * - Semantic heading hierarchy
+ * - Loading state announced to screen readers via role="status"
+ *
+ * Responsive:
+ * - Metrics grid adapts to viewport width
+ * - Mobile-optimized padding and spacing
+ */
 export default function Dashboard() {
-  const { addToast } = useToast()
-  const [sources, setSources] = useState([
-    { id: 'stripe', name: 'Stripe', connected: true },
-    { id: 'razorpay', name: 'Razorpay', connected: true },
-    { id: 'shopify', name: 'Shopify', connected: false, comingSoon: true }
-  ])
+  // Simulated loading state - in production, this would be driven by data fetching
+  const [isLoading] = useState(false)
 
-  const handleDisconnect = (id: string, name: string) => {
-    // Show a warning/info toast when disconnecting
-    addToast(`Disconnecting ${name} will stop all automatic revenue syncs.`, 'warning')
-
-    // Disconnect the source in state after a tiny delay or immediately
-    setTimeout(() => {
-      setSources((prev) =>
-        prev.map((src) => (src.id === id ? { ...src, connected: false } : src))
-      )
-      addToast(`${name} has been disconnected successfully.`, 'info')
-    }, 600)
-  }
-
-  const handleConnect = (id: string, name: string) => {
-    setSources((prev) =>
-      prev.map((src) => (src.id === id ? { ...src, connected: true } : src))
-    )
-    addToast(`${name} is now connected.`, 'success')
+  if (isLoading) {
+    return <DashboardSkeleton />
   }
 
   return (
@@ -35,13 +30,54 @@ export default function Dashboard() {
       <p style={{ color: 'var(--muted)' }}>
         Connect your revenue sources and manage attestations from here.
       </p>
-      <section className="card" role="region" aria-labelledby="dashboard-card-header">
-        <h2 id="dashboard-card-header" className="card-header" style={{ marginTop: 0, fontSize: '1rem' }}>Quick actions</h2>
-        <ul className="card-body" style={{ color: 'var(--muted)' }}>
-          <li>Connect Stripe, Razorpay, or Shopify (coming soon)</li>
-          <li>Trigger monthly revenue report</li>
-          <li>View attestation history</li>
-        </ul>
+
+      {/* Metrics Section */}
+      <section
+        style={{
+          marginTop: '2rem',
+          padding: '1.5rem',
+          background: 'var(--surface)',
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+        }}
+      >
+        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Key Metrics</h2>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1.5rem',
+            marginBottom: '2rem',
+          }}
+        >
+          {/* Sample metric cards */}
+          {[
+            { label: 'Monthly Revenue', value: '$12,345' },
+            { label: 'Attestations', value: '24' },
+            { label: 'Connected Sources', value: '3' },
+            { label: 'Last Updated', value: 'Today' },
+          ].map((metric, idx) => (
+            <div key={idx} style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+                {metric.label}
+              </span>
+              <span style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--accent)' }}>
+                {metric.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick actions section */}
+        <div style={{ paddingTop: '2rem', borderTop: '1px solid var(--border)' }}>
+          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Quick actions</h3>
+          <ul style={{ color: 'var(--muted)', margin: 0, paddingLeft: '1.5rem' }}>
+            <li>Connect Stripe, Razorpay, or Shopify (coming soon)</li>
+            <li>Trigger monthly revenue report</li>
+            <li>View attestation history</li>
+          </ul>
+        </div>
       </section>
     </div>
   )

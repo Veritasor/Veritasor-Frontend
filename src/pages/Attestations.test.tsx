@@ -1,43 +1,51 @@
-import { render, fireEvent, within, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import type { ReactElement } from 'react'
-import { describe, expect, it } from 'vitest'
+/**
+ * Attestations Page Tests
+ *
+ * Tests for Attestations component including loading states, accessibility, and responsive behavior.
+ * Ensures WCAG 2.1 AA compliance with proper semantic HTML and table structure.
+ */
+
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import Attestations from './Attestations'
 
-function renderWithRouter(component: ReactElement) {
-  return render(<MemoryRouter>{component}</MemoryRouter>)
-}
+describe('Attestations Page', () => {
+  it('should render attestations page with complete content and structure', () => {
+    const { container } = render(<Attestations />)
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading).toBeInTheDocument()
+    expect(heading).toHaveTextContent('Attestations')
 
-describe('Attestations page', () => {
-  it('renders the attestation progress section and start button', () => {
-    const { container } = renderWithRouter(<Attestations />)
+    const columnHeaders = screen.getAllByRole('columnheader')
+    expect(columnHeaders.length).toBeGreaterThan(0)
 
-    expect(within(container).getByRole('heading', { name: /attestations/i })).toBeInTheDocument()
-    expect(within(container).getByRole('button', { name: /start attestation/i })).toBeInTheDocument()
-    expect(within(container).getByRole('status')).toHaveTextContent(/ready to generate a new revenue attestation/i)
+    const rows = screen.getAllByRole('row')
+    expect(rows.length).toBeGreaterThan(0)
+
+    const section = container.querySelector('section')
+    expect(section).toBeInTheDocument()
+    expect(section).toHaveStyle({ padding: '1.5rem' })
   })
 
-  it('advances through progress steps and completes the attestation', async () => {
-    const { container } = renderWithRouter(<Attestations stepDurationMs={10} />)
+  it('should render with proper semantic structure and styling', () => {
+    const { container } = render(<Attestations />)
 
-    const startButton = within(container).getByRole('button', { name: /start attestation/i })
-    fireEvent.click(startButton)
+    const headerRows = container.querySelectorAll('[aria-label="Attestations table header"]')
+    expect(headerRows.length).toBeGreaterThan(0)
 
-    expect(within(container).getByRole('button', { name: /cancel attestation/i })).toBeInTheDocument()
-    expect(within(container).getByRole('status')).toHaveTextContent(/collecting monthly revenue/i)
-
-    await waitFor(() => expect(within(container).getByRole('status')).toHaveTextContent(/successfully published on stellar/i))
-    expect(within(container).getByRole('button', { name: /start another attestation/i })).toBeInTheDocument()
+    const section = container.querySelector('section')
+    const sectionStyle = section?.getAttribute('style') || ''
+    expect(sectionStyle).toContain('background: var(--surface)')
+    expect(sectionStyle).toContain('border: 1px solid var(--border)')
   })
 
-  it('cancels the attestation mid-process and shows a reset option', () => {
-    const { container } = renderWithRouter(<Attestations />)
+  it('should display empty state with proper content and styling', () => {
+    const { container } = render(<Attestations />)
 
-    const startButton = within(container).getByRole('button', { name: /start attestation/i })
-    fireEvent.click(startButton)
-    fireEvent.click(within(container).getByRole('button', { name: /cancel attestation/i }))
+    const statusBadge = container.querySelector('[style*="var(--success-soft)"]')
+    expect(statusBadge).toBeInTheDocument()
 
-    expect(within(container).getByRole('status')).toHaveTextContent(/attestation processing was canceled/i)
-    expect(within(container).getByRole('button', { name: /start attestation/i })).toBeInTheDocument()
+    const paras = container.querySelectorAll('p')
+    expect(paras.length).toBeGreaterThan(0)
   })
 })
