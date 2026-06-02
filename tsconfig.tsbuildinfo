@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/Layout.tsx","./src/pages/Attestations.tsx","./src/pages/Dashboard.tsx"],"version":"5.6.3"}
+{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/AuthShell.tsx","./src/components/Layout.tsx","./src/components/ToastContext.tsx","./src/pages/Attestations.tsx","./src/pages/Dashboard.tsx","./src/pages/ForgotPassword.tsx","./src/pages/Login.tsx","./src/pages/Signup.tsx","./src/test/auth-screens.test.tsx","./src/test/setup.ts","./src/test/toast.test.tsx"],"version":"5.6.3"}
