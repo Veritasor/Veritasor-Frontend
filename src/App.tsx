@@ -5,6 +5,7 @@ import Attestations from './pages/Attestations'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
+import NotFound from './pages/NotFound'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="attestations" element={<Attestations />} />
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }
