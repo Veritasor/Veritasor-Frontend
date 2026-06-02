@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
+  // Simulated loading state - in production, this would be driven by data fetching
+  const [isLoading] = useState(false)
+
+  if (isLoading) {
+    return <DashboardSkeleton />
+  }
+
   return (
     <section className="app-page">
       <header className="page-header">

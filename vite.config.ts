@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
@@ -30,6 +30,10 @@ export default defineConfig({
         'src/pages/Login.tsx',
         'src/pages/Signup.tsx',
         'src/pages/ForgotPassword.tsx',
+        'src/components/ToastContext.tsx',
+        'src/components/Layout.tsx',
+        'src/pages/Attestations.tsx',
+        'src/pages/Dashboard.tsx',
       ],
     },
   },

@@ -50,21 +50,27 @@ export default [
 
 ### Checklist
 
-- [ ] **Visible focus rings — `src/index.css`**
-  Add global `:focus-visible` styles using the theme accent token:
+- [x] **Visible focus rings — `src/index.css`**
+  Standardize all keyboard focus with a shared design token:
   ```css
-  :focus-visible {
-    outline: 2px solid var(--accent); /* #38bdf8 */
-    outline-offset: 2px;
-    border-radius: 2px;
+  :root {
+    --focus-ring: 3px solid rgba(94, 234, 212, 0.92);
+    --focus-ring-offset: 3px;
   }
-  /* Remove default outline only when focus-visible is active */
+
   :focus:not(:focus-visible) {
     outline: none;
   }
-  ```
 
-- [ ] **Navigation links — `src/components/Layout.tsx`**
+  :focus-visible,
+  .focus-ring:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+  ```
+  This pattern keeps the ring consistent across buttons, links, and custom interactive elements.
+
+- [x] **Navigation links — `src/components/Layout.tsx`**
   Verify that both `<Link to="/">` (Veritasor logo) and the two nav `<Link>` elements
   show the accent-color ring when tabbed to. Do not suppress `outline` via inline styles.
 

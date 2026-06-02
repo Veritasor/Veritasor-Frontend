@@ -1,6 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
-export default function Layout() {
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
@@ -43,5 +42,51 @@ export default function Layout() {
         <Outlet />
       </main>
     </div>
+  )
+}
+
+function ToastContainer() {
+  const { toasts, removeToast } = useToast()
+
+  return (
+    <div
+      aria-live="polite"
+      aria-atomic="true"
+      className="toast-container"
+    >
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+      ))}
+    </div>
+  )
+}
+
+export default function Layout() {
+  return (
+    <ToastProvider>
+      <div style={{ display: 'flex', minHeight: '100vh' }}>
+        <aside
+          style={{
+            width: 220,
+            padding: '1.5rem 1rem',
+            borderRight: '1px solid var(--border)',
+            background: 'var(--surface)',
+          }}
+        >
+          <Link to="/" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>
+            Veritasor
+          </Link>
+          <nav style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <Link to="/">Dashboard</Link>
+            <Link to="/attestations">Attestations</Link>
+            <Link to="/login">Login</Link>
+          </nav>
+        </aside>
+        <main style={{ flex: 1, padding: '2rem', position: 'relative' }}>
+          <Outlet />
+        </main>
+      </div>
+      <ToastContainer />
+    </ToastProvider>
   )
 }

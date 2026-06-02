@@ -19,6 +19,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/onboarding" element={<OnboardingWizard />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="attestations" element={<Attestations />} />
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="confirm" element={<ConfirmSourceStep />} />
         </Route>
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }
