@@ -2539,3 +2539,122 @@ input {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* ── Incident / Maintenance Banners ───────────────────────────────────── */
+
+.incident-banner-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.incident-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: var(--leading-normal);
+  /* Ensure text wraps gracefully on small viewports */
+  flex-wrap: wrap;
+}
+
+/* Severity: critical */
+.incident-banner-critical {
+  background: rgba(220, 38, 38, 0.18);
+  border-bottom: 2px solid var(--danger);
+  color: #fecdd3;
+}
+
+/* Severity: warning */
+.incident-banner-warning {
+  background: rgba(251, 191, 36, 0.14);
+  border-bottom: 2px solid var(--warning);
+  color: #fef3c7;
+}
+
+/* Severity: maintenance */
+.incident-banner-maintenance {
+  background: rgba(148, 163, 184, 0.1);
+  border-bottom: 2px solid var(--border-strong);
+  color: var(--muted);
+}
+
+.incident-banner-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.incident-banner-label {
+  flex-shrink: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--text-xs);
+}
+
+.incident-banner-message {
+  flex: 1;
+  min-width: 0;
+}
+
+.incident-banner-link {
+  flex-shrink: 0;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.incident-banner-link:hover {
+  opacity: 0.8;
+}
+
+.incident-banner-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  padding: var(--space-1);
+  line-height: 1;
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  margin-inline-start: auto;
+  /* Minimum touch target */
+  min-width: 2rem;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.incident-banner-dismiss:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.incident-banner-dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* RTL support */
+[dir="rtl"] .incident-banner {
+  flex-direction: row-reverse;
+}
+
+@media (max-width: 480px) {
+  .incident-banner {
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .incident-banner-label {
+    display: none;
+  }
+}

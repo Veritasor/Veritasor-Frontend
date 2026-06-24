@@ -30,6 +30,7 @@ export default defineConfig({
         'src/components/TopAppBar.tsx',
         'src/components/Layout.tsx',
         'src/components/AttestationConfirmModal.tsx',
+        'src/components/IncidentBanner.tsx',
         'src/pages/Login.tsx',
         'src/pages/Signup.tsx',
         'src/pages/ForgotPassword.tsx',
