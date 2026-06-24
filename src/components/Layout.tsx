@@ -1,8 +1,39 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
+import { ToastProvider, useToast } from './ToastContext'
 
-export default function Layout() {
+function ToastItem({ toast, onRemove }: { toast: { id: string; type: string; message: string; duration?: number }; onRemove: (id: string) => void }) {
+  return (
+    <div
+      role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+      className={`toast toast-${toast.type}`}
+    >
+      <span>{toast.message}</span>
+      <button
+        type="button"
+        aria-label="Close notification"
+        onClick={() => onRemove(toast.id)}
+        style={{ marginLeft: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+function ToastContainer() {
+  const { toasts, removeToast } = useToast()
+  return (
+    <div aria-live="polite" aria-atomic="true" className="toast-container">
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+      ))}
+    </div>
+  )
+}
+
+function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function toggleSidebar() {
@@ -37,6 +68,9 @@ export default function Layout() {
             <NavLink to="/attestations" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
               Attestations
             </NavLink>
+            <NavLink to="/settings" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+              Settings
+            </NavLink>
           </nav>
         </aside>
 
@@ -52,22 +86,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
-    </div>
-  )
-}
 
-function ToastContainer() {
-  const { toasts, removeToast } = useToast()
-
-  return (
-    <div
-      aria-live="polite"
-      aria-atomic="true"
-      className="toast-container"
-    >
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
-      ))}
+      <ToastContainer />
     </div>
   )
 }
@@ -75,29 +95,7 @@ function ToastContainer() {
 export default function Layout() {
   return (
     <ToastProvider>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <aside
-          style={{
-            width: 220,
-            padding: '1.5rem 1rem',
-            borderRight: '1px solid var(--border)',
-            background: 'var(--surface)',
-          }}
-        >
-          <Link to="/" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>
-            Veritasor
-          </Link>
-          <nav style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/attestations">Attestations</Link>
-            <Link to="/login">Login</Link>
-          </nav>
-        </aside>
-        <main style={{ flex: 1, padding: '2rem', position: 'relative' }}>
-          <Outlet />
-        </main>
-      </div>
-      <ToastContainer />
+      <LayoutInner />
     </ToastProvider>
   )
 }
