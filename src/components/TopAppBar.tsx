@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import ThemeSwitcher from './ThemeSwitcher'
 
 export interface TopAppBarProps {
   workspaces?: string[]
@@ -229,6 +230,7 @@ export default function TopAppBar({
         </div>
 
         <div className="app-bar-actions">
+          <ThemeSwitcher />
           <button
             type="button"
             className={`env-badge env-badge-${environment}`}
