@@ -1,8 +1,40 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
+import { ToastProvider, useToast } from './ToastContext'
+import type { Toast } from './ToastContext'
 
-export default function Layout() {
+function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
+  const isAlert = toast.type === 'error' || toast.type === 'warning'
+  return (
+    <div
+      className={`toast toast-${toast.type}`}
+      role={isAlert ? 'alert' : 'status'}
+    >
+      <span>{toast.message}</span>
+      <button
+        type="button"
+        aria-label="Close notification"
+        onClick={() => onRemove(toast.id)}
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+function ToastContainer() {
+  const { toasts, removeToast } = useToast()
+  return (
+    <div aria-live="polite" aria-atomic="true" className="toast-container">
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+      ))}
+    </div>
+  )
+}
+
+function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function toggleSidebar() {
@@ -31,10 +63,17 @@ export default function Layout() {
           aria-label="Site navigation"
         >
           <nav aria-label="Main navigation">
-            <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
+            >
               Dashboard
             </NavLink>
-            <NavLink to="/attestations" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+            <NavLink
+              to="/attestations"
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
+            >
               Attestations
             </NavLink>
           </nav>
@@ -52,22 +91,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
-    </div>
-  )
-}
 
-function ToastContainer() {
-  const { toasts, removeToast } = useToast()
-
-  return (
-    <div
-      aria-live="polite"
-      aria-atomic="true"
-      className="toast-container"
-    >
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
-      ))}
+      <ToastContainer />
     </div>
   )
 }
@@ -75,29 +100,7 @@ function ToastContainer() {
 export default function Layout() {
   return (
     <ToastProvider>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <aside
-          style={{
-            width: 220,
-            padding: '1.5rem 1rem',
-            borderRight: '1px solid var(--border)',
-            background: 'var(--surface)',
-          }}
-        >
-          <Link to="/" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>
-            Veritasor
-          </Link>
-          <nav style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/attestations">Attestations</Link>
-            <Link to="/login">Login</Link>
-          </nav>
-        </aside>
-        <main style={{ flex: 1, padding: '2rem', position: 'relative' }}>
-          <Outlet />
-        </main>
-      </div>
-      <ToastContainer />
+      <AppShell />
     </ToastProvider>
   )
 }

@@ -2539,3 +2539,288 @@ input {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* ── Search Filter (sf-*) ─────────────────────────────────────────────────
+ * Reusable search-and-filter pattern for Attestations, Sources, and any
+ * future list page.  Consumes existing design-system tokens so light/dark
+ * themes are handled automatically.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+.sf-root {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* ── Search input ─────────────────────────────────────────── */
+.sf-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sf-search-icon {
+  position: absolute;
+  left: 0.875rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.sf-search-input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.75rem 2.75rem 0.75rem 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.82);
+  color: var(--text);
+  font: inherit;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+  appearance: none;
+}
+
+/* Remove native ✕ from webkit search inputs */
+.sf-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.sf-search-input::placeholder {
+  color: rgba(173, 192, 217, 0.55);
+}
+
+.sf-search-input:hover {
+  border-color: rgba(173, 192, 217, 0.45);
+}
+
+.sf-search-input:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 0.25rem rgba(96, 165, 250, 0.16);
+}
+
+.sf-search-clear {
+  position: absolute;
+  right: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.sf-search-clear:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+/* ── Chips row ────────────────────────────────────────────── */
+.sf-chips-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.sf-chip:hover {
+  border-color: rgba(173, 192, 217, 0.45);
+  color: var(--text);
+}
+
+/* Default active (teal/accent) */
+.sf-chip-active {
+  background: rgba(94, 234, 212, 0.1);
+  border-color: rgba(94, 234, 212, 0.48);
+  color: var(--accent);
+}
+
+/* Colour-variant active states */
+.sf-chip-success.sf-chip-active {
+  background: var(--success-soft);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: var(--success);
+}
+
+.sf-chip-warning.sf-chip-active {
+  background: var(--warning-soft);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: var(--warning);
+}
+
+.sf-chip-danger.sf-chip-active {
+  background: var(--danger-soft);
+  border-color: rgba(251, 113, 133, 0.4);
+  color: var(--danger);
+}
+
+/* ── Actions (right side of chip row) ────────────────────── */
+.sf-chips-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sf-advanced-toggle,
+.sf-save-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.875rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: rgba(148, 163, 184, 0.06);
+  color: var(--muted);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.sf-advanced-toggle:hover,
+.sf-save-view:hover {
+  border-color: rgba(173, 192, 217, 0.45);
+  color: var(--text);
+}
+
+.sf-clear-all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.875rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(251, 113, 133, 0.28);
+  background: rgba(251, 113, 133, 0.07);
+  color: var(--danger);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.sf-clear-all:hover {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.sf-chevron {
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+/* ── Advanced date-range panel ────────────────────────────── */
+.sf-advanced {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.sf-date-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sf-date-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sf-date-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sf-date-input {
+  min-height: 2.75rem;
+  width: 100%;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.82);
+  color: var(--text);
+  font: inherit;
+  transition: border-color 160ms ease;
+}
+
+.sf-date-input:hover {
+  border-color: rgba(173, 192, 217, 0.45);
+}
+
+.sf-date-input:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 0.25rem rgba(96, 165, 250, 0.16);
+}
+
+/* ── Result count (aria-live) ─────────────────────────────── */
+.sf-results {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (min-width: 560px) {
+  .sf-date-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .sf-chips-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sf-chips-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

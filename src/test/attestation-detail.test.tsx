@@ -53,8 +53,8 @@ describe('Attestations list', () => {
         <Attestations />
       </MemoryRouter>,
     )
-    expect(screen.getAllByText('verified').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('pending').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/^Verified$/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/^Pending$/).length).toBeGreaterThanOrEqual(1)
   })
 })
 
