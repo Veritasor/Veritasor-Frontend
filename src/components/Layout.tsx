@@ -1,103 +1,47 @@
-import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
-import TopAppBar from './TopAppBar'
+import React from 'react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 
-export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+export const Layout: React.FC = () => {
+  const location = useLocation();
 
-  function toggleSidebar() {
-    setSidebarOpen((o) => !o)
-  }
-
-  function closeSidebar() {
-    setSidebarOpen(false)
-  }
+  const navItems = [
+    { name: 'Dashboard', path: '/dashboard' },
+    { name: 'Attestations', path: '/attestations' },
+    { name: 'API Keys', path: '/api-keys' },
+  ];
 
   return (
-    <div className="app-shell">
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
+    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      {/* Sidebar Layout shell */}
+      <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-6">
+        <div className="flex items-center space-x-2 px-2">
+          <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">Veritasor</span>
+        </div>
+        
+        <nav className="space-y-1">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`block rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 shadow-xs'
+                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
 
-      <TopAppBar
-        onSidebarToggle={toggleSidebar}
-        sidebarOpen={sidebarOpen}
-      />
-
-      <div className="app-body">
-        <aside
-          id="app-sidebar"
-          className={`app-sidebar${sidebarOpen ? ' app-sidebar-open' : ''}`}
-          aria-label="Site navigation"
-        >
-          <nav aria-label="Main navigation">
-            <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/attestations" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
-              Attestations
-            </NavLink>
-          </nav>
-        </aside>
-
-        {sidebarOpen && (
-          <div
-            className="app-sidebar-overlay"
-            aria-hidden="true"
-            onClick={closeSidebar}
-          />
-        )}
-
-        <main id="main-content" tabIndex={-1} className="app-main">
-          <Outlet />
-        </main>
-      </div>
+      {/* Main View Area Canvas */}
+      <main className="flex-1 overflow-y-auto">
+        <Outlet />
+      </main>
     </div>
-  )
-}
-
-function ToastContainer() {
-  const { toasts, removeToast } = useToast()
-
-  return (
-    <div
-      aria-live="polite"
-      aria-atomic="true"
-      className="toast-container"
-    >
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
-      ))}
-    </div>
-  )
-}
-
-export default function Layout() {
-  return (
-    <ToastProvider>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <aside
-          style={{
-            width: 220,
-            padding: '1.5rem 1rem',
-            borderRight: '1px solid var(--border)',
-            background: 'var(--surface)',
-          }}
-        >
-          <Link to="/" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>
-            Veritasor
-          </Link>
-          <nav style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/attestations">Attestations</Link>
-            <Link to="/login">Login</Link>
-          </nav>
-        </aside>
-        <main style={{ flex: 1, padding: '2rem', position: 'relative' }}>
-          <Outlet />
-        </main>
-      </div>
-      <ToastContainer />
-    </ToastProvider>
-  )
-}
+  );
+};

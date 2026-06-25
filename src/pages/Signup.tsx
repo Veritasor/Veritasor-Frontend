@@ -7,8 +7,6 @@ const highlights = [
 ];
 
 export default function Signup() {
-  const [showPassword, setShowPassword] = useState(false);
-
   return (
     <AuthShell
       eyebrow="Create account"
@@ -75,10 +73,7 @@ export default function Signup() {
             autoComplete="new-password"
             aria-describedby="signup-password-help"
           />
-          <p
-            id="signup-password-help"
-            className="auth-message auth-message-help"
-          >
+          <p id="signup-password-help" className="auth-message auth-message-help">
             Use 12+ characters with uppercase, lowercase, number, and symbol.
           </p>
         </div>
@@ -88,9 +83,7 @@ export default function Signup() {
           <span className="auth-strength-bar auth-strength-bar-active" />
           <span className="auth-strength-bar auth-strength-bar-active" />
           <span className="auth-strength-bar" />
-          <p className="auth-strength-copy">
-            Strong enough for a production workspace
-          </p>
+          <p className="auth-strength-copy">Strong enough for a production workspace</p>
         </div>
 
         <label className="auth-checkbox">
@@ -113,3 +106,4 @@ export default function Signup() {
     </AuthShell>
   );
 }
+

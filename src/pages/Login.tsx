@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+
 import AuthShell from "../components/AuthShell";
 
 const highlights = [
@@ -8,9 +9,8 @@ const highlights = [
 ];
 
 export default function Login() {
-  const [showPassword, setShowPassword] = useState(false);
-
   return (
+
     <AuthShell
       eyebrow="Authentication"
       title="Welcome back"
