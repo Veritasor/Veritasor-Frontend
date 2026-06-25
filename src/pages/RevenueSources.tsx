@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useCallback, type CSSProperties } from 'react'
+import { useDragReorder } from '../hooks/useDragReorder'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,20 +83,8 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
           Future attestations will not include data from this source. This action cannot be undone.
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={onCancel}
-            style={secondaryBtn}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            style={dangerBtn}
-          >
-            Disconnect
-          </button>
+          <button type="button" onClick={onCancel} style={secondaryBtn}>Cancel</button>
+          <button type="button" onClick={onConfirm} style={dangerBtn}>Disconnect</button>
         </div>
       </div>
     </div>
@@ -106,7 +95,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
 // Shared button styles
 // ---------------------------------------------------------------------------
 
-const baseBtn: React.CSSProperties = {
+const baseBtn: CSSProperties = {
   padding: '0.45rem 1rem',
   borderRadius: 'var(--radius-sm)',
   border: '1px solid transparent',
@@ -116,25 +105,86 @@ const baseBtn: React.CSSProperties = {
   transition: 'opacity 160ms',
 }
 
-const secondaryBtn: React.CSSProperties = {
+const secondaryBtn: CSSProperties = {
   ...baseBtn,
   background: 'rgba(148,163,184,0.08)',
   borderColor: 'var(--border)',
   color: 'var(--text)',
 }
 
-const dangerBtn: React.CSSProperties = {
+const dangerBtn: CSSProperties = {
   ...baseBtn,
   background: 'var(--danger-soft)',
   borderColor: 'rgba(251,113,133,0.35)',
   color: 'var(--danger)',
 }
 
-const accentBtn: React.CSSProperties = {
+const accentBtn: CSSProperties = {
   ...baseBtn,
   background: 'rgba(94,234,212,0.08)',
   borderColor: 'rgba(94,234,212,0.3)',
   color: 'var(--accent)',
+}
+
+// Drag handle — six-dot grip icon rendered via box-shadow dots
+const HANDLE_SIZE = 20
+
+// ---------------------------------------------------------------------------
+// DragHandle
+// ---------------------------------------------------------------------------
+
+interface DragHandleProps {
+  label: string
+  isGrabbed: boolean
+  onPointerDown: (e: { preventDefault(): void }) => void
+  onKeyDown: (e: { key: string; preventDefault(): void }) => void
+  onClick: () => void
+}
+
+function DragHandle({ label, isGrabbed, onPointerDown, onKeyDown, onClick }: DragHandleProps) {
+  return (
+    <button
+      type="button"
+      aria-label={isGrabbed ? `Release ${label}` : `Reorder ${label}`}
+      aria-pressed={isGrabbed}
+      data-testid="drag-handle"
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+      onClick={onClick}
+      style={{
+        flexShrink: 0,
+        width: HANDLE_SIZE + 16,
+        height: HANDLE_SIZE + 16,
+        padding: '0.5rem',
+        background: isGrabbed ? 'rgba(94,234,212,0.15)' : 'transparent',
+        border: isGrabbed ? '1px solid rgba(94,234,212,0.45)' : '1px solid transparent',
+        borderRadius: '0.4rem',
+        cursor: isGrabbed ? 'grabbing' : 'grab',
+        color: 'var(--muted)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        touchAction: 'none',
+        transition: 'background 120ms, border-color 120ms, color 120ms',
+      }}
+    >
+      {/* Six-dot grip icon (2×3 grid) */}
+      <svg
+        aria-hidden="true"
+        width={HANDLE_SIZE}
+        height={HANDLE_SIZE}
+        viewBox="0 0 20 20"
+        fill="currentColor"
+      >
+        <circle cx="7" cy="5" r="1.5" />
+        <circle cx="13" cy="5" r="1.5" />
+        <circle cx="7" cy="10" r="1.5" />
+        <circle cx="13" cy="10" r="1.5" />
+        <circle cx="7" cy="15" r="1.5" />
+        <circle cx="13" cy="15" r="1.5" />
+      </svg>
+    </button>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -143,25 +193,71 @@ const accentBtn: React.CSSProperties = {
 
 interface SourceRowProps {
   source: Source
+  index: number
+  totalCount: number
+  isGrabbed: boolean
+  isDropTarget: boolean
   onReconnect: (id: string) => void
   onDisconnect: (source: Source) => void
+  onPointerDown: (e: { preventDefault(): void }) => void
+  onPointerEnter: () => void
+  onKeyDown: (e: { key: string; preventDefault(): void }) => void
+  onHandleClick: () => void
 }
 
-function SourceRow({ source, onReconnect, onDisconnect }: SourceRowProps) {
+function SourceRow({
+  source,
+  index,
+  totalCount,
+  isGrabbed,
+  isDropTarget,
+  onReconnect,
+  onDisconnect,
+  onPointerDown,
+  onPointerEnter,
+  onKeyDown,
+  onHandleClick,
+}: SourceRowProps) {
   const s = STATUS_META[source.status]
+
+  const rowStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '1rem 1.25rem',
+    background: isGrabbed
+      ? 'rgba(94,234,212,0.06)'
+      : isDropTarget
+        ? 'rgba(94,234,212,0.03)'
+        : 'var(--surface)',
+    border: isGrabbed
+      ? '1px solid rgba(94,234,212,0.45)'
+      : isDropTarget
+        ? '2px dashed rgba(94,234,212,0.6)'
+        : '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
+    opacity: isGrabbed ? 0.85 : 1,
+    outline: 'none',
+    transition: 'background 120ms, border-color 120ms, opacity 120ms',
+  }
+
   return (
     <li
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: '1rem',
-        padding: '1rem 1.25rem',
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-sm)',
-      }}
+      role="listitem"
+      aria-label={`${source.provider}, priority ${index + 1} of ${totalCount}`}
+      aria-grabbed={isGrabbed || undefined}
+      onPointerEnter={onPointerEnter}
+      style={rowStyle}
     >
+      <DragHandle
+        label={source.provider}
+        isGrabbed={isGrabbed}
+        onPointerDown={onPointerDown}
+        onKeyDown={onKeyDown}
+        onClick={onHandleClick}
+      />
+
       {/* Provider + account */}
       <div style={{ flex: '1 1 10rem', minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{source.provider}</div>
@@ -229,6 +325,19 @@ export default function RevenueSources() {
   const [sources, setSources] = useState<Source[]>(INITIAL_SOURCES)
   const [pendingDisconnect, setPendingDisconnect] = useState<Source | null>(null)
 
+  const getLabel = useCallback((s: Source) => s.provider, [])
+
+  const {
+    grabbedIndex,
+    dropTargetIndex,
+    announcement,
+    handlePointerDown,
+    handlePointerEnter,
+    handlePointerUp,
+    handleKeyboardGrab,
+    handleKeyDown,
+  } = useDragReorder(sources, setSources, getLabel)
+
   function handleReconnect(id: string) {
     setSources((prev) =>
       prev.map((s) => (s.id === id ? { ...s, status: 'healthy', lastSync: new Date().toISOString() } : s)),
@@ -250,7 +359,19 @@ export default function RevenueSources() {
       <h1 style={{ marginTop: 0 }}>Revenue Sources</h1>
       <p style={{ color: 'var(--muted)' }}>
         Connected integrations used to collect revenue data for attestations.
+        Drag or use the handle's keyboard controls to set attestation priority order.
       </p>
+
+      {/* aria-live region for drag/keyboard announcements */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="dnd-announcement"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}
+      >
+        {announcement}
+      </div>
 
       {sources.length === 0 ? (
         <section
@@ -270,14 +391,24 @@ export default function RevenueSources() {
       ) : (
         <ul
           aria-label="Connected revenue sources"
-          style={{ listStyle: 'none', margin: '2rem 0 0', padding: 0, display: 'grid', gap: '0.75rem' }}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          style={{ listStyle: 'none', margin: '2rem 0 0', padding: 0, display: 'grid', gap: '0.75rem', touchAction: 'none' }}
         >
-          {sources.map((source) => (
+          {sources.map((source, index) => (
             <SourceRow
               key={source.id}
               source={source}
+              index={index}
+              totalCount={sources.length}
+              isGrabbed={grabbedIndex === index}
+              isDropTarget={dropTargetIndex === index && grabbedIndex !== null && grabbedIndex !== index}
               onReconnect={handleReconnect}
               onDisconnect={handleDisconnectRequest}
+              onPointerDown={handlePointerDown(index)}
+              onPointerEnter={handlePointerEnter(index)}
+              onKeyDown={handleKeyDown}
+              onHandleClick={() => handleKeyboardGrab(index)}
             />
           ))}
         </ul>
