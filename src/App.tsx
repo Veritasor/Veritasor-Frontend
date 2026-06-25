@@ -16,10 +16,13 @@ import {
   ConnectSourceWizard,
   SelectSourceProviderStep,
 } from './pages/connect-source/ConnectSourceWizard'
+import { CookieConsentProvider } from './components/CookieConsentContext'
+import CookieBanner from './components/CookieBanner'
 
 export default function App() {
   return (
-    <Routes>
+    <CookieConsentProvider>
+      <Routes>
       {/* ── Auth (no shell) ─────────────────────────── */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
@@ -46,6 +49,8 @@ export default function App() {
 
       {/* ── 404 ──────────────────────────────────────── */}
       <Route path="*" element={<NotFound />} />
-    </Routes>
+      </Routes>
+      <CookieBanner />
+    </CookieConsentProvider>
   )
 }
