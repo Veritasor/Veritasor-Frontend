@@ -88,6 +88,9 @@ function LayoutInner() {
             <NavLink to="/attestations" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
               Attestations
             </NavLink>
+            <NavLink to="/settings" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+              Settings
+            </NavLink>
           </nav>
         </aside>
 

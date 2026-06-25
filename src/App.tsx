@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Attestations from './pages/Attestations'
@@ -9,11 +9,11 @@ import ForgotPassword from './pages/ForgotPassword'
 import OnboardingWizard from './pages/OnboardingWizard'
 import NotFound from './pages/NotFound'
 import {
-  AuthorizeSourceStep,
-  ConfirmSourceStep,
-  ConfigureSourceScopeStep,
   ConnectSourceWizard,
   SelectSourceProviderStep,
+  AuthorizeSourceStep,
+  ConfigureSourceScopeStep,
+  ConfirmSourceStep,
 } from './pages/connect-source/ConnectSourceWizard'
 
 export default function App() {
@@ -27,6 +27,13 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="attestations" element={<Attestations />} />
         <Route path="sources" element={<RevenueSources />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="connect-source" element={<ConnectSourceWizard />}>
+          <Route path="provider" element={<SelectSourceProviderStep />} />
+          <Route path="authorize" element={<AuthorizeSourceStep />} />
+          <Route path="scope" element={<ConfigureSourceScopeStep />} />
+          <Route path="confirm" element={<ConfirmSourceStep />} />
+        </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
