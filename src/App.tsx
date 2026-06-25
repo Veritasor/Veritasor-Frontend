@@ -6,6 +6,8 @@ import RevenueSources from './pages/RevenueSources'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
+import OnboardingWizard from './pages/OnboardingWizard'
+import NotFound from './pages/NotFound'
 import {
   AuthorizeSourceStep,
   ConfirmSourceStep,

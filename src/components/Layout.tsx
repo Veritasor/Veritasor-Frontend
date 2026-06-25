@@ -1,9 +1,59 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
+import { ToastProvider, useToast, Toast } from './ToastContext'
+import CommandPalette from './CommandPalette'
 
-export default function Layout() {
+export function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
+  const isAlert = toast.type === 'error' || toast.type === 'warning'
+  return (
+    <div
+      className={`toast toast-${toast.type}`}
+      role={isAlert ? 'alert' : 'status'}
+    >
+      <span className="toast-message">{toast.message}</span>
+      <button
+        type="button"
+        className="toast-close"
+        aria-label="Close notification"
+        onClick={() => onRemove(toast.id)}
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+function ToastContainer() {
+  const { toasts, removeToast } = useToast()
+
+  return (
+    <div
+      aria-live="polite"
+      aria-atomic="true"
+      className="toast-container"
+    >
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+      ))}
+    </div>
+  )
+}
+
+function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        setPaletteOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o)
@@ -22,6 +72,7 @@ export default function Layout() {
       <TopAppBar
         onSidebarToggle={toggleSidebar}
         sidebarOpen={sidebarOpen}
+        onSearchClick={() => setPaletteOpen(true)}
       />
 
       <div className="app-body">
@@ -52,22 +103,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
-    </div>
-  )
-}
 
-function ToastContainer() {
-  const { toasts, removeToast } = useToast()
-
-  return (
-    <div
-      aria-live="polite"
-      aria-atomic="true"
-      className="toast-container"
-    >
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
-      ))}
+      <ToastContainer />
+      <CommandPalette isOpen={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )
 }
@@ -75,29 +113,7 @@ function ToastContainer() {
 export default function Layout() {
   return (
     <ToastProvider>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <aside
-          style={{
-            width: 220,
-            padding: '1.5rem 1rem',
-            borderRight: '1px solid var(--border)',
-            background: 'var(--surface)',
-          }}
-        >
-          <Link to="/" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>
-            Veritasor
-          </Link>
-          <nav style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/attestations">Attestations</Link>
-            <Link to="/login">Login</Link>
-          </nav>
-        </aside>
-        <main style={{ flex: 1, padding: '2rem', position: 'relative' }}>
-          <Outlet />
-        </main>
-      </div>
-      <ToastContainer />
+      <LayoutInner />
     </ToastProvider>
   )
 }
