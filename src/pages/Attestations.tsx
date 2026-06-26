@@ -287,13 +287,33 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
             {shortRoot}
           </div>
         </div>
+
+        <Link
+          to={`/attestations/${item.id}`}
+          style={{ fontSize: '0.85rem', color: 'var(--accent)', fontWeight: 600 }}
+        >
+          View details →
+        </Link>
       </article>
     </li>
   )
 }
 
 export default function Attestations() {
-  const attestations: AttestationListItem[] = []
+  const attestations: AttestationListItem[] = [
+    {
+      id: 'att-001',
+      status: 'verified',
+      createdAt: '2026-05-28T14:32:00Z',
+      merkleRoot: '0x3a7bd3e2360a3d29eea436fcfb7e44c735d117c9f4e4b5e6a1c2d3e4f5a6b7c8',
+    },
+    {
+      id: 'att-002',
+      status: 'pending',
+      createdAt: '2026-05-15T09:10:00Z',
+      merkleRoot: '0x9f8e7d6c5b4a3928170605040302010f0e0d0c0b0a090807060504030201000f',
+    },
+  ]
 
   return (
     <div style={{ maxWidth: 1040 }}>
