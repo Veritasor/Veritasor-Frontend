@@ -1,10 +1,20 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export interface AttestationDetails {
   source: string
   period: string
   recordCount: number
   merkleRoot: string
+}
+
+export interface FeeBreakdownItem {
+  label: string
+  amount: number
+}
+
+export interface FeeInfo {
+  total: number
+  breakdown: FeeBreakdownItem[]
 }
 
 export interface AttestationConfirmModalProps {
@@ -14,6 +24,7 @@ export interface AttestationConfirmModalProps {
   isLoading?: boolean
   error?: string | null
   details?: AttestationDetails | null
+  feeInfo?: FeeInfo | null
 }
 
 const FOCUSABLE =
@@ -27,8 +38,10 @@ export default function AttestationConfirmModal({
   isLoading = false,
   error = null,
   details = null,
+  feeInfo = null,
 }: AttestationConfirmModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const [showFeeBreakdown, setShowFeeBreakdown] = useState(false)
   const triggerRef = useRef<HTMLElement | null>(null)
 
   // Save the element that triggered the modal; move focus to dialog on open; restore on close
@@ -138,6 +151,37 @@ export default function AttestationConfirmModal({
               Loading attestation details…
             </p>
           )}
+
+          <section className="fee-preview" aria-labelledby="fee-preview-title">
+            <h3 id="fee-preview-title" className="fee-preview-title">Estimated Fee</h3>
+            <div className="fee-compact">
+              {feeInfo ? (
+                <span>{feeInfo.total.toLocaleString()} XLM</span>
+              ) : (
+                <span aria-live="polite">Calculating fee…</span>
+              )}
+            </div>
+            {feeInfo && (
+  <>
+    <button
+      type="button"
+      className="fee-toggle"
+      aria-expanded={showFeeBreakdown}
+      aria-controls="fee-breakdown-list"
+      onClick={() => setShowFeeBreakdown(!showFeeBreakdown)}
+    >
+      {showFeeBreakdown ? 'Hide breakdown' : 'View breakdown'}
+    </button>
+    {showFeeBreakdown && (
+      <ul id="fee-breakdown-list" className="fee-breakdown">
+        {feeInfo.breakdown.map((item, i) => (
+          <li key={i}>{item.label}: {item.amount.toLocaleString()} XLM</li>
+        ))}
+      </ul>
+    )}
+  </>
+)}
+          </section>
 
           <div className="modal-warning">
             <span aria-hidden="true" className="modal-warning-icon">⚠</span>
