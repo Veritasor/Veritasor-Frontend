@@ -1,9 +1,41 @@
-import { useState } from "react";
-import { Outlet, NavLink } from "react-router-dom";
-import TopAppBar from "./TopAppBar";
+import { useState } from 'react'
+import { Outlet, NavLink } from 'react-router-dom'
+import TopAppBar from './TopAppBar'
+import { ToastProvider, useToast } from './ToastContext'
+import type { Toast } from './ToastContext'
 
-export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
+  const isAlert = toast.type === 'error' || toast.type === 'warning'
+  return (
+    <div
+      className={`toast toast-${toast.type}`}
+      role={isAlert ? 'alert' : 'status'}
+    >
+      <span>{toast.message}</span>
+      <button
+        type="button"
+        aria-label="Close notification"
+        onClick={() => onRemove(toast.id)}
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+function ToastContainer() {
+  const { toasts, removeToast } = useToast()
+  return (
+    <div aria-live="polite" aria-atomic="true" className="toast-container">
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+      ))}
+    </div>
+  )
+}
+
+function AppShell() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o);
@@ -53,17 +85,13 @@ export default function Layout() {
             <NavLink
               to="/"
               end
-              className={({ isActive }) =>
-                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
-              }
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
             >
               Dashboard
             </NavLink>
             <NavLink
               to="/attestations"
-              className={({ isActive }) =>
-                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
-              }
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
             >
               Attestations
             </NavLink>
@@ -82,6 +110,16 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <ToastContainer />
     </div>
-  );
+  )
+}
+
+export default function Layout() {
+  return (
+    <ToastProvider>
+      <AppShell />
+    </ToastProvider>
+  )
 }

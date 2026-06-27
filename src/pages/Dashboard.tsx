@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import AttestationConfirmModal from '../components/AttestationConfirmModal'
 
 const DEMO_DETAILS = {
@@ -92,12 +93,12 @@ export default function Dashboard() {
         <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Quick actions</h2>
         <ul style={{ color: 'var(--muted)', paddingLeft: '1.25rem' }}>
           <li>
-            <a
-              href="/connect-source/provider"
+            <Link
+              to="/connect-source/provider"
               aria-label="Open connect source wizard"
             >
-              Connect a revenue source
-            </a>
+              Connect Stripe, Razorpay, or Shopify
+            </Link>
           </li>
           <li>
             <button
