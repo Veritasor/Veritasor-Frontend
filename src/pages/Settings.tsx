@@ -1,5 +1,8 @@
+/* eslint-disable react/forbid-dom-props */
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -25,6 +28,7 @@ function ProfilePanel() {
       <h2>Profile</h2>
       <p style={{ color: 'var(--muted)' }}>Manage your personal information and display name.</p>
       <form style={{ display: 'grid', gap: '1rem', maxWidth: 480 }}>
+        <LocalePickerField />
         <div style={{ display: 'grid', gap: '0.4rem' }}>
           <label htmlFor="settings-display-name" style={{ fontSize: '0.9rem', fontWeight: 600 }}>
             Display name
