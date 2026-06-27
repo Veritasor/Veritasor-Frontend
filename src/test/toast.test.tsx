@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { useToast } from '../components/ToastContext'
 import Layout from '../components/Layout'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { CookieConsentProvider } from '../components/CookieConsentContext'
 
 // Test helper component to trigger toasts
 function TestTrigger() {
@@ -30,11 +31,13 @@ describe('Toast Notification System', () => {
   const renderSystem = () => {
     return render(
       <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<TestTrigger />} />
-          </Route>
-        </Routes>
+        <CookieConsentProvider>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<TestTrigger />} />
+            </Route>
+          </Routes>
+        </CookieConsentProvider>
       </MemoryRouter>
     )
   }

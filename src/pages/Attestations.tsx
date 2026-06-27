@@ -5,6 +5,8 @@ import type { ChipDef, FilterState } from '../components/SearchFilter'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
+// ─── Types ────────────────────────────────────────────────────────────────
+
 type AttestationStatus = "pending" | "verified" | "failed";
 
 type AttestationListItem = {
@@ -209,6 +211,8 @@ const STATUS_STYLE: Record<AttestationStatus, { background: string; color: strin
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
 function formatCompactDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
@@ -321,6 +325,45 @@ function EmptyState() {
       </div>
     </section>
   );
+}
+
+function NoResults({ onClearAll }: { onClearAll: () => void }) {
+  return (
+    <section
+      aria-label="No matching attestations"
+      style={{
+        marginTop: '1.75rem',
+        padding: '2rem 1.6rem',
+        background: 'var(--surface)',
+        borderRadius: 12,
+        border: '1px dashed var(--border)',
+        textAlign: 'center',
+      }}
+    >
+      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
+        No attestations match your filters
+      </p>
+      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
+        Try adjusting your search term, removing a status filter, or widening
+        the date range.
+      </p>
+      <button
+        type="button"
+        onClick={onClearAll}
+        style={{
+          padding: '0.6rem 1.25rem',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)',
+          background: 'rgba(148, 163, 184, 0.08)',
+          color: 'var(--text)',
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Clear all filters
+      </button>
+    </section>
+  )
 }
 
 function NoResults({ onClearAll }: { onClearAll: () => void }) {

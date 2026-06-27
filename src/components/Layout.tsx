@@ -3,6 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
 import { ToastProvider, useToast } from './ToastContext'
 import type { Toast } from './ToastContext'
+import { useCookieConsent } from './CookieConsentContext'
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
   const isAlert = toast.type === 'error' || toast.type === 'warning'
@@ -36,6 +37,7 @@ function ToastContainer() {
 
 function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { openSettings: openCookieSettings } = useCookieConsent()
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o);
@@ -96,6 +98,16 @@ function AppShell() {
               Attestations
             </NavLink>
           </nav>
+          <div className="sidebar-footer">
+            <button
+              type="button"
+              className="sidebar-cookie-btn"
+              onClick={openCookieSettings}
+              aria-label="Open cookie settings"
+            >
+              Cookie settings
+            </button>
+          </div>
         </aside>
 
         {sidebarOpen && (
