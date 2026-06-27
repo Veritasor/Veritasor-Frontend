@@ -513,28 +513,9 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 
         <Link
           to={`/attestations/${item.id}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.3rem',
-            fontSize: '0.85rem',
-            color: 'var(--accent)',
-            fontWeight: 600,
-          }}
-          aria-label={`View proof details for attestation ${item.id}`}
+          style={{ fontSize: '0.85rem', color: 'var(--accent)', fontWeight: 600 }}
         >
-          View details
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          >
-            <path d="M2 6h8M6 2l4 4-4 4" />
-          </svg>
+          View details →
         </Link>
       </article>
     </li>
@@ -544,13 +525,20 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function Attestations() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const filters = parseFilterState(searchParams)
-  const filtered = applyFilters(MOCK_ATTESTATIONS, filters)
-
-  function clearAll() {
-    setSearchParams({}, { replace: true })
-  }
+  const attestations: AttestationListItem[] = [
+    {
+      id: 'att-001',
+      status: 'verified',
+      createdAt: '2026-05-28T14:32:00Z',
+      merkleRoot: '0x3a7bd3e2360a3d29eea436fcfb7e44c735d117c9f4e4b5e6a1c2d3e4f5a6b7c8',
+    },
+    {
+      id: 'att-002',
+      status: 'pending',
+      createdAt: '2026-05-15T09:10:00Z',
+      merkleRoot: '0x9f8e7d6c5b4a3928170605040302010f0e0d0c0b0a090807060504030201000f',
+    },
+  ]
 
   return (
     <div style={{ maxWidth: 1040 }}>

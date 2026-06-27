@@ -2,40 +2,34 @@ import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
 import { ToastProvider, useToast } from './ToastContext'
-import type { Toast } from './ToastContext'
-import { useCookieConsent } from './CookieConsentContext'
-
-function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
-  const isAlert = toast.type === 'error' || toast.type === 'warning'
-  return (
-    <div
-      className={`toast toast-${toast.type}`}
-      role={isAlert ? 'alert' : 'status'}
-    >
-      <span>{toast.message}</span>
-      <button
-        type="button"
-        aria-label="Close notification"
-        onClick={() => onRemove(toast.id)}
-      >
-        ✕
-      </button>
-    </div>
-  )
-}
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast()
+  if (toasts.length === 0) return null
   return (
-    <div aria-live="polite" aria-atomic="true" className="toast-container">
+    <div aria-live="polite" aria-atomic="false" className="toast-container">
       {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+        <div
+          key={toast.id}
+          role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+          className={`toast toast-${toast.type}`}
+        >
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            aria-label="Close notification"
+            onClick={() => removeToast(toast.id)}
+            className="toast-close"
+          >
+            ×
+          </button>
+        </div>
       ))}
     </div>
   )
 }
 
-function AppShell() {
+function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { openSettings: openCookieSettings } = useCookieConsent()
 
@@ -122,7 +116,6 @@ function AppShell() {
           <Outlet />
         </main>
       </div>
-
       <ToastContainer />
     </div>
   )
@@ -131,7 +124,9 @@ function AppShell() {
 export default function Layout() {
   return (
     <ToastProvider>
-      <AppShell />
+      <LayoutInner />
     </ToastProvider>
   )
 }
+
+

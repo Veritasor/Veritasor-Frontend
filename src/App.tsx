@@ -7,14 +7,14 @@ import RevenueSources from './pages/RevenueSources'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
-import NotFound from './pages/NotFound'
 import OnboardingWizard from './pages/OnboardingWizard'
+import NotFound from './pages/NotFound'
 import {
-  AuthorizeSourceStep,
-  ConfirmSourceStep,
-  ConfigureSourceScopeStep,
   ConnectSourceWizard,
   SelectSourceProviderStep,
+  AuthorizeSourceStep,
+  ConfigureSourceScopeStep,
+  ConfirmSourceStep,
 } from './pages/connect-source/ConnectSourceWizard'
 import { CookieConsentProvider } from './components/CookieConsentContext'
 import CookieBanner from './components/CookieBanner'
@@ -37,8 +37,6 @@ export default function App() {
         <Route path="attestations" element={<Attestations />} />
         <Route path="attestations/:id" element={<AttestationDetail />} />
         <Route path="sources" element={<RevenueSources />} />
-
-        {/* Connect-source 4-step wizard (nested under Layout) */}
         <Route path="connect-source" element={<ConnectSourceWizard />}>
           <Route path="provider" element={<SelectSourceProviderStep />} />
           <Route path="authorize" element={<AuthorizeSourceStep />} />

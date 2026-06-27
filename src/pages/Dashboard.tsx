@@ -93,10 +93,7 @@ export default function Dashboard() {
         <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Quick actions</h2>
         <ul style={{ color: 'var(--muted)', paddingLeft: '1.25rem' }}>
           <li>
-            <Link
-              to="/connect-source/provider"
-              aria-label="Open connect source wizard"
-            >
+            <Link to="/connect-source/provider" aria-label="Open connect source wizard">
               Connect Stripe, Razorpay, or Shopify
             </Link>
           </li>
