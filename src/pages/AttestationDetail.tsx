@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import Breadcrumb from '../components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -206,7 +207,7 @@ export default function AttestationDetail() {
   if (!attestation) {
     return (
       <div>
-        <BackLink />
+        <Breadcrumb items={[{ label: 'Attestations', href: '/attestations' }, { label: id }]} />
         <div
           role="alert"
           aria-live="polite"
@@ -229,7 +230,12 @@ export default function AttestationDetail() {
 
   return (
     <div style={{ maxWidth: '52rem' }}>
-      <BackLink />
+      <Breadcrumb
+        items={[
+          { label: 'Attestations', href: '/attestations' },
+          { label: `Attestation ${attestation.id}` },
+        ]}
+      />
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header
