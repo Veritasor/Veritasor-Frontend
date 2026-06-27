@@ -16,14 +16,22 @@ import {
   ConfigureSourceScopeStep,
   ConfirmSourceStep,
 } from './pages/connect-source/ConnectSourceWizard'
+import { CookieConsentProvider } from './components/CookieConsentContext'
+import CookieBanner from './components/CookieBanner'
 
 export default function App() {
   return (
-    <Routes>
+    <CookieConsentProvider>
+      <Routes>
+      {/* ── Auth (no shell) ─────────────────────────── */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+
+      {/* ── Standalone onboarding wizard ─────────────── */}
       <Route path="/onboarding" element={<OnboardingWizard />} />
+
+      {/* ── App shell ─────────────────────────────────── */}
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="attestations" element={<Attestations />} />
@@ -36,7 +44,11 @@ export default function App() {
           <Route path="confirm" element={<ConfirmSourceStep />} />
         </Route>
       </Route>
+
+      {/* ── 404 ──────────────────────────────────────── */}
       <Route path="*" element={<NotFound />} />
-    </Routes>
+      </Routes>
+      <CookieBanner />
+    </CookieConsentProvider>
   )
 }
