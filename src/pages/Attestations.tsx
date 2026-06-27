@@ -5,7 +5,9 @@ import type { ChipDef, FilterState } from '../components/SearchFilter'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-type AttestationStatus = 'pending' | 'verified' | 'failed'
+// ─── Types ────────────────────────────────────────────────────────────────
+
+type AttestationStatus = "pending" | "verified" | "failed";
 
 type AttestationListItem = {
   id: string
@@ -103,20 +105,20 @@ function applyFilters(
 const STATUS_META: Record<
   AttestationStatus,
   {
-    label: string
-    background: string
-    border: string
-    text: string
-    marker: string
-    icon: (props: { size: number }) => JSX.Element
+    label: string;
+    background: string;
+    border: string;
+    text: string;
+    marker: string;
+    icon: (props: { size: number }) => JSX.Element;
   }
 > = {
   pending: {
-    label: 'Pending',
-    background: 'var(--warning-soft)',
-    border: 'rgba(251, 191, 36, 0.35)',
-    text: '#fff1c4',
-    marker: 'var(--warning)',
+    label: "Pending",
+    background: "var(--warning-soft)",
+    border: "rgba(251, 191, 36, 0.35)",
+    text: "#fff1c4",
+    marker: "var(--warning)",
     icon: ({ size }) => (
       <svg
         width={size}
@@ -142,12 +144,23 @@ const STATUS_META: Record<
       </svg>
     ),
   },
+  {
+    id: 'att-002',
+    status: 'pending',
+    createdAt: '2026-06-01T09:10:00Z',
+    merkleRoot: '0xb2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
+    source: 'Stripe (live)',
+    amount: '$42,150.00',
+  },
+]
+
+const STATUS_STYLE: Record<AttestationStatus, { background: string; color: string; border: string }> = {
   verified: {
-    label: 'Verified',
-    background: 'var(--success-soft)',
-    border: 'rgba(52, 211, 153, 0.35)',
-    text: '#dcfff1',
-    marker: 'var(--success)',
+    label: "Verified",
+    background: "var(--success-soft)",
+    border: "rgba(52, 211, 153, 0.35)",
+    text: "#dcfff1",
+    marker: "var(--success)",
     icon: ({ size }) => (
       <svg
         width={size}
@@ -169,11 +182,11 @@ const STATUS_META: Record<
     ),
   },
   failed: {
-    label: 'Failed',
-    background: 'var(--danger-soft)',
-    border: 'rgba(251, 113, 133, 0.35)',
-    text: '#ffd7dd',
-    marker: 'var(--danger)',
+    label: "Failed",
+    background: "var(--danger-soft)",
+    border: "rgba(251, 113, 133, 0.35)",
+    text: "#ffd7dd",
+    marker: "var(--danger)",
     icon: ({ size }) => (
       <svg
         width={size}
@@ -194,7 +207,9 @@ const STATUS_META: Record<
       </svg>
     ),
   },
-}
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -209,40 +224,40 @@ function formatCompactDate(iso: string) {
 }
 
 function middleEllipsis(value: string, start = 10, end = 10) {
-  if (value.length <= start + end + 3) return value
-  return `${value.slice(0, start)}…${value.slice(-end)}`
+  if (value.length <= start + end + 3) return value;
+  return `${value.slice(0, start)}…${value.slice(-end)}`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: AttestationStatus }) {
-  const meta = STATUS_META[status]
-  const Icon = meta.icon
+  const meta = STATUS_META[status];
+  const Icon = meta.icon;
 
   return (
     <span
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.45rem',
-        padding: '0.32rem 0.6rem',
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.45rem",
+        padding: "var(--density-badge-padding)",
         borderRadius: 999,
         border: `1px solid ${meta.border}`,
         background: meta.background,
         color: meta.text,
         fontWeight: 700,
-        fontSize: '0.82rem',
-        letterSpacing: '0.01em',
+        fontSize: "var(--density-badge-font)",
+        letterSpacing: "0.01em",
         lineHeight: 1,
-        whiteSpace: 'nowrap',
+        whiteSpace: "nowrap",
       }}
     >
-      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+      <span style={{ display: "inline-flex", alignItems: "center" }}>
         <Icon size={16} />
       </span>
       <span>{meta.label}</span>
     </span>
-  )
+  );
 }
 
 function EmptyState() {
@@ -250,12 +265,12 @@ function EmptyState() {
     <section
       aria-label="Attestations empty state"
       style={{
-        marginTop: '1.75rem',
-        padding: '1.6rem',
-        background: 'var(--surface)',
+        marginTop: "var(--density-gap)",
+        padding: "var(--density-padding)",
+        background: "var(--surface)",
         borderRadius: 12,
-        border: '1px solid var(--border)',
-        boxShadow: '0 20px 50px rgba(2, 6, 23, 0.22)',
+        border: "1px solid var(--border)",
+        boxShadow: "0 20px 50px rgba(2, 6, 23, 0.22)",
       }}
     >
       <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 720 }}>
@@ -276,30 +291,30 @@ function EmptyState() {
           <Link
             to="/"
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0.85rem 1rem',
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0.85rem 1rem",
               borderRadius: 12,
               fontWeight: 800,
-              color: '#04111f',
-              background: 'linear-gradient(135deg, var(--accent), #60a5fa)',
-              border: '1px solid transparent',
-              textDecoration: 'none',
-              minHeight: '3rem',
+              color: "#04111f",
+              background: "linear-gradient(135deg, var(--accent), #60a5fa)",
+              border: "1px solid transparent",
+              textDecoration: "none",
+              minHeight: "3rem",
             }}
           >
             Run a revenue report
           </Link>
           <div
             style={{
-              flex: '1 1 260px',
+              flex: "1 1 260px",
               minWidth: 240,
-              padding: '0.85rem 1rem',
+              padding: "0.85rem 1rem",
               borderRadius: 12,
-              border: '1px solid var(--border)',
-              background: 'rgba(148, 163, 184, 0.08)',
-              color: 'var(--muted)',
+              border: "1px solid var(--border)",
+              background: "rgba(148, 163, 184, 0.08)",
+              color: "var(--muted)",
               lineHeight: 1.55,
             }}
           >
@@ -308,6 +323,45 @@ function EmptyState() {
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+function NoResults({ onClearAll }: { onClearAll: () => void }) {
+  return (
+    <section
+      aria-label="No matching attestations"
+      style={{
+        marginTop: '1.75rem',
+        padding: '2rem 1.6rem',
+        background: 'var(--surface)',
+        borderRadius: 12,
+        border: '1px dashed var(--border)',
+        textAlign: 'center',
+      }}
+    >
+      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
+        No attestations match your filters
+      </p>
+      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
+        Try adjusting your search term, removing a status filter, or widening
+        the date range.
+      </p>
+      <button
+        type="button"
+        onClick={onClearAll}
+        style={{
+          padding: '0.6rem 1.25rem',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)',
+          background: 'rgba(148, 163, 184, 0.08)',
+          color: 'var(--text)',
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Clear all filters
+      </button>
     </section>
   )
 }
@@ -352,9 +406,9 @@ function NoResults({ onClearAll }: { onClearAll: () => void }) {
 }
 
 function TimelineRow({ item }: { item: AttestationListItem }) {
-  const meta = STATUS_META[item.status]
-  const formattedDate = formatCompactDate(item.createdAt)
-  const shortRoot = middleEllipsis(item.merkleRoot, 12, 12)
+  const meta = STATUS_META[item.status];
+  const formattedDate = formatCompactDate(item.createdAt);
+  const shortRoot = middleEllipsis(item.merkleRoot, 12, 12);
 
   return (
     <li
@@ -388,21 +442,21 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
       <article
         aria-label={`Attestation ${meta.label} created ${formattedDate}`}
         style={{
-          padding: '1rem 1rem 1.05rem',
+          padding: "var(--density-padding)",
           borderRadius: 12,
-          border: '1px solid var(--border)',
-          background: 'var(--surface)',
-          display: 'grid',
-          gap: '0.75rem',
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+          display: "grid",
+          gap: "var(--density-row-gap)",
         }}
       >
         <header
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.75rem',
-            flexWrap: 'wrap',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "var(--density-row-gap)",
+            flexWrap: "wrap",
           }}
         >
           <StatusBadge status={item.status} />
@@ -420,10 +474,10 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(140px, 220px) minmax(0, 1fr)',
-            gap: '0.5rem 1rem',
-            alignItems: 'baseline',
+            display: "grid",
+            gridTemplateColumns: "minmax(140px, 220px) minmax(0, 1fr)",
+            gap: "0.5rem 1rem",
+            alignItems: "baseline",
           }}
         >
           <div
@@ -440,15 +494,16 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
             style={{
               fontFamily:
                 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              fontSize: '0.92rem',
-              color: 'var(--text)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              padding: '0.45rem 0.6rem',
+              fontSize: "var(--density-text-sm)",
+              color: "var(--text)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              padding: "0.45rem 0.6rem",
               borderRadius: 10,
-              border: '1px solid rgba(148, 163, 184, 0.2)',
-              background: 'rgba(15, 23, 42, 0.65)',
+              border: "1px solid rgba(148, 163, 184, 0.2)",
+              background: "rgba(15, 23, 42, 0.65)",
+              minHeight: "var(--density-touch-min)",
             }}
             title={item.merkleRoot}
           >
@@ -483,7 +538,7 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
         </Link>
       </article>
     </li>
-  )
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────
@@ -499,7 +554,7 @@ export default function Attestations() {
 
   return (
     <div style={{ maxWidth: 1040 }}>
-      <header style={{ display: 'grid', gap: '0.6rem' }}>
+      <header style={{ display: "grid", gap: "var(--density-row-gap)" }}>
         <h1 style={{ margin: 0 }}>Attestations</h1>
         <p
           style={{
@@ -568,5 +623,5 @@ export default function Attestations() {
         </>
       )}
     </div>
-  )
+  );
 }
