@@ -47,7 +47,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 export const useToast = () => {
   const context = useContext(ToastContext);
   if (!context) {
-    // Return a safe no-op fallback for contexts without a ToastProvider (e.g., standalone page renders in tests)
+    // Return a no-op fallback when used outside a provider (e.g. in isolated tests)
     return {
       toasts: [] as Toast[],
       addToast: () => {},

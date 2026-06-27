@@ -73,56 +73,80 @@ function formatDate(iso: string) {
 // CopyButton
 // ---------------------------------------------------------------------------
 
+type CopyState = 'idle' | 'copied' | 'failed'
+
 function CopyButton({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false)
+  const [state, setState] = useState<CopyState>('idle')
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(value)
+      setState('copied')
+    } catch {
+      setState('failed')
+    }
+    setTimeout(() => setState('idle'), 2000)
   }
 
+  const isCopied = state === 'copied'
+  const isFailed = state === 'failed'
+
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label={copied ? `${label} copied` : `Copy ${label}`}
-      title={copied ? 'Copied!' : 'Copy to clipboard'}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.3rem',
-        padding: '0.25rem 0.6rem',
-        fontSize: '0.78rem',
-        fontWeight: 600,
-        border: '1px solid var(--border)',
-        borderRadius: '0.5rem',
-        background: copied ? 'var(--success-soft)' : 'rgba(148,163,184,0.08)',
-        color: copied ? 'var(--success)' : 'var(--muted)',
-        cursor: 'pointer',
-        transition: 'background 160ms, color 160ms',
-        flexShrink: 0,
-      }}
-    >
-      {copied ? (
-        <>
-          {/* checkmark */}
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="2,6 5,9 10,3" />
-          </svg>
-          Copied
-        </>
-      ) : (
-        <>
-          {/* clipboard */}
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="4" y="1" width="7" height="9" rx="1" />
-            <path d="M4 3H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1" />
-          </svg>
-          Copy
-        </>
-      )}
-    </button>
+    <>
+      {/* aria-live region announces outcome to screen readers without moving focus */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}
+      >
+        {isCopied ? `${label} copied` : isFailed ? `Failed to copy ${label}` : ''}
+      </span>
+      <button
+        type="button"
+        onClick={handleCopy}
+        aria-label={isCopied ? `${label} copied` : isFailed ? `Failed to copy ${label}` : `Copy ${label}`}
+        title={isCopied ? 'Copied!' : isFailed ? 'Copy failed' : 'Copy to clipboard'}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.3rem',
+          padding: '0.25rem 0.6rem',
+          fontSize: '0.78rem',
+          fontWeight: 600,
+          border: '1px solid var(--border)',
+          borderRadius: '0.5rem',
+          background: isCopied ? 'var(--success-soft)' : isFailed ? 'var(--danger-soft)' : 'rgba(148,163,184,0.08)',
+          color: isCopied ? 'var(--success)' : isFailed ? 'var(--danger)' : 'var(--muted)',
+          cursor: 'pointer',
+          transition: 'background 160ms, color 160ms',
+          flexShrink: 0,
+        }}
+      >
+        {isCopied ? (
+          <>
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="2,6 5,9 10,3" />
+            </svg>
+            Copied
+          </>
+        ) : isFailed ? (
+          <>
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="2" y1="2" x2="10" y2="10" /><line x1="10" y1="2" x2="2" y2="10" />
+            </svg>
+            Failed
+          </>
+        ) : (
+          <>
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="4" y="1" width="7" height="9" rx="1" />
+              <path d="M4 3H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1" />
+            </svg>
+            Copy
+          </>
+        )}
+      </button>
+    </>
   )
 }
 

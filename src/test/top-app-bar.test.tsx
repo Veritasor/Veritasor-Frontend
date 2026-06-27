@@ -3,9 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import TopAppBar from '../components/TopAppBar'
 import Layout from '../components/Layout'
+import { CookieConsentProvider } from '../components/CookieConsentContext'
 
 function renderWithRouter(ui: React.ReactElement, { initialEntries = ['/'] } = {}) {
-  return render(<MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>)
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <CookieConsentProvider>{ui}</CookieConsentProvider>
+    </MemoryRouter>,
+  )
 }
 
 // ─── TopAppBar ────────────────────────────────────────────────────────────────

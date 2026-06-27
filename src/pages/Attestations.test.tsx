@@ -1,51 +1,46 @@
-/**
- * Attestations Page Tests
- *
- * Tests for Attestations component including loading states, accessibility, and responsive behavior.
- * Ensures WCAG 2.1 AA compliance with proper semantic HTML and table structure.
- */
-
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import Attestations from './Attestations'
 
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <Attestations />
+    </MemoryRouter>,
+  )
+}
+
 describe('Attestations Page', () => {
-  it('should render attestations page with complete content and structure', () => {
-    const { container } = render(<Attestations />)
-    const heading = screen.getByRole('heading', { level: 1 })
-    expect(heading).toBeInTheDocument()
-    expect(heading).toHaveTextContent('Attestations')
-
-    const columnHeaders = screen.getAllByRole('columnheader')
-    expect(columnHeaders.length).toBeGreaterThan(0)
-
-    const rows = screen.getAllByRole('row')
-    expect(rows.length).toBeGreaterThan(0)
-
-    const section = container.querySelector('section')
-    expect(section).toBeInTheDocument()
-    expect(section).toHaveStyle({ padding: '1.5rem' })
+  it('renders heading and description', () => {
+    renderPage()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Attestations')
+    expect(screen.getByText(/merkle roots/i)).toBeInTheDocument()
   })
 
-  it('should render with proper semantic structure and styling', () => {
-    const { container } = render(<Attestations />)
-
-    const headerRows = container.querySelectorAll('[aria-label="Attestations table header"]')
-    expect(headerRows.length).toBeGreaterThan(0)
-
-    const section = container.querySelector('section')
-    const sectionStyle = section?.getAttribute('style') || ''
-    expect(sectionStyle).toContain('background: var(--surface)')
-    expect(sectionStyle).toContain('border: 1px solid var(--border)')
+  it('renders list items with links to detail view', () => {
+    renderPage()
+    const links = screen.getAllByRole('link', { name: /view details/i })
+    expect(links.length).toBeGreaterThanOrEqual(2)
+    expect(links[0]).toHaveAttribute('href', '/attestations/att-001')
+    expect(links[1]).toHaveAttribute('href', '/attestations/att-002')
   })
 
-  it('should display empty state with proper content and styling', () => {
-    const { container } = render(<Attestations />)
+  it('shows status badges', () => {
+    renderPage()
+    expect(screen.getAllByText('Verified').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Pending').length).toBeGreaterThanOrEqual(1)
+  })
 
-    const statusBadge = container.querySelector('[style*="var(--success-soft)"]')
-    expect(statusBadge).toBeInTheDocument()
+  it('renders a timeline list', () => {
+    const { container } = renderPage()
+    expect(container.querySelector('ol')).toBeInTheDocument()
+    expect(container.querySelectorAll('li').length).toBeGreaterThanOrEqual(2)
+  })
 
-    const paras = container.querySelectorAll('p')
-    expect(paras.length).toBeGreaterThan(0)
+  it('has accessible article labels', () => {
+    renderPage()
+    const articles = screen.getAllByRole('article')
+    expect(articles.length).toBeGreaterThanOrEqual(2)
   })
 })

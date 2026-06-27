@@ -1,9 +1,37 @@
-import { useState } from "react";
-import { Outlet, NavLink } from "react-router-dom";
-import TopAppBar from "./TopAppBar";
+import { useState } from 'react'
+import { Outlet, NavLink } from 'react-router-dom'
+import TopAppBar from './TopAppBar'
+import { ToastProvider, useToast } from './ToastContext'
 
-export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+function ToastContainer() {
+  const { toasts, removeToast } = useToast()
+  if (toasts.length === 0) return null
+  return (
+    <div aria-live="polite" aria-atomic="false" className="toast-container">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+          className={`toast toast-${toast.type}`}
+        >
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            aria-label="Close notification"
+            onClick={() => removeToast(toast.id)}
+            className="toast-close"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function LayoutInner() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { openSettings: openCookieSettings } = useCookieConsent()
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o);
@@ -53,21 +81,27 @@ export default function Layout() {
             <NavLink
               to="/"
               end
-              className={({ isActive }) =>
-                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
-              }
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
             >
               Dashboard
             </NavLink>
             <NavLink
               to="/attestations"
-              className={({ isActive }) =>
-                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
-              }
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
             >
               Attestations
             </NavLink>
           </nav>
+          <div className="sidebar-footer">
+            <button
+              type="button"
+              className="sidebar-cookie-btn"
+              onClick={openCookieSettings}
+              aria-label="Open cookie settings"
+            >
+              Cookie settings
+            </button>
+          </div>
         </aside>
 
         {sidebarOpen && (
@@ -82,6 +116,17 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <ToastContainer />
     </div>
-  );
+  )
 }
+
+export default function Layout() {
+  return (
+    <ToastProvider>
+      <LayoutInner />
+    </ToastProvider>
+  )
+}
+
+
