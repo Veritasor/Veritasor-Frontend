@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useIntl } from 'react-intl'
 import DensityToggle from "./DensityToggle";
+import LocalePicker from './LocalePicker/LocalePicker'
 
 export interface TopAppBarProps {
   workspaces?: string[];
@@ -29,6 +31,7 @@ export default function TopAppBar({
     initialEnvironment,
   );
   const [accountOpen, setAccountOpen] = useState(false);
+  const intl = useIntl()
 
   const workspaceBtnRef = useRef<HTMLButtonElement>(null);
   const workspaceMenuRef = useRef<HTMLUListElement>(null);
@@ -307,7 +310,24 @@ export default function TopAppBar({
                     }
                   }}
                 >
-                  Profile settings
+                  {intl.formatMessage({ id: 'settings.title' })}
+                </li>
+                <li
+                  role="menuitem"
+                  tabIndex={0}
+                  className="disclosure-item"
+                  onClick={closeAccountMenu}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      closeAccountMenu();
+                    }
+                  }}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs uppercase tracking-wide text-zinc-500">{intl.formatMessage({ id: 'settings.locale.label' })}</span>
+                    <LocalePicker compact />
+                  </div>
                 </li>
                 <li
                   role="menuitem"
@@ -340,7 +360,7 @@ export default function TopAppBar({
                     }
                   }}
                 >
-                  Sign out
+                  {intl.formatMessage({ id: 'nav.signOut' })}
                 </li>
               </ul>
             )}

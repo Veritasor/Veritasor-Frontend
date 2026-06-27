@@ -16,103 +16,16 @@ type AttestationListItem = {
   merkleRoot: string
 }
 
-// ─── Mock data — replace with real API ───────────────────────────────────
-
-const MOCK_ATTESTATIONS: AttestationListItem[] = [
-  {
-    id: 'att-001',
-    status: 'verified',
-    createdAt: '2026-05-28T14:32:00Z',
-    merkleRoot: '0x3a7bd3e2360a3d29eea436fcfb7e44c735d117c9f4e4b5e6a1c2d3e4f5a6b7c8',
-  },
-  {
-    id: 'att-002',
-    status: 'pending',
-    createdAt: '2026-05-15T09:10:00Z',
-    merkleRoot: '0x9f8e7d6c5b4a3928170605040302010f0e0d0c0b0a090807060504030201000f',
-  },
-  {
-    id: 'att-003',
-    status: 'verified',
-    createdAt: '2026-04-30T11:00:00Z',
-    merkleRoot: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2',
-  },
-  {
-    id: 'att-004',
-    status: 'failed',
-    createdAt: '2026-04-15T08:20:00Z',
-    merkleRoot: '0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6',
-  },
-  {
-    id: 'att-005',
-    status: 'verified',
-    createdAt: '2026-03-31T16:45:00Z',
-    merkleRoot: '0x2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
-  },
-  {
-    id: 'att-006',
-    status: 'pending',
-    createdAt: '2026-03-10T10:30:00Z',
-    merkleRoot: '0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8',
-  },
-]
-
-// ─── Filter chips ─────────────────────────────────────────────────────────
-
-const STATUS_CHIPS: ChipDef[] = [
-  { id: 'verified', label: 'Verified', color: 'success' },
-  { id: 'pending', label: 'Pending', color: 'warning' },
-  { id: 'failed', label: 'Failed', color: 'danger' },
-]
-
-// ─── Filtering ────────────────────────────────────────────────────────────
-
-function applyFilters(
-  items: AttestationListItem[],
-  filters: FilterState,
-): AttestationListItem[] {
-  return items.filter((item) => {
-    // Text search: matches ID or Merkle root (case-insensitive)
-    if (filters.query) {
-      const q = filters.query.toLowerCase()
-      if (
-        !item.id.toLowerCase().includes(q) &&
-        !item.merkleRoot.toLowerCase().includes(q)
-      ) {
-        return false
-      }
-    }
-
-    // Status chips: show item only when its status is in the active set
-    if (
-      filters.activeChips.length > 0 &&
-      !filters.activeChips.includes(item.status)
-    ) {
-      return false
-    }
-
-    // Date range: lexicographic comparison of YYYY-MM-DD prefix
-    const day = item.createdAt.slice(0, 10)
-    if (filters.dateFrom && day < filters.dateFrom) return false
-    if (filters.dateTo && day > filters.dateTo) return false
-
-    return true
-  })
+type AttestationStatusMeta = {
+  label: string
+  background: string
+  border: string
+  text: string
+  marker: string
+  icon: (props: { size: number }) => JSX.Element
 }
 
-// ─── Status meta ──────────────────────────────────────────────────────────
-
-const STATUS_META: Record<
-  AttestationStatus,
-  {
-    label: string;
-    background: string;
-    border: string;
-    text: string;
-    marker: string;
-    icon: (props: { size: number }) => JSX.Element;
-  }
-> = {
+const STATUS_META: Record<AttestationStatus, AttestationStatusMeta> = {
   pending: {
     label: "Pending",
     background: "var(--warning-soft)",
@@ -144,15 +57,7 @@ const STATUS_META: Record<
       </svg>
     ),
   },
-  {
-    id: 'att-002',
-    status: 'pending',
-    createdAt: '2026-06-01T09:10:00Z',
-    merkleRoot: '0xb2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
-    source: 'Stripe (live)',
-    amount: '$42,150.00',
-  },
-]
+}
 
 const STATUS_STYLE: Record<AttestationStatus, { background: string; color: string; border: string }> = {
   verified: {
@@ -570,45 +475,46 @@ export default function Attestations() {
               totalCount={MOCK_ATTESTATIONS.length}
               entityLabel="attestation"
             />
-          </div>
-
-          {filtered.length === 0 ? (
-            <NoResults onClearAll={clearAll} />
-          ) : (
-            <section
-              aria-label="Attestation history"
-              style={{ marginTop: '1.75rem' }}
-            >
-              <ol
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: 0,
-                  display: 'grid',
-                  gap: '1rem',
-                  position: 'relative',
-                }}
-              >
-                {/* Vertical timeline rail */}
+            {attestations.map((item) => (
+              <li key={item.id} style={{ listStyle: 'none' }}>
                 <div
-                  aria-hidden="true"
+                  role="row"
                   style={{
-                    position: 'absolute',
-                    left: 10,
-                    top: 0,
-                    bottom: 0,
-                    width: 2,
-                    background: 'rgba(148, 163, 184, 0.18)',
-                    borderRadius: 999,
+                    display: 'flex',
+                    gap: '1rem',
+                    padding: '0.75rem 0',
+                    borderTop: '1px solid var(--border)',
+                    alignItems: 'center',
                   }}
-                />
-                {filtered.map((item) => (
-                  <TimelineRow key={item.id} item={item} />
-                ))}
-              </ol>
-            </section>
-          )}
-        </>
+                >
+                  <div role="cell" style={{ flex: '0 0 120px' }}>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <div role="cell" style={{ flex: '0 0 200px', color: 'var(--muted)', fontSize: '0.9rem' }}>
+                    <time dateTime={item.createdAt}>
+                      {new Intl.DateTimeFormat(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: '2-digit',
+                      }).format(new Date(item.createdAt))}
+                    </time>
+                  </div>
+                  <div role="cell" style={{ flex: '1 1 auto', fontFamily: 'monospace', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {middleEllipsis(item.merkleRoot)}
+                  </div>
+                  <div role="cell" style={{ flex: '0 0 120px', color: 'var(--muted)' }}>
+                    {item.amount}
+                  </div>
+                  <div role="cell" style={{ flex: '0 0 80px' }}>
+                    <a href={`/attestations/${item.id}`} style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>
+                      View
+                    </a>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
     </div>
   );
