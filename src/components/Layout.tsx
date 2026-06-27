@@ -38,28 +38,47 @@ function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function toggleSidebar() {
-    setSidebarOpen((o) => !o)
+    setSidebarOpen((o) => !o);
   }
 
   function closeSidebar() {
-    setSidebarOpen(false)
+    setSidebarOpen(false);
   }
 
   return (
-    <div className="app-shell">
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
+    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      {/* Sidebar Layout shell */}
+      <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-6">
+        <div className="flex items-center space-x-2 px-2">
+          <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">Veritasor</span>
+        </div>
+        
+        <nav className="space-y-1">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`block rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 shadow-xs'
+                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
 
-      <TopAppBar
-        onSidebarToggle={toggleSidebar}
-        sidebarOpen={sidebarOpen}
-      />
+      <TopAppBar onSidebarToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
 
       <div className="app-body">
         <aside
           id="app-sidebar"
-          className={`app-sidebar${sidebarOpen ? ' app-sidebar-open' : ''}`}
+          className={`app-sidebar${sidebarOpen ? " app-sidebar-open" : ""}`}
           aria-label="Site navigation"
         >
           <nav aria-label="Main navigation">

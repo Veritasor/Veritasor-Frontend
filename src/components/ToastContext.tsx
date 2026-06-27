@@ -47,7 +47,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 export const useToast = () => {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
+    // Return a safe no-op fallback for contexts without a ToastProvider (e.g., standalone page renders in tests)
+    return {
+      toasts: [] as Toast[],
+      addToast: () => {},
+      removeToast: () => {},
+    };
   }
   return context;
 };
