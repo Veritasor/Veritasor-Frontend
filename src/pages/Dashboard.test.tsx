@@ -1,53 +1,31 @@
-/**
- * Dashboard Page Tests
- *
- * Tests for Dashboard component including loading states, accessibility, and responsive behavior.
- * Ensures WCAG 2.1 AA compliance with proper semantic HTML and loading state handling.
- */
-
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import Dashboard from './Dashboard'
 
+function renderPage() {
+  return render(<MemoryRouter><Dashboard /></MemoryRouter>)
+}
+
 describe('Dashboard Page', () => {
-  it('should render dashboard page with complete content', () => {
-    const { container } = render(<Dashboard />)
-    const heading = screen.getByRole('heading', { level: 1 })
-    expect(heading).toBeInTheDocument()
-    expect(heading).toHaveTextContent('Dashboard')
-
-    const h2 = screen.getByRole('heading', { level: 2, name: /key metrics/i })
-    expect(h2).toBeInTheDocument()
-
-    const listItems = screen.getAllByRole('listitem')
-    expect(listItems.length).toBeGreaterThan(0)
-
-    const section = container.querySelector('section')
-    expect(section).toBeInTheDocument()
+  it('renders heading', () => {
+    renderPage()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Dashboard')
   })
 
-  it('should have accessible structure with proper styling', () => {
-    const { container } = render(<Dashboard />)
-
-    const mutedText = container.querySelectorAll('[style*="var(--muted)"]')
-    expect(mutedText.length).toBeGreaterThan(0)
-
-    const grid = container.querySelector('[style*="grid-template-columns"]')
-    expect(grid).toBeInTheDocument()
-
-    const section = container.querySelector('section')
-    expect(section).toHaveStyle({ padding: '1.5rem' })
+  it('renders quick actions section', () => {
+    const { container } = renderPage()
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/quick actions/i)
+    expect(container.querySelector('section')).toBeInTheDocument()
   })
 
-  it('should render with proper semantic structure and content', () => {
-    const { container } = render(<Dashboard />)
+  it('renders trigger button', () => {
+    renderPage()
+    expect(screen.getByRole('button', { name: /trigger monthly revenue report/i })).toBeInTheDocument()
+  })
 
-    const paras = container.querySelectorAll('p')
-    expect(paras.length).toBeGreaterThan(0)
-    expect(paras[0]).toHaveTextContent(/revenue sources/)
-
-    const spans = container.querySelectorAll('span')
-    expect(spans.length).toBeGreaterThan(0)
+  it('has muted description text', () => {
+    const { container } = renderPage()
+    expect(container.querySelectorAll('[style*="var(--muted)"]').length).toBeGreaterThan(0)
   })
 })
-

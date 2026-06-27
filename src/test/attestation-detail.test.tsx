@@ -31,7 +31,7 @@ describe('Attestations list', () => {
         <Attestations />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: /attestations/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /attestations/i })).toBeInTheDocument()
     expect(screen.getByText(/merkle roots/i)).toBeInTheDocument()
   })
 
@@ -41,7 +41,7 @@ describe('Attestations list', () => {
         <Attestations />
       </MemoryRouter>,
     )
-    const links = screen.getAllByRole('link')
+    const links = screen.getAllByRole('link', { name: /view details/i })
     expect(links.length).toBeGreaterThanOrEqual(2)
     expect(links[0]).toHaveAttribute('href', '/attestations/att-001')
     expect(links[1]).toHaveAttribute('href', '/attestations/att-002')
@@ -53,8 +53,8 @@ describe('Attestations list', () => {
         <Attestations />
       </MemoryRouter>,
     )
-    expect(screen.getAllByText('verified').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('pending').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Verified').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Pending').length).toBeGreaterThanOrEqual(1)
   })
 })
 
@@ -162,6 +162,37 @@ describe('CopyButton', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: /copied/i }).length).toBeGreaterThan(0))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       '0x3a7bd3e2360a3d29eea436fcfb7e44c735d117c9f4e4b5e6a1c2d3e4f5a6b7c8',
+    )
+  })
+
+  it('announces success via aria-live region', async () => {
+    renderDetail('att-001')
+    const [firstCopy] = screen.getAllByRole('button', { name: /copy merkle root/i })
+    fireEvent.click(firstCopy)
+    await waitFor(() =>
+      expect(document.querySelector('[aria-live="polite"]')?.textContent).toMatch(/merkle root copied/i),
+    )
+  })
+
+  it('shows failure state when clipboard is denied', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new DOMException('Permission denied', 'NotAllowedError')) },
+    })
+    renderDetail('att-001')
+    const [firstCopy] = screen.getAllByRole('button', { name: /copy merkle root/i })
+    fireEvent.click(firstCopy)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /failed to copy/i }).length).toBeGreaterThan(0))
+  })
+
+  it('announces failure via aria-live region', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new DOMException('Permission denied', 'NotAllowedError')) },
+    })
+    renderDetail('att-001')
+    const [firstCopy] = screen.getAllByRole('button', { name: /copy merkle root/i })
+    fireEvent.click(firstCopy)
+    await waitFor(() =>
+      expect(document.querySelector('[aria-live="polite"]')?.textContent).toMatch(/failed to copy/i),
     )
   })
 })
