@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { LocaleProvider } from './i18n/provider'
 import { Layout } from './components/Layout'
 import ApiKeys from './pages/ApiKeys'
 
@@ -7,15 +8,17 @@ const Attestations = () => <div className="p-6 text-zinc-900 dark:text-white fon
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="attestations" element={<Attestations />} />
-          <Route path="api-keys" element={<ApiKeys />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <LocaleProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="attestations" element={<Attestations />} />
+            <Route path="api-keys" element={<ApiKeys />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </LocaleProvider>
   )
 }

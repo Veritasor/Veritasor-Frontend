@@ -6,9 +6,14 @@ import Login from '../pages/Login'
 import Signup from '../pages/Signup'
 import ForgotPassword from '../pages/ForgotPassword'
 import App from '../App'
+import { ToastProvider } from '../components/ToastContext'
 
 function renderWithRouter(element: ReactElement) {
-  return render(<MemoryRouter>{element}</MemoryRouter>);
+  return render(
+    <MemoryRouter>
+      <ToastProvider>{element}</ToastProvider>
+    </MemoryRouter>,
+  )
 }
 
 describe("authentication screens visual system", () => {

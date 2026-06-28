@@ -322,6 +322,7 @@ function SourceRow({
 // ---------------------------------------------------------------------------
 
 export default function RevenueSources() {
+  const { addToast } = useToast()
   const [sources, setSources] = useState<Source[]>(INITIAL_SOURCES)
   const [pendingDisconnect, setPendingDisconnect] = useState<Source | null>(null)
 
@@ -350,8 +351,24 @@ export default function RevenueSources() {
 
   function handleDisconnectConfirm() {
     if (!pendingDisconnect) return
-    setSources((prev) => prev.filter((s) => s.id !== pendingDisconnect.id))
+    const sourceToRemove = pendingDisconnect
+    setSources((prev) => prev.filter((s) => s.id !== sourceToRemove.id))
     setPendingDisconnect(null)
+
+    addToast(
+      `Disconnected ${sourceToRemove.provider}`,
+      'info',
+      8000,
+      () => {
+        setSources((prev) => {
+          // Prevent duplicates if already added back
+          if (prev.some((s) => s.id === sourceToRemove.id)) return prev
+          return [...prev, sourceToRemove]
+        })
+        addToast(`Reconnected ${sourceToRemove.provider}`, 'success')
+      },
+      'Undo'
+    )
   }
 
   return (

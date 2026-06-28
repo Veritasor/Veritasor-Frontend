@@ -8,6 +8,7 @@ import type { FileMap } from './onboarding/DocumentUploadStep'
 import BankDetailsStep from './onboarding/BankDetailsStep'
 import ReviewSubmitStep from './onboarding/ReviewSubmitStep'
 import type { BusinessDetails, OwnerDetails, DocumentUpload, BankDetails } from '../hooks/useOnboardingDraft'
+import Breadcrumb from '../components/Breadcrumb'
 
 const TOTAL_STEPS = 5
 
@@ -91,6 +92,15 @@ export default function OnboardingWizard() {
   return (
     <main className="ob-page">
       <div className="ob-shell">
+        {/* Breadcrumb */}
+        <Breadcrumb
+          items={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Onboarding' },
+            { label: meta.title },
+          ]}
+        />
+
         {/* Top bar */}
         <div className="ob-topbar">
           <Link to="/" className="ob-brand">Veritasor</Link>

@@ -1,24 +1,31 @@
-import { Link } from "react-router-dom";
+import { Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import SearchFilter, { parseFilterState } from '../components/SearchFilter'
+import type { ChipDef, FilterState } from '../components/SearchFilter'
+
+// ─── Types ────────────────────────────────────────────────────────────────
+
+// ─── Types ────────────────────────────────────────────────────────────────
 
 type AttestationStatus = "pending" | "verified" | "failed";
 
 type AttestationListItem = {
-  id: string;
-  status: AttestationStatus;
-  createdAt: string; // ISO
-  merkleRoot: string;
-};
+  id: string
+  status: AttestationStatus
+  createdAt: string // ISO 8601
+  merkleRoot: string
+}
 
-const DEMO_ATTESTATIONS: AttestationListItem[] = [
-  {
-    label: string;
-    background: string;
-    border: string;
-    text: string;
-    marker: string;
-    icon: (props: { size: number }) => JSX.Element;
-  }
-> = {
+type AttestationStatusMeta = {
+  label: string
+  background: string
+  border: string
+  text: string
+  marker: string
+  icon: (props: { size: number }) => JSX.Element
+}
+
+const STATUS_META: Record<AttestationStatus, AttestationStatusMeta> = {
   pending: {
     label: "Pending",
     background: "var(--warning-soft)",
@@ -50,15 +57,7 @@ const DEMO_ATTESTATIONS: AttestationListItem[] = [
       </svg>
     ),
   },
-  {
-    id: 'att-002',
-    status: 'pending',
-    createdAt: '2026-06-01T09:10:00Z',
-    merkleRoot: '0xb2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
-    source: 'Stripe (live)',
-    amount: '$42,150.00',
-  },
-]
+}
 
 const STATUS_STYLE: Record<AttestationStatus, { background: string; color: string; border: string }> = {
   verified: {
@@ -115,21 +114,26 @@ const STATUS_STYLE: Record<AttestationStatus, { background: string; color: strin
   },
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
 function formatCompactDate(iso: string) {
-  const date = new Date(iso);
   return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso))
 }
 
 function middleEllipsis(value: string, start = 10, end = 10) {
   if (value.length <= start + end + 3) return value;
   return `${value.slice(0, start)}…${value.slice(-end)}`;
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: AttestationStatus }) {
   const meta = STATUS_META[status];
@@ -174,25 +178,19 @@ function EmptyState() {
         boxShadow: "0 20px 50px rgba(2, 6, 23, 0.22)",
       }}
     >
-      <div
-        style={{
-          display: "grid",
-          gap: "var(--density-row-gap)",
-          maxWidth: 720,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: "1.15rem" }}>No attestations yet</h2>
-        <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.65 }}>
+      <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 720 }}>
+        <h2 style={{ margin: 0, fontSize: '1.15rem' }}>No attestations yet</h2>
+        <p style={{ margin: 0, color: 'var(--muted)', lineHeight: 1.65 }}>
           Attestations appear here after you run a revenue report. Each
           attestation includes an on-chain Merkle root and a proof-history
           timeline as verification progresses.
         </p>
         <div
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "var(--density-row-gap)",
-            marginTop: "0.5rem",
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            marginTop: '0.5rem',
           }}
         >
           <Link
@@ -225,13 +223,91 @@ function EmptyState() {
               lineHeight: 1.55,
             }}
           >
-            Tip: once you’ve run a report, you’ll be able to review the proof
+            Tip: once you've run a report, you'll be able to review the proof
             timeline and copy the Merkle root for audits.
           </div>
         </div>
       </div>
     </section>
   );
+}
+
+function NoResults({ onClearAll }: { onClearAll: () => void }) {
+  return (
+    <section
+      aria-label="No matching attestations"
+      style={{
+        marginTop: '1.75rem',
+        padding: '2rem 1.6rem',
+        background: 'var(--surface)',
+        borderRadius: 12,
+        border: '1px dashed var(--border)',
+        textAlign: 'center',
+      }}
+    >
+      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
+        No attestations match your filters
+      </p>
+      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
+        Try adjusting your search term, removing a status filter, or widening
+        the date range.
+      </p>
+      <button
+        type="button"
+        onClick={onClearAll}
+        style={{
+          padding: '0.6rem 1.25rem',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)',
+          background: 'rgba(148, 163, 184, 0.08)',
+          color: 'var(--text)',
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Clear all filters
+      </button>
+    </section>
+  )
+}
+
+function NoResults({ onClearAll }: { onClearAll: () => void }) {
+  return (
+    <section
+      aria-label="No matching attestations"
+      style={{
+        marginTop: '1.75rem',
+        padding: '2rem 1.6rem',
+        background: 'var(--surface)',
+        borderRadius: 12,
+        border: '1px dashed var(--border)',
+        textAlign: 'center',
+      }}
+    >
+      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
+        No attestations match your filters
+      </p>
+      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
+        Try adjusting your search term, removing a status filter, or widening
+        the date range.
+      </p>
+      <button
+        type="button"
+        onClick={onClearAll}
+        style={{
+          padding: '0.6rem 1.25rem',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)',
+          background: 'rgba(148, 163, 184, 0.08)',
+          color: 'var(--text)',
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Clear all filters
+      </button>
+    </section>
+  )
 }
 
 function TimelineRow({ item }: { item: AttestationListItem }) {
@@ -242,16 +318,17 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
   return (
     <li
       style={{
-        display: "grid",
-        gridTemplateColumns: "1.25rem 1fr",
-        columnGap: "0.9rem",
+        display: 'grid',
+        gridTemplateColumns: '1.25rem 1fr',
+        columnGap: '0.9rem',
       }}
     >
+      {/* Timeline marker */}
       <div
         style={{
-          position: "relative",
-          display: "flex",
-          justifyContent: "center",
+          position: 'relative',
+          display: 'flex',
+          justifyContent: 'center',
         }}
       >
         <span
@@ -261,7 +338,7 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
             height: 12,
             borderRadius: 999,
             background: meta.marker,
-            boxShadow: `0 0 0 0.35rem rgba(148, 163, 184, 0.10)`,
+            boxShadow: '0 0 0 0.35rem rgba(148, 163, 184, 0.10)',
             marginTop: 6,
           }}
         />
@@ -291,9 +368,9 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
           <time
             dateTime={item.createdAt}
             style={{
-              color: "var(--muted)",
-              fontSize: "var(--density-text-sm)",
-              whiteSpace: "nowrap",
+              color: 'var(--muted)',
+              fontSize: '0.9rem',
+              whiteSpace: 'nowrap',
             }}
           >
             {formattedDate}
@@ -310,10 +387,10 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
         >
           <div
             style={{
-              color: "var(--muted)",
-              fontSize: "var(--density-text-muted)",
+              color: 'var(--muted)',
+              fontSize: '0.9rem',
               fontWeight: 700,
-              letterSpacing: "0.02em",
+              letterSpacing: '0.02em',
             }}
           >
             Merkle root
@@ -338,13 +415,35 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
             {shortRoot}
           </div>
         </div>
+
+        <Link
+          to={`/attestations/${item.id}`}
+          style={{ fontSize: '0.85rem', color: 'var(--accent)', fontWeight: 600 }}
+        >
+          View details →
+        </Link>
       </article>
     </li>
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────
+
 export default function Attestations() {
-  const attestations: AttestationListItem[] = [];
+  const attestations: AttestationListItem[] = [
+    {
+      id: 'att-001',
+      status: 'verified',
+      createdAt: '2026-05-28T14:32:00Z',
+      merkleRoot: '0x3a7bd3e2360a3d29eea436fcfb7e44c735d117c9f4e4b5e6a1c2d3e4f5a6b7c8',
+    },
+    {
+      id: 'att-002',
+      status: 'pending',
+      createdAt: '2026-05-15T09:10:00Z',
+      merkleRoot: '0x9f8e7d6c5b4a3928170605040302010f0e0d0c0b0a090807060504030201000f',
+    },
+  ]
 
   return (
     <div style={{ maxWidth: 1040 }}>
@@ -352,11 +451,10 @@ export default function Attestations() {
         <h1 style={{ margin: 0 }}>Attestations</h1>
         <p
           style={{
-            color: "var(--muted)",
+            color: 'var(--muted)',
             margin: 0,
             lineHeight: 1.65,
             maxWidth: 78 * 10,
-            fontSize: "var(--density-text-muted)",
           }}
         >
           Revenue attestations published on Stellar. Merkle roots and metadata
@@ -364,75 +462,60 @@ export default function Attestations() {
         </p>
       </header>
 
-      {attestations.length === 0 ? (
+      {MOCK_ATTESTATIONS.length === 0 ? (
         <EmptyState />
       ) : (
-        <section
-          aria-label="Attestation history"
-          style={{ marginTop: "var(--density-gap)" }}
-        >
-          <ol
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
-              display: "grid",
-              gap: "var(--density-gap)",
-              position: "relative",
-            }}
-          >
-            <div
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                left: 10,
-                top: 0,
-                bottom: 0,
-                width: 2,
-                background: "rgba(148, 163, 184, 0.18)",
-                borderRadius: 999,
-              }}
+        <>
+          <div style={{ marginTop: '1.5rem' }}>
+            <SearchFilter
+              placeholder="Search by Merkle root or ID…"
+              chips={STATUS_CHIPS}
+              showDateRange
+              resultCount={filtered.length}
+              totalCount={MOCK_ATTESTATIONS.length}
+              entityLabel="attestation"
             />
             {attestations.map((item) => (
-              <div
-                key={item.id}
-                role="row"
-                style={{
-                  display: 'flex',
-                  gap: '1rem',
-                  padding: '0.75rem 0',
-                  borderTop: '1px solid var(--border)',
-                  alignItems: 'center',
-                }}
-              >
-                <div role="cell" style={{ flex: '0 0 120px' }}>
-                  <StatusBadge status={item.status} />
+              <li key={item.id} style={{ listStyle: 'none' }}>
+                <div
+                  role="row"
+                  style={{
+                    display: 'flex',
+                    gap: '1rem',
+                    padding: '0.75rem 0',
+                    borderTop: '1px solid var(--border)',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div role="cell" style={{ flex: '0 0 120px' }}>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <div role="cell" style={{ flex: '0 0 200px', color: 'var(--muted)', fontSize: '0.9rem' }}>
+                    <time dateTime={item.createdAt}>
+                      {new Intl.DateTimeFormat(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: '2-digit',
+                      }).format(new Date(item.createdAt))}
+                    </time>
+                  </div>
+                  <div role="cell" style={{ flex: '1 1 auto', fontFamily: 'monospace', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {middleEllipsis(item.merkleRoot)}
+                  </div>
+                  <div role="cell" style={{ flex: '0 0 120px', color: 'var(--muted)' }}>
+                    {item.amount}
+                  </div>
+                  <div role="cell" style={{ flex: '0 0 80px' }}>
+                    <a href={`/attestations/${item.id}`} style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>
+                      View
+                    </a>
+                  </div>
                 </div>
-                <div role="cell" style={{ flex: '0 0 200px', color: 'var(--muted)', fontSize: '0.9rem' }}>
-                  <time dateTime={item.createdAt}>
-                    {new Intl.DateTimeFormat(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: '2-digit',
-                    }).format(new Date(item.createdAt))}
-                  </time>
-                </div>
-                <div role="cell" style={{ flex: '1 1 auto', fontFamily: 'monospace', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {middleEllipsis(item.merkleRoot)}
-                </div>
-                <div role="cell" style={{ flex: '0 0 120px', color: 'var(--muted)' }}>
-                  {item.amount}
-                </div>
-                <div role="cell" style={{ flex: '0 0 80px' }}>
-                  <a href={`/attestations/${item.id}`} style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>
-                    View
-                  </a>
-                </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
-      </section>
+          </ol>
+        </section>
+      )}
     </div>
   );
 }

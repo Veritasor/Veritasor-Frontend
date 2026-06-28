@@ -7,6 +7,7 @@ const highlights = [
 ];
 
 export default function Signup() {
+
   return (
     <AuthShell
       eyebrow="Create account"
