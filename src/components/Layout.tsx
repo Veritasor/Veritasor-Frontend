@@ -91,6 +91,9 @@ function LayoutInner() {
             >
               Attestations
             </NavLink>
+            <NavLink to="/sources" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+              Revenue Sources
+            </NavLink>
           </nav>
           <div className="sidebar-footer">
             <button
