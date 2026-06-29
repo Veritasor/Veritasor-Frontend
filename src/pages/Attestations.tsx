@@ -429,6 +429,8 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
+import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
+
 export default function Attestations() {
   const attestations: AttestationListItem[] = [
     {
@@ -445,9 +447,15 @@ export default function Attestations() {
     },
   ]
 
+  // Mock scheduled runs for calendar indicators.
+  const scheduledDates = [
+    '2026-05-15',
+    '2026-05-28',
+  ]
+
   return (
     <div style={{ maxWidth: 1040 }}>
-      <header style={{ display: "grid", gap: "var(--density-row-gap)" }}>
+      <header style={{ display: 'grid', gap: 'var(--density-row-gap)' }}>
         <h1 style={{ margin: 0 }}>Attestations</h1>
         <p
           style={{
@@ -457,65 +465,25 @@ export default function Attestations() {
             maxWidth: 78 * 10,
           }}
         >
-          Revenue attestations published on Stellar. Merkle roots and metadata
-          are stored on-chain, with a proof-history timeline for each run.
+          Revenue attestations published on Stellar. Merkle roots and metadata are stored on-chain,
+          with a proof-history timeline for each run.
         </p>
       </header>
 
-      {MOCK_ATTESTATIONS.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <>
-          <div style={{ marginTop: '1.5rem' }}>
-            <SearchFilter
-              placeholder="Search by Merkle root or ID…"
-              chips={STATUS_CHIPS}
-              showDateRange
-              resultCount={filtered.length}
-              totalCount={MOCK_ATTESTATIONS.length}
-              entityLabel="attestation"
-            />
+      <AttestationCalendar scheduledDates={scheduledDates} />
+
+      <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
+        {attestations.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <ol style={{ margin: 0, padding: 0 }}>
             {attestations.map((item) => (
-              <li key={item.id} style={{ listStyle: 'none' }}>
-                <div
-                  role="row"
-                  style={{
-                    display: 'flex',
-                    gap: '1rem',
-                    padding: '0.75rem 0',
-                    borderTop: '1px solid var(--border)',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div role="cell" style={{ flex: '0 0 120px' }}>
-                    <StatusBadge status={item.status} />
-                  </div>
-                  <div role="cell" style={{ flex: '0 0 200px', color: 'var(--muted)', fontSize: '0.9rem' }}>
-                    <time dateTime={item.createdAt}>
-                      {new Intl.DateTimeFormat(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: '2-digit',
-                      }).format(new Date(item.createdAt))}
-                    </time>
-                  </div>
-                  <div role="cell" style={{ flex: '1 1 auto', fontFamily: 'monospace', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {middleEllipsis(item.merkleRoot)}
-                  </div>
-                  <div role="cell" style={{ flex: '0 0 120px', color: 'var(--muted)' }}>
-                    {item.amount}
-                  </div>
-                  <div role="cell" style={{ flex: '0 0 80px' }}>
-                    <a href={`/attestations/${item.id}`} style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>
-                      View
-                    </a>
-                  </div>
-                </div>
-              </li>
+              <TimelineRow key={item.id} item={item} />
             ))}
           </ol>
-        </section>
-      )}
+        )}
+      </section>
     </div>
-  );
+  )
 }
+
