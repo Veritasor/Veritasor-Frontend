@@ -30,6 +30,7 @@ export default function WizardProgress({
           className="sr-only"
           role="status"
           aria-live="polite"
+          aria-atomic="true"
         >
           Step {currentStepIndex + 1} of {steps.length}: {currentStep.label}
         </p>
@@ -47,8 +48,13 @@ export default function WizardProgress({
                 isCurrent ? 'is-current' : ''
               }`}
               aria-current={isCurrent ? 'step' : undefined}
+              style={{ transition: 'background-color 200ms ease, border-color 200ms ease, color 200ms ease' }}
             >
-              <span className="wizard-progress-marker" aria-hidden="true">
+              <span
+                className="wizard-progress-marker"
+                aria-hidden="true"
+                style={{ transition: 'transform 200ms ease', transform: isCurrent ? 'scale(1.06)' : 'scale(1)' }}
+              >
                 {isComplete ? '✓' : index + 1}
               </span>
               <span className="wizard-progress-copy">
