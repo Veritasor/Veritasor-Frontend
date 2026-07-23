@@ -43,6 +43,8 @@
   --radius-sm: 0.75rem;
   --radius-md: 1.25rem;
   --radius-lg: 1.75rem;
+  --focus-ring: 3px solid rgba(94, 234, 212, 0.92);
+  --focus-ring-offset: 3px;
 
   /* Density tokens */
   --density-gap: var(--space-4);
@@ -2961,6 +2963,181 @@ input {
   .sf-chips-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+}
+
+/* ── Pagination / Load-more (pg-*) ────────────────────────────────────────
+ * Unified pagination pattern for long lists: numbered pages + page-size
+ * selector on dense/desktop screens, a single progressive "Load more"
+ * button on mobile. See docs/uiux/pagination-load-more-pattern.md.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+.pg-root {
+  display: grid;
+  gap: var(--density-row-gap);
+  margin-top: var(--density-gap);
+}
+
+.pg-status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ── Numbered variant ─────────────────────────────────────────────── */
+.pg-numbered {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pg-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: var(--density-touch-min);
+  padding: 0.4rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(148, 163, 184, 0.06);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.pg-nav-btn:hover:not(:disabled) {
+  border-color: rgba(173, 192, 217, 0.45);
+}
+
+.pg-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pg-pages {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pg-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--density-touch-min);
+  min-height: var(--density-touch-min);
+  padding: 0.3rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.pg-page-btn:hover {
+  border-color: rgba(173, 192, 217, 0.45);
+  color: var(--text);
+}
+
+.pg-page-btn-active {
+  background: rgba(94, 234, 212, 0.1);
+  border-color: rgba(94, 234, 212, 0.48);
+  color: var(--accent);
+}
+
+.pg-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  color: var(--muted);
+}
+
+.pg-page-size {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-inline-start: auto;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.pg-page-size select {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.82);
+  color: var(--text);
+  font: inherit;
+}
+
+.pg-page-size select:hover {
+  border-color: rgba(173, 192, 217, 0.45);
+}
+
+.pg-page-size select:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 0.25rem rgba(96, 165, 250, 0.16);
+}
+
+/* ── Progressive / Load-more variant ──────────────────────────────── */
+.pg-loadmore {
+  display: flex;
+  justify-content: center;
+}
+
+.pg-loadmore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--density-touch-min);
+  width: 100%;
+  max-width: 20rem;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(148, 163, 184, 0.06);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.pg-loadmore-btn:hover {
+  border-color: rgba(94, 234, 212, 0.48);
+  color: var(--accent);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .pg-numbered {
+    justify-content: center;
+  }
+
+  .pg-page-size {
+    margin-inline-start: 0;
+    width: 100%;
+    justify-content: center;
   }
 }
 

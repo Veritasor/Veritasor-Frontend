@@ -1,9 +1,8 @@
 import { Link } from 'react-router-dom'
-import { useSearchParams } from 'react-router-dom'
-import SearchFilter, { parseFilterState } from '../components/SearchFilter'
-import type { ChipDef, FilterState } from '../components/SearchFilter'
-
-// ─── Types ────────────────────────────────────────────────────────────────
+import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
+import Pagination from '../components/Pagination'
+import { usePagination } from '../hooks/usePagination'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -57,9 +56,6 @@ const STATUS_META: Record<AttestationStatus, AttestationStatusMeta> = {
       </svg>
     ),
   },
-}
-
-const STATUS_STYLE: Record<AttestationStatus, { background: string; color: string; border: string }> = {
   verified: {
     label: "Verified",
     background: "var(--success-soft)",
@@ -113,8 +109,6 @@ const STATUS_STYLE: Record<AttestationStatus, { background: string; color: strin
     ),
   },
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -230,84 +224,6 @@ function EmptyState() {
       </div>
     </section>
   );
-}
-
-function NoResults({ onClearAll }: { onClearAll: () => void }) {
-  return (
-    <section
-      aria-label="No matching attestations"
-      style={{
-        marginTop: '1.75rem',
-        padding: '2rem 1.6rem',
-        background: 'var(--surface)',
-        borderRadius: 12,
-        border: '1px dashed var(--border)',
-        textAlign: 'center',
-      }}
-    >
-      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
-        No attestations match your filters
-      </p>
-      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
-        Try adjusting your search term, removing a status filter, or widening
-        the date range.
-      </p>
-      <button
-        type="button"
-        onClick={onClearAll}
-        style={{
-          padding: '0.6rem 1.25rem',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-          background: 'rgba(148, 163, 184, 0.08)',
-          color: 'var(--text)',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        Clear all filters
-      </button>
-    </section>
-  )
-}
-
-function NoResults({ onClearAll }: { onClearAll: () => void }) {
-  return (
-    <section
-      aria-label="No matching attestations"
-      style={{
-        marginTop: '1.75rem',
-        padding: '2rem 1.6rem',
-        background: 'var(--surface)',
-        borderRadius: 12,
-        border: '1px dashed var(--border)',
-        textAlign: 'center',
-      }}
-    >
-      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
-        No attestations match your filters
-      </p>
-      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
-        Try adjusting your search term, removing a status filter, or widening
-        the date range.
-      </p>
-      <button
-        type="button"
-        onClick={onClearAll}
-        style={{
-          padding: '0.6rem 1.25rem',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-          background: 'rgba(148, 163, 184, 0.08)',
-          color: 'var(--text)',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        Clear all filters
-      </button>
-    </section>
-  )
 }
 
 function TimelineRow({ item }: { item: AttestationListItem }) {
@@ -427,12 +343,17 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────
+// ─── Mock data ────────────────────────────────────────────────────────────
 
-import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
-
-export default function Attestations() {
-  const attestations: AttestationListItem[] = [
+/**
+ * Mock data — replace with a real API call. att-001 and att-002 are the
+ * canonical fixtures referenced by src/pages/Attestations.test.tsx and
+ * src/test/attestation-detail.test.tsx; additional synthetic runs are
+ * appended (older, descending dates) so the page has enough rows to
+ * exercise pagination realistically.
+ */
+function buildMockAttestations(): AttestationListItem[] {
+  const fixed: AttestationListItem[] = [
     {
       id: 'att-001',
       status: 'verified',
@@ -447,11 +368,38 @@ export default function Attestations() {
     },
   ]
 
+  const cycle: AttestationStatus[] = ['verified', 'verified', 'pending', 'failed']
+  const synthetic: AttestationListItem[] = Array.from({ length: 22 }, (_, i) => {
+    const n = i + 3
+    const monthsAgo = n
+    const date = new Date(Date.UTC(2026, 4 - monthsAgo, 15, 9, 10, 0))
+    return {
+      id: `att-${String(n).padStart(3, '0')}`,
+      status: cycle[i % cycle.length],
+      createdAt: date.toISOString(),
+      merkleRoot: `0x${n.toString(16).padStart(4, '0')}${'a1b2c3d4e5f6'.repeat(4)}`.slice(0, 66),
+    }
+  })
+
+  return [...fixed, ...synthetic]
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────
+
+export default function Attestations() {
+  const attestations = buildMockAttestations()
+
   // Mock scheduled runs for calendar indicators.
   const scheduledDates = [
     '2026-05-15',
     '2026-05-28',
   ]
+
+  const isMobile = useIsMobile()
+  const pagination = usePagination(attestations.length, { defaultPageSize: 10 })
+  const visibleAttestations = isMobile
+    ? attestations.slice(0, pagination.cumulativeEndIndex)
+    : attestations.slice(pagination.startIndex, pagination.endIndex)
 
   return (
     <div style={{ maxWidth: 1040 }}>
@@ -476,11 +424,18 @@ export default function Attestations() {
         {attestations.length === 0 ? (
           <EmptyState />
         ) : (
-          <ol style={{ margin: 0, padding: 0 }}>
-            {attestations.map((item) => (
-              <TimelineRow key={item.id} item={item} />
-            ))}
-          </ol>
+          <>
+            <ol style={{ margin: 0, padding: 0 }}>
+              {visibleAttestations.map((item) => (
+                <TimelineRow key={item.id} item={item} />
+              ))}
+            </ol>
+            <Pagination
+              pagination={pagination}
+              totalItems={attestations.length}
+              entityLabel="attestation"
+            />
+          </>
         )}
       </section>
     </div>
