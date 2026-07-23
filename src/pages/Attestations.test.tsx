@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Attestations from './Attestations'
+
+afterEach(() => vi.restoreAllMocks())
 
 function renderPage() {
   return render(
@@ -9,6 +11,19 @@ function renderPage() {
       <Attestations />
     </MemoryRouter>,
   )
+}
+
+function mockViewport(isMobile: boolean) {
+  vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+    matches: isMobile,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
 }
 
 describe('Attestations Page', () => {
@@ -42,5 +57,21 @@ describe('Attestations Page', () => {
     renderPage()
     const articles = screen.getAllByRole('article')
     expect(articles.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('shows the first page of results and numbered pagination on desktop', () => {
+    renderPage()
+    expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument()
+    const statuses = screen.getAllByRole('status')
+    expect(statuses.some((el) => /showing 1–10 of 24 attestations/i.test(el.textContent ?? ''))).toBe(
+      true,
+    )
+  })
+
+  it('shows the progressive Load more control on narrow viewports', () => {
+    mockViewport(true)
+    renderPage()
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument()
   })
 })
