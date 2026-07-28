@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
+import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
 import WebhookRetryPanel from '../components/WebhookRetryPanel'
@@ -18,6 +19,7 @@ const TABS = [
   { id: "billing", label: "Billing" },
   { id: "security", label: "Security" },
   { id: "audit-log", label: "Audit Log" },
+  { id: "a11y-audit", label: "Accessibility" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -2393,6 +2395,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   "audit-log": AuditLogPanel,
+  "a11y-audit": A11yAuditPanel,
 };
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
