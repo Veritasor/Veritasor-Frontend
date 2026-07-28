@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, Link } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
+import BottomTabBar from './BottomTabBar'
 import { ToastProvider, useToast } from './ToastContext'
+import { useCookieConsent } from './CookieConsentContext'
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast()
@@ -29,6 +31,12 @@ function ToastContainer() {
   )
 }
 
+const navItems = [
+  { path: '/', name: 'Dashboard' },
+  { path: '/attestations', name: 'Attestations' },
+  { path: '/sources', name: 'Revenue Sources' },
+]
+
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { openSettings: openCookieSettings } = useCookieConsent()
@@ -48,7 +56,7 @@ function LayoutInner() {
         <div className="flex items-center space-x-2 px-2">
           <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">Veritasor</span>
         </div>
-        
+
         <nav className="space-y-1">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -119,6 +127,7 @@ function LayoutInner() {
           <Outlet />
         </main>
       </div>
+      <BottomTabBar />
       <ToastContainer />
     </div>
   )
@@ -131,5 +140,3 @@ export default function Layout() {
     </ToastProvider>
   )
 }
-
-
