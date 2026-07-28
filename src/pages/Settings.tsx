@@ -1,14 +1,14 @@
-/* eslint-disable react/forbid-dom-props */
-
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
+import TokensExport from '../components/tokens/TokensExport'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'api-keys', label: 'API Keys' },
+  { id: 'tokens', label: 'Tokens' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
 ] as const
@@ -233,10 +233,26 @@ function SecurityPanel() {
   )
 }
 
+function TokensPanel() {
+  return (
+    <div>
+      <h2>Design tokens</h2>
+      <p style={{ color: 'var(--muted)' }}>
+        Export a snapshot of Veritasor design tokens as CSS custom properties. Choose a scope,
+        then copy or download the file.
+      </p>
+      <div style={{ marginTop: '1.5rem', maxWidth: 720 }}>
+        <TokensExport />
+      </div>
+    </div>
+  )
+}
+
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
   'api-keys': ApiKeysPanel,
+  tokens: TokensPanel,
   billing: BillingPanel,
   security: SecurityPanel,
 }
