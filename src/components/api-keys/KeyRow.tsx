@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import type { ApiKey, ApiKeyStatus } from './apiKeyTypes'
+import type { ApiKey, ApiKeyStatus, DependentUsage } from './apiKeyTypes'
 import ConfirmDialog from '../ConfirmDialog'
+import RevokeKeyDialog from './RevokeKeyDialog'
 import { useToast } from '../ToastContext'
 
 function statusMeta(status: ApiKeyStatus) {
@@ -17,6 +18,7 @@ export default function KeyRow({
   keyItem,
   mintedOnce,
   isLastAdminKey = false,
+  dependentUsages = null,
   onRotate,
   onRevoke,
   onCopyMasked,
@@ -24,6 +26,11 @@ export default function KeyRow({
   keyItem: ApiKey
   mintedOnce: string | null
   isLastAdminKey?: boolean
+  /**
+   * Dependent usages for the revoke confirmation dialog.
+   * Pass `null` (default) when usage data is unavailable.
+   */
+  dependentUsages?: DependentUsage[] | null
   onCopyMasked: (key: ApiKey) => void
   onRotate: (id: string) => void
   onRevoke: (id: string) => void
@@ -206,13 +213,10 @@ export default function KeyRow({
       )}
 
       {revokeOpen && (
-        <ConfirmDialog
+        <RevokeKeyDialog
           open={revokeOpen}
-          title="Revoke API key?"
-          description="Revoking immediately invalidates the key. This action cannot be undone."
-          confirmText="Revoke"
-          cancelText="Cancel"
-          tone="danger"
+          keyItem={keyItem}
+          dependentUsages={dependentUsages}
           onClose={() => setRevokeOpen(false)}
           onConfirm={() => {
             setRevokeOpen(false)
