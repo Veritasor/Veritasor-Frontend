@@ -34,7 +34,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export default function DocumentUploadStep({ onBack, onNext, data, rejections }: Props) {
+export default function DocumentUploadStep({ onBack, onNext, rejections }: Props) {
   const [files, setFiles] = useState<FileMap>({
     registrationCert: [],
     govIdFront: [],
