@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, Link } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
 import BottomTabBar from './BottomTabBar'
 import { ToastProvider, useToast } from './ToastContext'
-import { useCookieConsent } from './CookieConsentContext'
+import OfflineBanner from './OfflineBanner'
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast()
@@ -39,18 +39,35 @@ const navItems = [
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { openSettings: openCookieSettings } = useCookieConsent()
 
+  // Register Shift+? globally to open the shortcuts overlay
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore when user is typing in an input/textarea/select
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.shiftKey && e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen((o) => !o)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   function toggleSidebar() {
-    setSidebarOpen((o) => !o);
+    setSidebarOpen((o) => !o)
   }
 
   function closeSidebar() {
-    setSidebarOpen(false);
+    setSidebarOpen(false)
   }
 
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      <OfflineBanner />
       {/* Sidebar Layout shell */}
       <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-6">
         <div className="flex items-center space-x-2 px-2">
@@ -82,7 +99,7 @@ function LayoutInner() {
       <div className="app-body">
         <aside
           id="app-sidebar"
-          className={`app-sidebar${sidebarOpen ? " app-sidebar-open" : ""}`}
+          className={`app-sidebar${sidebarOpen ? ' app-sidebar-open' : ''}`}
           aria-label="Site navigation"
         >
           <nav aria-label="Main navigation">
@@ -99,10 +116,14 @@ function LayoutInner() {
             >
               Attestations
             </NavLink>
-            <NavLink to="/sources" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+            <NavLink
+              to="/sources"
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
+            >
               Revenue Sources
             </NavLink>
           </nav>
+
           <div className="sidebar-footer">
             <button
               type="button"
@@ -123,12 +144,18 @@ function LayoutInner() {
           />
         )}
 
-        <main id="main-content" tabIndex={-1} className="app-main">
-          <Outlet />
-        </main>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <main id="main-content" tabIndex={-1} className="app-main">
+            <Outlet />
+          </main>
+
+          {/* Persistent footer with Cookie preferences link */}
+          <Footer />
+        </div>
       </div>
       <BottomTabBar />
       <ToastContainer />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }
