@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, NavLink, Link } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
@@ -6,6 +6,8 @@ import { ToastProvider, useToast } from "./ToastContext";
 import { useCookieConsent } from "./CookieConsentContext";
 import FailedPaymentBanner from "./FailedPaymentBanner";
 import { BillingProvider, useBilling } from "./BillingContext";
+import ShortcutsOverlay from "./ShortcutsOverlay";
+import ContextualHelpSearch from "./ContextualHelpSearch";
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast();
@@ -55,6 +57,8 @@ function BillingBannerSlot() {
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [helpSearchOpen, setHelpSearchOpen] = useState(false);
   const { openSettings: openCookieSettings } = useCookieConsent();
 
   // Register Shift+? globally to open the shortcuts overlay
@@ -156,6 +160,14 @@ function LayoutInner() {
             >
               Cookie settings
             </button>
+            <button
+              type="button"
+              className="sidebar-help-btn"
+              onClick={() => setHelpSearchOpen(true)}
+              aria-label="Open help search (Ctrl+H)"
+            >
+              Help &amp; support
+            </button>
           </div>
         </aside>
 
@@ -175,6 +187,7 @@ function LayoutInner() {
       <BottomTabBar />
       <ToastContainer />
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ContextualHelpSearch open={helpSearchOpen} onClose={() => setHelpSearchOpen(false)} />
     </div>
   );
 }
