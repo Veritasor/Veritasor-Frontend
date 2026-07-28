@@ -3326,3 +3326,106 @@ input {
   color: var(--color-text-muted, #71717a);
   user-select: none;
 }
+
+/* ── Offline Banner ───────────────────────────────────────────────────────── */
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-4);
+  background: var(--warning-soft, rgba(251, 191, 36, 0.14));
+  border-bottom: 1px solid var(--warning, #fbbf24);
+  font-size: var(--text-sm, 0.9rem);
+  color: var(--text, #f8fbff);
+  box-sizing: border-box;
+}
+
+.offline-banner-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.offline-banner-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.offline-banner-stale-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  font-size: var(--text-xs, 0.78rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: var(--warning, #fbbf24);
+  color: var(--bg, #07111f);
+}
+
+.offline-banner-retry {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--warning, #fbbf24);
+  border-radius: var(--radius-sm, 0.75rem);
+  background: transparent;
+  color: var(--warning, #fbbf24);
+  font-size: var(--text-sm, 0.9rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  min-height: var(--density-touch-min, 44px);
+  min-width: var(--density-touch-min, 44px);
+}
+
+.offline-banner-retry:hover {
+  background: var(--warning, #fbbf24);
+  color: var(--bg, #07111f);
+}
+
+.offline-banner-retry:focus-visible {
+  outline: 2px solid var(--warning, #fbbf24);
+  outline-offset: 2px;
+}
+
+/* ── Stale Data Chip ─────────────────────────────────────────────────────── */
+
+.stale-data-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  font-size: var(--text-xs, 0.78rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: var(--warning-soft, rgba(251, 191, 36, 0.14));
+  color: var(--warning, #fbbf24);
+  border: 1px solid var(--warning, #fbbf24);
+  white-space: nowrap;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .offline-banner {
+    flex-wrap: wrap;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .offline-banner-text {
+    white-space: normal;
+  }
+
+  .offline-banner-retry {
+    width: 100%;
+    justify-content: center;
+  }
+}
