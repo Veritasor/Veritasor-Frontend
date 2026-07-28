@@ -1206,6 +1206,16 @@ function BillingPanel() {
   );
 }
 
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+function generateRecoveryCodes(): string[] {
+  return Array.from({ length: 10 }, () => {
+    const seg = () =>
+      Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('')
+    return `${seg()}-${seg()}-${seg()}`
+  })
+}
+
 function SecurityPanel() {
   const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null);
 
@@ -1273,6 +1283,8 @@ function SecurityPanel() {
           Update password
         </button>
       </form>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
+      {mfaSection[mfaState]()}
 
       <hr
         style={{ margin: "2rem 0", borderColor: "var(--border)", opacity: 0.5 }}
