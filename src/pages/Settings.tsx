@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import LocalePickerField from "../components/LocalePicker/LocalePickerField";
-import AuditLogTimeline, {
-  type AuditLogEntry,
-} from "../components/audit-log/AuditLogTimeline";
-import TokensExport from "../components/tokens/TokensExport";
-import MfaMethodChooser, {
-  type MfaMethod,
-} from "../components/MfaMethodChooser";
-import ConfirmDialog from "../components/ConfirmDialog";
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import LocalePickerField from '../components/LocalePicker/LocalePickerField'
+import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
+import TokensExport from '../components/tokens/TokensExport'
+import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
+import MfaMethodChooser from '../components/MfaMethodChooser'
+import WebhookRetryPanel from '../components/WebhookRetryPanel'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -1649,52 +1646,182 @@ function generateRecoveryCodes(): string[] {
   });
 }
 
+interface ActiveSession {
+  id: string
+  device: string
+  browser: string
+  ip: string
+  location: string
+  lastActive: string
+  isCurrent: boolean
+}
+
+const MOCK_SESSIONS: ActiveSession[] = [
+  { id: 's1', device: 'MacBook Pro 14"', browser: 'Chrome 125', ip: '203.0.113.42', location: 'Lagos, NG', lastActive: 'Now', isCurrent: true },
+  { id: 's2', device: 'iPhone 15 Pro', browser: 'Safari 18', ip: '203.0.113.42', location: 'Lagos, NG', lastActive: '2 hours ago', isCurrent: false },
+  { id: 's3', device: 'Windows PC', browser: 'Firefox 128', ip: '198.51.100.77', location: 'Accra, GH', lastActive: '3 days ago', isCurrent: false },
+  { id: 's4', device: 'Android Tablet', browser: 'Chrome 124', ip: '192.0.2.150', location: 'Nairobi, KE', lastActive: '2 weeks ago', isCurrent: false },
+]
+
+function SessionRow({ session, onRevoke }: { session: ActiveSession; onRevoke: (id: string) => void }) {
+  const [revoking, setRevoking] = useState(false)
+
+  const handleRevoke = () => {
+    setRevoking(true)
+    setTimeout(() => {
+      onRevoke(session.id)
+      setRevoking(false)
+    }, 400)
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.75rem',
+        padding: '0.75rem 1rem',
+        borderRadius: 10,
+        border: `1px solid ${session.isCurrent ? 'var(--border-strong)' : 'var(--border)'}`,
+        background: session.isCurrent ? 'rgba(94, 234, 212, 0.06)' : 'transparent',
+      }}
+    >
+      <div style={{ display: 'grid', gap: '0.2rem', minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+          {session.device}
+          {session.isCurrent ? (
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)', border: '1px solid var(--border-strong)', borderRadius: 4, padding: '0.1rem 0.4rem' }}>
+              Current
+            </span>
+          ) : null}
+        </span>
+        <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>
+          {session.browser} · {session.ip} · {session.location}
+        </span>
+        <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
+          Active {session.lastActive}
+        </span>
+      </div>
+      {!session.isCurrent ? (
+        <button
+          type="button"
+          onClick={handleRevoke}
+          disabled={revoking}
+          style={{
+            padding: '0.35rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: revoking ? 'var(--danger)' : 'transparent',
+            color: revoking ? '#fff' : 'var(--danger)',
+            fontWeight: 600,
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'background 0.15s, color 0.15s',
+          }}
+        >
+          {revoking ? 'Revoking…' : 'Revoke'}
+        </button>
+      ) : (
+        <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+          This device
+        </span>
+      )}
+    </div>
+  )
+}
+
+function SignOutAllButton() {
+  const [confirming, setConfirming] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+
+  if (confirming) {
+    return (
+      <div
+        style={{
+          padding: '1rem',
+          borderRadius: 12,
+          border: '1px solid rgba(248, 113, 113, 0.3)',
+          background: 'rgba(248, 113, 113, 0.06)',
+          display: 'grid',
+          gap: '0.75rem',
+        }}
+      >
+        <p style={{ margin: 0, fontWeight: 700, color: 'var(--danger)' }}>
+          Sign out of all other sessions?
+        </p>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+          This will revoke all active sessions except your current device. You will need to
+          sign back in on those devices.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={() => { setSigningOut(true); setTimeout(() => setConfirming(false), 800) }}
+            disabled={signingOut}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: 8,
+              border: 'none',
+              background: signingOut ? 'var(--muted)' : 'var(--danger)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+            }}
+          >
+            {signingOut ? 'Signing out…' : 'Yes, sign out'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={signingOut}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--text)',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      style={{
+        padding: '0.5rem 1rem',
+        borderRadius: 8,
+        border: '1px solid var(--border)',
+        background: 'transparent',
+        color: 'var(--danger)',
+        fontWeight: 700,
+        fontSize: '0.85rem',
+        cursor: 'pointer',
+      }}
+    >
+      Sign out of all other sessions
+    </button>
+  )
+}
+
 function SecurityPanel() {
-  const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null);
-  const [mfaStatus, setMfaStatus] = useState<
-    "not-enabled" | "setting-up" | "enabled"
-  >("not-enabled");
-  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
-  const [showCodes, setShowCodes] = useState(false);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null)
+  const [sessions, setSessions] = useState(MOCK_SESSIONS)
 
-  const handleBeginSetup = () => {
-    if (!mfaMethod) {
-      // Auto-pick recommended security key if none selected yet
-      setMfaMethod("security-key");
-    }
-    setMfaStatus("setting-up");
-  };
-
-  const handleConfirmSetup = () => {
-    const codes = generateRecoveryCodes();
-    setRecoveryCodes(codes);
-    setShowCodes(true);
-    setMfaStatus("enabled");
-  };
-
-  const handleDisableMfa = () => {
-    setMfaStatus("not-enabled");
-    setMfaMethod(null);
-    setRecoveryCodes(null);
-    setShowCodes(false);
-  };
-
-  const handleCopyCode = (idx: number, code: string) => {
-    navigator.clipboard
-      ?.writeText(code)
-      .then(() => {
-        setCopiedIdx(idx);
-        setTimeout(() => setCopiedIdx(null), 1200);
-      })
-      .catch(() => {});
-  };
-
-  const METHOD_LABEL: Record<MfaMethod, string> = {
-    totp: "Authenticator app (TOTP)",
-    sms: "SMS text message",
-    "security-key": "Security key / FIDO2",
-  };
+  const handleRevoke = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+  }, [])
 
   return (
     <div>
@@ -1768,581 +1895,29 @@ function SecurityPanel() {
         }}
       />
 
-      {/* MFA Section */}
-      <section
-        aria-labelledby="mfa-settings-heading"
-        style={{
-          display: "grid",
-          gap: "1rem",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
+      <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
+
+      {/* Active sessions */}
+      <hr style={{ margin: '2rem 0', borderColor: 'var(--border)', opacity: 0.5 }} />
+      <section aria-labelledby="active-sessions-title">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <div>
-            <h3
-              id="mfa-settings-heading"
-              style={{ margin: 0, fontSize: "1.05rem" }}
-            >
-              Two-factor authentication
-            </h3>
-            <p
-              style={{
-                margin: "0.25rem 0 0",
-                color: "var(--muted)",
-                fontSize: "0.9rem",
-                lineHeight: 1.55,
-              }}
-            >
-              Add a second layer of protection to your account. Choose a
-              security key, authenticator app, or SMS.
+            <h3 id="active-sessions-title" style={{ margin: 0, fontSize: '1.05rem' }}>Active sessions</h3>
+            <p style={{ margin: '0.15rem 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+              {sessions.length} active session{sessions.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <span
-            role="status"
-            aria-label={
-              mfaStatus === "enabled"
-                ? "Two-factor authentication is active"
-                : "Two-factor authentication is not enabled"
-            }
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              padding: "0.3rem 0.7rem",
-              borderRadius: 999,
-              fontWeight: 800,
-              fontSize: "0.8rem",
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              background:
-                mfaStatus === "enabled"
-                  ? "var(--success-soft)"
-                  : "var(--warning-soft)",
-              border: `1px solid ${
-                mfaStatus === "enabled"
-                  ? "rgba(52, 211, 153, 0.35)"
-                  : "rgba(251, 191, 36, 0.35)"
-              }`,
-              color:
-                mfaStatus === "enabled" ? "var(--success)" : "var(--warning)",
-            }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: "0.45rem",
-                height: "0.45rem",
-                borderRadius: "50%",
-                background:
-                  mfaStatus === "enabled" ? "var(--success)" : "var(--warning)",
-              }}
-            />
-            {mfaStatus === "enabled" ? "Enabled" : "Not enabled"}
-          </span>
+          {sessions.filter((s) => !s.isCurrent).length > 0 ? <SignOutAllButton /> : null}
         </div>
-
-        {/* Enabled state */}
-        {mfaStatus === "enabled" && mfaMethod && recoveryCodes && (
-          <div
-            style={{
-              display: "grid",
-              gap: "0.75rem",
-              padding: "1rem 1.1rem",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid rgba(52, 211, 153, 0.28)",
-              background:
-                "linear-gradient(180deg, rgba(52, 211, 153, 0.06), rgba(15, 23, 42, 0))",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.65rem",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  width: "2.25rem",
-                  height: "2.25rem",
-                  borderRadius: "var(--radius-sm)",
-                  background: "rgba(52, 211, 153, 0.12)",
-                  color: "var(--success)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 800,
-                  flexShrink: 0,
-                }}
-              >
-                ✓
-              </span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700 }}>
-                  {METHOD_LABEL[mfaMethod]} active
-                </div>
-                <div
-                  style={{
-                    color: "var(--muted)",
-                    fontSize: "0.88rem",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Sign-in requires both your password and this second factor.
-                </div>
-              </div>
-            </div>
-
-            <div
-              role="group"
-              aria-label="Two-factor controls"
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.5rem",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setShowCodes((s) => !s)}
-                aria-expanded={showCodes}
-                aria-controls="recovery-codes-panel"
-                style={iconBtnStyle}
-              >
-                🛡 {showCodes ? "Hide recovery codes" : "View recovery codes"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const codes = generateRecoveryCodes();
-                  setRecoveryCodes(codes);
-                  setShowCodes(true);
-                }}
-                style={iconBtnStyle}
-              >
-                ↻ Regenerate recovery codes
-              </button>
-              <button
-                type="button"
-                onClick={handleDisableMfa}
-                style={{
-                  ...iconBtnStyle,
-                  color: "var(--danger)",
-                  borderColor: "rgba(251, 113, 133, 0.35)",
-                }}
-              >
-                Disable 2FA
-              </button>
-            </div>
-
-            {showCodes && (
-              <div
-                id="recovery-codes-panel"
-                role="region"
-                aria-label="Recovery codes list"
-                style={{
-                  display: "grid",
-                  gap: "0.65rem",
-                  padding: "0.875rem",
-                  borderRadius: "calc(var(--radius-sm) - 0.1rem)",
-                  border: "1px solid var(--border)",
-                  background: "var(--surface-strong)",
-                }}
-              >
-                <div
-                  className="auth-message auth-message-warning"
-                  role="note"
-                  style={{
-                    margin: 0,
-                    padding: "0.6rem 0.75rem",
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="auth-message-icon"
-                    style={{ marginRight: "0.35rem" }}
-                  >
-                    ⚠
-                  </span>
-                  Store these codes in a safe place. Each can be used once to
-                  sign in without your second factor.
-                </div>
-                <ul
-                  role="list"
-                  style={{
-                    listStyle: "none",
-                    margin: 0,
-                    padding: 0,
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(13rem, 1fr))",
-                    gap: "0.4rem 0.75rem",
-                  }}
-                >
-                  {recoveryCodes.map((code, i) => (
-                    <li
-                      key={code}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "0.5rem",
-                        padding: "0.35rem 0.5rem",
-                        borderRadius: 6,
-                        background: "rgba(15, 23, 42, 0.7)",
-                        border: "1px solid var(--border)",
-                      }}
-                    >
-                      <code
-                        style={{
-                          fontFamily:
-                            "ui-monospace, SFMono-Regular, Menlo, monospace",
-                          fontSize: "0.82rem",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {code}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyCode(i, code)}
-                        aria-label={`Copy recovery code ${i + 1} to clipboard`}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          cursor: "pointer",
-                          padding: "0.25rem",
-                          borderRadius: 4,
-                          color:
-                            copiedIdx === i ? "var(--success)" : "var(--muted)",
-                          fontSize: "0.8rem",
-                          fontWeight: 700,
-                          minWidth: "2.25rem",
-                          minHeight: "2.25rem",
-                        }}
-                      >
-                        {copiedIdx === i ? "✓" : "📋"}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Setting-up state */}
-        {mfaStatus === "setting-up" && mfaMethod && (
-          <div
-            style={{
-              display: "grid",
-              gap: "0.875rem",
-              padding: "1rem 1.1rem",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border-strong)",
-              background: "var(--surface-strong)",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gap: "0.2rem",
-              }}
-            >
-              <div style={{ fontWeight: 700 }}>
-                Set up {METHOD_LABEL[mfaMethod]}
-              </div>
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--muted)",
-                  fontSize: "0.9rem",
-                  lineHeight: 1.55,
-                }}
-              >
-                {mfaMethod === "security-key"
-                  ? "Insert your security key into a USB port (or bring it near your phone) and tap the button. Your browser will verify the key and pair it with Veritasor."
-                  : mfaMethod === "totp"
-                    ? "Scan the QR code below with Google Authenticator, 1Password, or Authy. Then enter the 6-digit code shown in the app to confirm pairing."
-                    : "Enter the phone number that should receive one-time codes via SMS. Standard carrier rates may apply."}
-              </p>
-            </div>
-
-            {/* Setup mock surface — QR / input / key area */}
-            <div
-              style={{
-                padding: "1.25rem 1rem",
-                borderRadius: "calc(var(--radius-sm) - 0.1rem)",
-                border: "1px dashed var(--border)",
-                background:
-                  "linear-gradient(135deg, rgba(94, 234, 212, 0.06), rgba(96, 165, 250, 0.04))",
-                display: "grid",
-                placeItems: "center",
-                gap: "0.75rem",
-              }}
-            >
-              {mfaMethod === "totp" ? (
-                <>
-                  <div
-                    aria-label="QR code placeholder — scan with authenticator app"
-                    role="img"
-                    style={{
-                      width: 160,
-                      height: 160,
-                      borderRadius: "var(--radius-sm)",
-                      background:
-                        "repeating-conic-gradient(#fff 0% 25%, rgba(15,23,42,0.95) 0% 50%) 50% / 16px 16px",
-                      border: "4px solid #fff",
-                    }}
-                  />
-                  <div
-                    style={{
-                      fontFamily:
-                        "ui-monospace, SFMono-Regular, Menlo, monospace",
-                      fontSize: "0.82rem",
-                      color: "var(--muted)",
-                      textAlign: "center",
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    otpauth://totp/Veritasor:joel%40example.com?secret=JBSWY3DPEHPK3PXP
-                  </div>
-                </>
-              ) : mfaMethod === "sms" ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "0.5rem",
-                    width: "min(100%, 22rem)",
-                  }}
-                >
-                  <label
-                    htmlFor="mfa-phone"
-                    style={{
-                      fontSize: "0.88rem",
-                      fontWeight: 600,
-                      textAlign: "left",
-                    }}
-                  >
-                    Phone number
-                  </label>
-                  <input
-                    id="mfa-phone"
-                    type="tel"
-                    autoComplete="tel"
-                    placeholder="+1 (555) 444-4242"
-                    style={{
-                      ...inputStyle,
-                      width: "100%",
-                    }}
-                  />
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "0.5rem",
-                    textAlign: "center",
-                    justifyItems: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 96,
-                      height: 96,
-                      borderRadius: "var(--radius-md)",
-                      background: "var(--accent)",
-                      color: "#04111f",
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: "2.5rem",
-                      fontWeight: 800,
-                    }}
-                  >
-                    🔑
-                  </div>
-                  <div
-                    style={{
-                      color: "var(--text)",
-                      fontWeight: 700,
-                      fontSize: "0.95rem",
-                    }}
-                  >
-                    Tap your security key
-                  </div>
-                  <div
-                    style={{
-                      color: "var(--muted)",
-                      fontSize: "0.85rem",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    Touch the metal disc on your YubiKey, or use Touch ID /
-                    Windows Hello on this device.
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "0.5rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setMfaStatus("not-enabled")}
-                style={iconBtnStyle}
-              >
-                Cancel setup
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmSetup}
-                className="app-button app-button-primary"
-                style={{
-                  width: "auto",
-                  minHeight: "2.75rem",
-                  padding: "0.55rem 1.1rem",
-                  fontSize: "0.9rem",
-                }}
-              >
-                Enable 2FA &amp; show recovery codes
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Not-enabled state */}
-        {mfaStatus !== "setting-up" && (
-          <>
-            <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                flexWrap: "wrap",
-                gap: "0.5rem",
-              }}
-            >
-              <button
-                type="button"
-                className="app-button app-button-primary"
-                disabled={!mfaMethod && mfaStatus === "not-enabled"}
-                onClick={handleBeginSetup}
-                style={{
-                  width: "auto",
-                  minHeight: "2.75rem",
-                  padding: "0.55rem 1.1rem",
-                  fontSize: "0.9rem",
-                }}
-              >
-                {mfaStatus === "enabled"
-                  ? "Change MFA method"
-                  : "Set up two-factor"}
-              </button>
-            </div>
-          </>
-        )}
+        <div style={{ display: 'grid', gap: '0.5rem', maxWidth: 600 }}>
+          {sessions.map((session) => (
+            <SessionRow key={session.id} session={session} onRevoke={handleRevoke} />
+          ))}
+        </div>
+        {sessions.length === 0 ? (
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No active sessions found.</p>
+        ) : null}
       </section>
-    </div>
-  );
-}
-
-function TokensPanel() {
-  return (
-    <div>
-      <h2>Design tokens</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Export a snapshot of Veritasor design tokens as CSS custom properties.
-        Choose a scope, then copy or download the file.
-      </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 720 }}>
-        <TokensExport />
-      </div>
-    </div>
-  );
-}
-
-function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: "1",
-      timestamp: "2026-07-28T08:12:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "2",
-      timestamp: "2026-07-28T08:14:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "3",
-      timestamp: "2026-07-28T08:15:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "4",
-      timestamp: "2026-07-28T09:00:00Z",
-      event: "Revenue source connected",
-      details: "Provider: Stripe",
-    },
-    {
-      id: "5",
-      timestamp: "2026-07-27T14:30:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "6",
-      timestamp: "2026-07-27T14:31:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "7",
-      timestamp: "2026-07-27T14:32:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "8",
-      timestamp: "2026-07-27T14:33:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "9",
-      timestamp: "2026-07-26T10:00:00Z",
-      event: "API key rotated",
-    },
-  ];
-
-  return (
-    <div>
-      <h2>Audit Log</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Recent activity for this workspace. In compact density mode, identical
-        consecutive events are grouped by day and collapsed into summary badges.
-      </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
-      </div>
     </div>
   );
 }

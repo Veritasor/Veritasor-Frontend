@@ -30,6 +30,18 @@ const STATUS_META: Record<
   expired:    { label: 'Expired',   color: 'var(--warning)',  bg: 'var(--warning-soft)',           border: 'rgba(251, 191, 36, 0.35)' },
 }
 
+const SCOPE_ESTIMATE: Record<ExportScope, string> = {
+  all: '5–15 minutes',
+  'current-filter': '~30 seconds',
+  'last-30-days': '~2 minutes',
+}
+
+const SCOPE_RECORD_COUNT: Record<ExportScope, string> = {
+  all: '50,000+ records',
+  'current-filter': '~200 records',
+  'last-30-days': '~4,500 records',
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -114,30 +126,6 @@ function StatusBadge({ status }: { status: ExportJobStatus }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// ExpiryChip
-// ---------------------------------------------------------------------------
-
-function ExpiryChip({ job, now }: { job: ExportJob; now: number }) {
-  const chipStyle = expiryChipStyle(job, now)
-  return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center',
-        padding: '0.25rem 0.6rem', borderRadius: 999,
-        fontSize: 'var(--density-badge-font)', fontWeight: 700,
-        whiteSpace: 'nowrap', ...chipStyle,
-      }}
-    >
-      {expiryCopy(job, now)}
-    </span>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// ProgressBar
-// ---------------------------------------------------------------------------
-
 function ProgressBar({ value, labelId }: { value: number; labelId: string }) {
   const clamped = Math.min(100, Math.max(0, Math.round(value)))
   return (
@@ -163,9 +151,122 @@ function ProgressBar({ value, labelId }: { value: number; labelId: string }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// FormatCard — #261 radio card with expandable sample snippet
-// ---------------------------------------------------------------------------
+function LargeDatasetWarning() {
+  return (
+    <div
+      role="alert"
+      style={{
+        marginTop: 'var(--density-gap)',
+        padding: '0.85rem 1rem',
+        borderRadius: 12,
+        border: '1px solid rgba(251, 191, 36, 0.35)',
+        background: 'rgba(251, 191, 36, 0.08)',
+        display: 'grid',
+        gap: '0.4rem',
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: 'var(--warning, #f59e0b)' }}>
+        <svg aria-hidden={true} className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: 16, height: 16 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        Large dataset — async delivery
+      </span>
+      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+        You are exporting all attestations ({SCOPE_RECORD_COUNT.all}). This will be prepared in the
+        background. Estimated time: <strong style={{ color: 'var(--text)' }}>{SCOPE_ESTIMATE.all}</strong>.
+        We will notify you by email when it is ready.
+      </p>
+    </div>
+  )
+}
+
+function ConfirmDialog({
+  scope,
+  format,
+  notifyEmail,
+  onConfirm,
+  onCancel,
+}: {
+  scope: ExportScope
+  format: ExportFormat
+  notifyEmail: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', handler)
+    dialogRef.current?.focus()
+    return () => document.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-export-title"
+      tabIndex={-1}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(4px)',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div
+        style={{
+          maxWidth: 440,
+          width: '90%',
+          padding: '1.5rem',
+          borderRadius: 20,
+          border: '1px solid var(--border)',
+          background: 'var(--surface-strong, #0f172a)',
+          display: 'grid',
+          gap: '1rem',
+        }}
+      >
+        <h3 id="confirm-export-title" style={{ margin: 0, fontSize: '1.1rem' }}>Confirm large export</h3>
+        <p style={{ margin: 0, color: 'var(--muted)', lineHeight: 1.6, fontSize: '0.9rem' }}>
+          You are about to export <strong>{SCOPE_RECORD_COUNT[scope]}</strong> as <strong>{FORMAT_META[format].label}</strong>.
+          Estimated time: <strong>{SCOPE_ESTIMATE[scope]}</strong>.
+          {notifyEmail ? ` We'll email ${notifyEmail} when ready.` : ' Check back in the tray below.'}
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <button type="button" style={ghostButton} onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" style={primaryButton} onClick={onConfirm}>
+            Start export
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const primaryButton: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 'var(--density-touch-min)',
+  padding: '0.7rem 1.1rem',
+  borderRadius: 12,
+  border: '1px solid transparent',
+  fontWeight: 800,
+  cursor: 'pointer',
+  color: '#04111f',
+  background: 'linear-gradient(135deg, var(--accent), #60a5fa)',
+}
 
 function FormatCard({
   format,
@@ -545,7 +646,6 @@ function DownloadsTray({
 // ---------------------------------------------------------------------------
 
 interface DataExportPanelProps {
-  /** Override the per-tick progress interval (ms). Useful for tests. */
   tickMs?: number
 }
 
@@ -555,6 +655,8 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
   const [jobs, setJobs] = useState<ExportJob[]>([])
   const [announcement, setAnnouncement] = useState('')
   const [now, setNow] = useState(() => Date.now())
+  const [notifyEmail, setNotifyEmail] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const timers = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const generateBtnRef = useRef<HTMLButtonElement>(null)
@@ -576,11 +678,17 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
             if (nextProgress >= 100) {
               clearTimer(id)
               const ready: ExportJob = {
-                ...job, status: 'ready', progress: 100, fileSize: '2.4 MB',
+                ...job,
+                status: 'ready',
+                progress: 100,
+                fileSize: scope === 'all' ? '24 MB' : '2.4 MB',
                 expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
               }
               setNow(Date.now())
-              setAnnouncement(`${FORMAT_META[ready.format].label} export ready to download.`)
+              const emailSuffix = ready.notifyEmail ? ` We'll send a download link to ${ready.notifyEmail}.` : ''
+              setAnnouncement(
+                `${FORMAT_META[ready.format].label} export ready to download.${emailSuffix}`,
+              )
               return ready
             }
             return { ...job, status: 'processing', progress: nextProgress }
@@ -588,7 +696,7 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
         )
       }, tickMs)
     },
-    [clearTimer, tickMs],
+    [clearTimer, tickMs, scope],
   )
 
   useEffect(() => {
@@ -599,13 +707,39 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
   const startExport = useCallback(() => {
     const id = nextJobId()
     const job: ExportJob = {
-      id, format, scope, status: 'processing', progress: 0,
-      createdAt: new Date().toISOString(), expiresAt: null, fileSize: null, error: null,
+      id,
+      format,
+      scope,
+      status: 'processing',
+      progress: 0,
+      createdAt: new Date().toISOString(),
+      expiresAt: null,
+      fileSize: null,
+      error: null,
+      notifyEmail: notifyEmail || null,
     }
     setJobs((prev) => [job, ...prev])
-    setAnnouncement(`Preparing ${FORMAT_META[format].label} export. We'll let you know when it's ready.`)
+    const emailSuffix = notifyEmail ? ` We'll notify ${notifyEmail}.` : ''
+    setAnnouncement(`Preparing ${FORMAT_META[format].label} export.${emailSuffix}`)
     runJob(id)
-  }, [format, scope, runJob])
+  }, [format, scope, runJob, notifyEmail])
+
+  const handleStartClick = useCallback(() => {
+    if (scope === 'all') {
+      setShowConfirm(true)
+    } else {
+      startExport()
+    }
+  }, [scope, startExport])
+
+  const handleConfirm = useCallback(() => {
+    setShowConfirm(false)
+    startExport()
+  }, [startExport])
+
+  const handleCancelConfirm = useCallback(() => {
+    setShowConfirm(false)
+  }, [])
 
   const handleDownload = useCallback((job: ExportJob) => {
     setAnnouncement(`Downloading ${FORMAT_META[job.format].label} export.`)
@@ -678,20 +812,57 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
             <option key={s} value={s}>{SCOPE_META[s].label}</option>
           ))}
         </select>
+        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+          {SCOPE_RECORD_COUNT[scope]} · Est. {SCOPE_ESTIMATE[scope]}
+        </span>
+      </div>
+
+      {/* Large-dataset warning */}
+      {scope === 'all' ? <LargeDatasetWarning /> : null}
+
+      {/* Email notification */}
+      <div style={{ marginTop: 'var(--density-gap)', display: 'grid', gap: '0.5rem', maxWidth: 360 }}>
+        <label htmlFor="export-email" style={{ fontWeight: 700 }}>
+          Email notification <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(optional)</span>
+        </label>
+        <input
+          id="export-email"
+          type="email"
+          placeholder="you@example.com"
+          value={notifyEmail}
+          onChange={(e) => setNotifyEmail(e.target.value)}
+          style={{
+            minHeight: 'var(--density-touch-min)',
+            padding: '0.6rem 0.75rem',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: 'var(--surface-strong)',
+            color: 'var(--text)',
+            fontSize: '0.9rem',
+          }}
+        />
+        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+          Get notified when your export is ready to download.
+        </span>
       </div>
 
       <div style={{ marginTop: 'var(--density-gap)' }}>
-        <button
-          ref={generateBtnRef}
-          type="button"
-          style={primaryButton}
-          onClick={startExport}
-        >
+        <button type="button" style={primaryButton} onClick={handleStartClick}>
           Generate export
         </button>
       </div>
 
-      {/* Polite live region (WCAG 4.1.3 Status Messages) */}
+      {/* Confirmation dialog for large exports */}
+      {showConfirm ? (
+        <ConfirmDialog
+          scope={scope}
+          format={format}
+          notifyEmail={notifyEmail}
+          onConfirm={handleConfirm}
+          onCancel={handleCancelConfirm}
+        />
+      ) : null}
+
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
