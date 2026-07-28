@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { Toast } from './ToastContext'
+import { useEffect, useState, useRef, useCallback, type ReactElement } from 'react'
+import { resolveDuration, Toast } from './ToastContext'
 
 export type ToastAnimationState = 'entering' | 'idle' | 'exiting'
 
@@ -8,16 +8,11 @@ interface ToastItemProps {
   onRemove: (id: string) => void
 }
 
-export default function ToastItem({ toast, onRemove }: ToastItemProps) {
+export default function ToastItem({ toast, onRemove }: ToastItemProps): ReactElement {
   const { id, type, message, duration, onUndo, undoLabel = 'Undo' } = toast
+  const hasUndo = typeof onUndo === 'function'
 
-  // Auto-dismiss duration: success/info default to 5000ms, warning/error persist (0) unless specified
-  const initialDuration =
-    duration !== undefined
-      ? duration
-      : type === 'success' || type === 'info'
-      ? 5000
-      : 0
+  const initialDuration = resolveDuration(type, duration, hasUndo)
 
   const [timeLeft, setTimeLeft] = useState(initialDuration)
   const [isPaused, setIsPaused] = useState(false)
@@ -53,19 +48,6 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
       onRemove(id)
     }, 200) // matches motion.duration.sm for fast exit
   }, [id, onRemove])
-
-  // Handle global Escape key to close this toast (animated)
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        handleRemove()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [handleRemove])
 
   // Countdown timer logic
   useEffect(() => {
@@ -174,6 +156,10 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
       onMouseLeave={handleMouseLeave}
       onFocus={handleFocus}
       onBlur={handleBlur}
+      data-testid={`toast-item-${id}`}
+      data-toast-type={type}
+      data-toast-duration={initialDuration}
+      data-toast-has-undo={hasUndo ? 'true' : 'false'}
       style={{ position: 'relative', overflow: 'hidden' }}
     >
       <div className="toast-content-wrapper">

@@ -2,34 +2,9 @@ import { useState } from 'react'
 import { Outlet, NavLink, Link } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
 import BottomTabBar from './BottomTabBar'
-import { ToastProvider, useToast } from './ToastContext'
+import { ToastProvider } from './ToastContext'
+import ToastContainer from './ToastContainer'
 import { useCookieConsent } from './CookieConsentContext'
-
-function ToastContainer() {
-  const { toasts, removeToast } = useToast()
-  if (toasts.length === 0) return null
-  return (
-    <div aria-live="polite" aria-atomic="false" className="toast-container">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
-          className={`toast toast-${toast.type}`}
-        >
-          <span>{toast.message}</span>
-          <button
-            type="button"
-            aria-label="Close notification"
-            onClick={() => removeToast(toast.id)}
-            className="toast-close"
-          >
-            ×
-          </button>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 const navItems = [
   { path: '/', name: 'Dashboard' },
