@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
-import WebhookPayloadViewer from '../components/webhooks/WebhookPayloadViewer'
+import WebhookSecretRotationDialog, { type RotatingSecret } from '../components/WebhookSecretRotationDialog'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -460,6 +460,22 @@ function AuditLogPanel() {
 
 function WebhooksPanel() {
   const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [rotationOpen, setRotationOpen] = useState(false)
+
+  // Demo rotation state — real app gets this from the API
+  const graceEndsAt = new Date(Date.now() + 1000 * 60 * 60 * 23.5).toISOString()
+  const mockOldSecret: RotatingSecret = {
+    masked: 'whsec_••••••••••••3f9a',
+    full: 'whsec_oldSecretValueForDemo3f9a',
+    lastUsedAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
+    expiresAt: graceEndsAt,
+  }
+  const mockNewSecret: RotatingSecret = {
+    masked: 'whsec_••••••••••••b2c7',
+    full: 'whsec_newSecretValueForDemob2c7',
+    lastUsedAt: null,
+    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString(),
+  }
 
   const mockDeliveries: WebhookDelivery[] = [
     {
@@ -535,31 +551,65 @@ function WebhooksPanel() {
     setRetryingId(id)
     setTimeout(() => {
       setRetryingId(null)
-      // Real app: trigger retry via API
     }, 2000)
   }
 
   return (
-    <div style={{ display: 'grid', gap: '2rem' }}>
-      <div>
-        <h2>Webhooks</h2>
-        <p style={{ color: 'var(--muted)' }}>
-          View webhook delivery history and retry failed attempts. Each delivery shows its backoff
-          intervals and final status.
-        </p>
-        <div style={{ marginTop: '1.5rem', maxWidth: 900, display: 'grid', gap: '1rem' }}>
-          {mockDeliveries.map((delivery) => (
-            <WebhookRetryPanel
-              key={delivery.id}
-              delivery={delivery}
-              onRetry={handleRetry}
-              isRetrying={retryingId === delivery.id}
-            />
-          ))}
+    <div>
+      <h2>Webhooks</h2>
+      <p style={{ color: 'var(--muted)' }}>
+        View webhook delivery history and retry failed attempts. Each delivery shows its backoff
+        intervals and final status.
+      </p>
+
+      {/* Signing secret section */}
+      <section aria-labelledby="webhook-secret-heading" style={{ marginTop: '1.5rem', maxWidth: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+          <h3 id="webhook-secret-heading" style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+            Signing secret
+          </h3>
+          <button
+            type="button"
+            className="modal-btn modal-btn-cancel"
+            style={{ fontSize: 'var(--text-sm)', minHeight: 36, padding: '0.4rem 0.9rem' }}
+            onClick={() => setRotationOpen(true)}
+          >
+            Rotate secret
+          </button>
         </div>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 'var(--text-sm)' }}>
+          Used to verify webhook payloads. Rotate it if you suspect it has been compromised.
+        </p>
+        <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <code style={{ fontFamily: '"SF Mono","Fira Code",monospace', fontSize: 'var(--text-sm)', color: 'var(--text)' }}>
+            whsec_••••••••••••3f9a
+          </code>
+        </div>
+      </section>
+
+      <hr style={{ margin: '1.5rem 0', borderColor: 'var(--border)', opacity: 0.5 }} />
+
+      {/* Delivery history */}
+      <div style={{ maxWidth: 900, display: 'grid', gap: '1rem' }}>
+        {mockDeliveries.map((delivery) => (
+          <WebhookRetryPanel
+            key={delivery.id}
+            delivery={delivery}
+            onRetry={handleRetry}
+            isRetrying={retryingId === delivery.id}
+          />
+        ))}
       </div>
 
-      <WebhookPayloadViewer />
+      <WebhookSecretRotationDialog
+        open={rotationOpen}
+        endpointLabel="https://example.com/webhooks"
+        oldSecret={mockOldSecret}
+        newSecret={mockNewSecret}
+        onConfirm={() => setRotationOpen(false)}
+        onCancelRotation={() => setRotationOpen(false)}
+        onClose={() => setRotationOpen(false)}
+      />
     </div>
   )
 }

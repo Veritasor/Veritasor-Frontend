@@ -4182,6 +4182,8 @@ input {
     padding-bottom: 2rem;
   }
 }
+<<<<<<< Updated upstream
+=======
 
 /* ─── Command Palette (cmd-*) ────────────────────────────────────────────── */
 
@@ -4552,5 +4554,214 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .kso-search-input {
     transition: none;
+  }
+}
+
+/* ─── Webhook Secret Rotation Dialog (wsr-*) ─────────────────────────────── */
+
+.wsr-dialog {
+  max-width: 34rem;
+}
+
+.wsr-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── Countdown banner ──────────────────────────────────── */
+.wsr-countdown {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  font-size: var(--text-sm);
+  color: var(--warning);
+}
+
+.wsr-countdown-expired {
+  background: var(--danger-soft);
+  border-color: rgba(251, 113, 133, 0.35);
+  color: var(--danger);
+}
+
+.wsr-countdown-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.wsr-countdown-label {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.wsr-countdown-value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.wsr-countdown-deadline {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* ── Secret rows ───────────────────────────────────────── */
+.wsr-secrets {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.wsr-secret-row {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+
+.wsr-secret-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.wsr-secret-label {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.wsr-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.wsr-tag-success {
+  background: var(--success-soft);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: var(--success);
+}
+
+.wsr-tag-warning {
+  background: var(--warning-soft);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: var(--warning);
+}
+
+.wsr-secret-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wsr-secret-value {
+  flex: 1;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: var(--text-sm);
+  color: var(--text);
+  word-break: break-all;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.wsr-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.wsr-copy-btn:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+  border-color: rgba(173, 192, 217, 0.45);
+}
+
+.wsr-copy-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.wsr-secret-meta {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* ── Cancel rotation affordance ────────────────────────── */
+.wsr-cancel-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-sm);
+}
+
+.wsr-cancel-hint {
+  color: var(--muted);
+}
+
+.wsr-cancel-link {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  min-height: 44px;
+  text-decoration: underline;
+  text-decoration-color: rgba(251, 113, 133, 0.4);
+  transition: text-decoration-color 120ms ease;
+}
+
+.wsr-cancel-link:hover {
+  text-decoration-color: var(--danger);
+}
+
+.wsr-cancel-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── Responsive ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .wsr-countdown {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wsr-secret-value-wrap {
+    flex-wrap: wrap;
+  }
+
+  .wsr-cancel-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
