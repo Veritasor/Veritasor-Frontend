@@ -55,6 +55,7 @@ describe('Settings — rendering', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /integrations/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
@@ -89,6 +90,11 @@ describe('Settings — deep links (URL hash)', () => {
   it('activates Notifications tab when hash is #notifications', () => {
     renderSettings('#notifications')
     expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('activates Integrations tab when hash is #integrations', () => {
+    renderSettings('#integrations')
+    expect(screen.getByRole('tab', { name: /integrations/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('activates API Keys tab when hash is #api-keys', () => {
@@ -201,9 +207,11 @@ describe('Settings — keyboard navigation', () => {
   })
 
   it('ArrowRight wraps from last tab to first', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'ArrowRight' })
+    renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'ArrowRight' })
+    const auditTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditTab, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -211,13 +219,13 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'ArrowLeft' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('Home key navigates to the first tab', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'Home' })
+    renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'Home' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -225,7 +233,7 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'End' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('unrelated key does not change the active tab', () => {

@@ -1,8 +1,41 @@
 import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, Link } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
-import { ToastProvider } from './ToastContext'
-import ToastContainer from './ToastContainer'
+import BottomTabBar from './BottomTabBar'
+import { ToastProvider, useToast } from './ToastContext'
+import { useCookieConsent } from './CookieConsentContext'
+
+function ToastContainer() {
+  const { toasts, removeToast } = useToast()
+  if (toasts.length === 0) return null
+  return (
+    <div aria-live="polite" aria-atomic="false" className="toast-container">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+          className={`toast toast-${toast.type}`}
+        >
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            aria-label="Close notification"
+            onClick={() => removeToast(toast.id)}
+            className="toast-close"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const navItems = [
+  { path: '/', name: 'Dashboard' },
+  { path: '/attestations', name: 'Attestations' },
+  { path: '/sources', name: 'Revenue Sources' },
+]
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -23,7 +56,7 @@ function LayoutInner() {
         <div className="flex items-center space-x-2 px-2">
           <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">Veritasor</span>
         </div>
-        
+
         <nav className="space-y-1">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -94,6 +127,7 @@ function LayoutInner() {
           <Outlet />
         </main>
       </div>
+      <BottomTabBar />
       <ToastContainer />
     </div>
   )
@@ -106,5 +140,3 @@ export default function Layout() {
     </ToastProvider>
   )
 }
-
-

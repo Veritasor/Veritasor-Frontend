@@ -11,6 +11,7 @@
   "nav.apiKeys": "API Keys",
   "nav.settings": "Settings",
   "nav.signOut": "Sign out",
+  "nav.bottomTabBar": "Mobile navigation",
   "appBar.search.placeholder": "Search...",
   "appBar.search.ariaLabel": "Search or type command",
   "appBar.accountMenu.ariaLabel": "Account options",
