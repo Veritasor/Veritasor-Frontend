@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
+import WebhookPayloadViewer from '../components/webhooks/WebhookPayloadViewer'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -10,6 +11,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'api-keys', label: 'API Keys' },
+  { id: 'webhooks', label: 'Webhooks' },
   { id: 'tokens', label: 'Tokens' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
@@ -410,22 +412,26 @@ function WebhooksPanel() {
   }
 
   return (
-    <div>
-      <h2>Webhooks</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        View webhook delivery history and retry failed attempts. Each delivery shows its backoff
-        intervals and final status.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 900, display: 'grid', gap: '1rem' }}>
-        {mockDeliveries.map((delivery) => (
-          <WebhookRetryPanel
-            key={delivery.id}
-            delivery={delivery}
-            onRetry={handleRetry}
-            isRetrying={retryingId === delivery.id}
-          />
-        ))}
+    <div style={{ display: 'grid', gap: '2rem' }}>
+      <div>
+        <h2>Webhooks</h2>
+        <p style={{ color: 'var(--muted)' }}>
+          View webhook delivery history and retry failed attempts. Each delivery shows its backoff
+          intervals and final status.
+        </p>
+        <div style={{ marginTop: '1.5rem', maxWidth: 900, display: 'grid', gap: '1rem' }}>
+          {mockDeliveries.map((delivery) => (
+            <WebhookRetryPanel
+              key={delivery.id}
+              delivery={delivery}
+              onRetry={handleRetry}
+              isRetrying={retryingId === delivery.id}
+            />
+          ))}
+        </div>
       </div>
+
+      <WebhookPayloadViewer />
     </div>
   )
 }
@@ -521,6 +527,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   notifications: NotificationsPanel,
   integrations: SettingsIntegrationsPanel,
   'api-keys': ApiKeysPanel,
+  webhooks: WebhooksPanel,
   tokens: TokensPanel,
   billing: BillingPanel,
   security: SecurityPanel,
