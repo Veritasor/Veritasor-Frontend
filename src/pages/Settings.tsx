@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
+import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
 
 // Tab definitions ordered by frequency of use
@@ -11,6 +12,7 @@ const TABS = [
   { id: 'tokens', label: 'Tokens' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
+  { id: 'audit-log', label: 'Audit Log' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -248,6 +250,77 @@ function TokensPanel() {
   )
 }
 
+function AuditLogPanel() {
+  const mockEntries: AuditLogEntry[] = [
+    {
+      id: '1',
+      timestamp: '2026-07-28T08:12:00Z',
+      event: 'Attestation completed',
+      details: 'Merkle root: 0x7f...3a',
+    },
+    {
+      id: '2',
+      timestamp: '2026-07-28T08:14:00Z',
+      event: 'Attestation completed',
+      details: 'Merkle root: 0x7f...3a',
+    },
+    {
+      id: '3',
+      timestamp: '2026-07-28T08:15:00Z',
+      event: 'Attestation completed',
+      details: 'Merkle root: 0x7f...3a',
+    },
+    {
+      id: '4',
+      timestamp: '2026-07-28T09:00:00Z',
+      event: 'Revenue source connected',
+      details: 'Provider: Stripe',
+    },
+    {
+      id: '5',
+      timestamp: '2026-07-27T14:30:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '6',
+      timestamp: '2026-07-27T14:31:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '7',
+      timestamp: '2026-07-27T14:32:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '8',
+      timestamp: '2026-07-27T14:33:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '9',
+      timestamp: '2026-07-26T10:00:00Z',
+      event: 'API key rotated',
+    },
+  ]
+
+  return (
+    <div>
+      <h2>Audit Log</h2>
+      <p style={{ color: 'var(--muted)' }}>
+        Recent activity for this workspace. In compact density mode, identical consecutive events are
+        grouped by day and collapsed into summary badges.
+      </p>
+      <div style={{ marginTop: '1.5rem', maxWidth: 800 }}>
+        <AuditLogTimeline entries={mockEntries} />
+      </div>
+    </div>
+  )
+}
+
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
@@ -255,6 +328,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   tokens: TokensPanel,
   billing: BillingPanel,
   security: SecurityPanel,
+  'audit-log': AuditLogPanel,
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
