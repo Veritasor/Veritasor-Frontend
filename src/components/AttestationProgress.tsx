@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import './AttestationProgress.print.css'
 
 const ATTESTATION_STEPS = [
   {
@@ -128,9 +129,14 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
   const actionLabel = phase === 'running' ? 'Cancel attestation' : phase === 'complete' ? 'Start another attestation' : 'Start attestation'
   const actionHandler = phase === 'running' ? cancelAttestation : startAttestation
 
+  const exportDate = new Date().toLocaleDateString(undefined, {
+    year: 'numeric', month: 'long', day: 'numeric',
+  })
+
   return (
     <section
       aria-labelledby="attestation-progress-label"
+      data-export-date={exportDate}
       style={{
         marginTop: '2rem',
         padding: '1.5rem',
@@ -187,6 +193,34 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
               Reset progress
             </button>
           ) : null}
+          {(phase === 'complete' || phase === 'canceled' || phase === 'idle') ? (
+            <button
+              type="button"
+              aria-label="Export attestation timeline to PDF"
+              className="print-hide"
+              onClick={() => window.print()}
+              style={{
+                minWidth: 190,
+                padding: '0.95rem 1.1rem',
+                borderRadius: 999,
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                color: 'var(--text)',
+                background: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+              }}
+            >
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+              Export PDF
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -207,6 +241,7 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
             <li
               key={step.title}
               aria-current={isCurrent ? 'step' : undefined}
+              data-step-status={stepStatus}
               style={{
                 display: 'grid',
                 gap: '0.5rem',
@@ -217,10 +252,10 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                <span style={{ fontWeight: 700, color: stepStatus === 'completed' ? 'var(--success)' : isCurrent ? 'var(--accent)' : 'var(--muted)' }}>
+                <span className="step-title" style={{ fontWeight: 700, color: stepStatus === 'completed' ? 'var(--success)' : isCurrent ? 'var(--accent)' : 'var(--muted)' }}>
                   {step.title}
                 </span>
-                <span style={{ color: stepStatus === 'completed' ? 'var(--success)' : isCurrent ? 'var(--accent)' : 'var(--muted)' }}>
+                <span className="step-status-badge" style={{ color: stepStatus === 'completed' ? 'var(--success)' : isCurrent ? 'var(--accent)' : 'var(--muted)' }}>
                   {stepStatus === 'completed' ? 'Done' : isCurrent ? 'In progress' : 'Pending'}
                 </span>
               </div>
