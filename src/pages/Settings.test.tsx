@@ -39,11 +39,13 @@ describe('Settings — rendering', () => {
   it('renders all 7 tabs', () => {
     renderSettings()
     expect(screen.getAllByRole('tab')).toHaveLength(7)
+    expect(screen.getAllByRole('tab')).toHaveLength(8)
   })
 
   it('renders all 7 tab panels (including hidden)', () => {
     renderSettings()
     expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(7)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(8)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -59,6 +61,7 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /webhooks/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
   })
 })
@@ -210,6 +213,8 @@ describe('Settings — keyboard navigation', () => {
     renderSettings('#audit-log')
     const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
     fireEvent.keyDown(auditLogTab, { key: 'ArrowRight' })
+    const auditTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditTab, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -263,6 +268,7 @@ describe('Settings — mobile select', () => {
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
     expect(options).toHaveLength(7)
+    expect(options).toHaveLength(8)
   })
 })
 

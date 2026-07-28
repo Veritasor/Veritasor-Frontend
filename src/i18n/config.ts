@@ -1,11 +1,16 @@
+/**
+ * translationCompletion: percentage (0–100) of message keys translated.
+ * This is used by LocalePicker to display a completion chip.
+ * Update these values when message files change.
+ */
 export const SUPPORTED_LOCALES = [
-  { code: 'en', label: 'English', nativeLabel: 'English', dir: 'ltr' },
-  { code: 'es', label: 'Spanish', nativeLabel: 'Español', dir: 'ltr' },
-  { code: 'fr', label: 'French', nativeLabel: 'Français', dir: 'ltr' },
-  { code: 'ar', label: 'Arabic', nativeLabel: 'العربية', dir: 'rtl' },
-  { code: 'zh', label: 'Chinese (Simplified)', nativeLabel: '中文', dir: 'ltr' },
-  { code: 'de', label: 'German', nativeLabel: 'Deutsch', dir: 'ltr' },
-  { code: 'fi', label: 'Finnish', nativeLabel: 'Suomi', dir: 'ltr' },
+  { code: 'en', label: 'English',             nativeLabel: 'English',    dir: 'ltr', translationCompletion: 100 },
+  { code: 'es', label: 'Spanish',             nativeLabel: 'Español',    dir: 'ltr', translationCompletion: 94  },
+  { code: 'fr', label: 'French',              nativeLabel: 'Français',   dir: 'ltr', translationCompletion: 91  },
+  { code: 'ar', label: 'Arabic',              nativeLabel: 'العربية',    dir: 'rtl', translationCompletion: 78  },
+  { code: 'zh', label: 'Chinese (Simplified)', nativeLabel: '中文',      dir: 'ltr', translationCompletion: 82  },
+  { code: 'de', label: 'German',              nativeLabel: 'Deutsch',    dir: 'ltr', translationCompletion: 88  },
+  { code: 'fi', label: 'Finnish',             nativeLabel: 'Suomi',      dir: 'ltr', translationCompletion: 71  },
 ] as const
 
 export const DEFAULT_LOCALE = 'en'
