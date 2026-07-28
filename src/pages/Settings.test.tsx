@@ -313,3 +313,112 @@ describe('Settings — panel content', () => {
     expect(screen.getByText('Attestation completed')).toBeInTheDocument()
   })
 })
+
+// ─── MFA Recovery Codes ────────────────────────────────────────────────────────
+
+describe('Security — MFA recovery codes', () => {
+  const CODE_RE = /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/
+
+  it('shows MFA setup button when MFA is not enabled', () => {
+    renderSettings('#security')
+    expect(screen.getByRole('button', { name: /set up two-factor authentication/i })).toBeInTheDocument()
+  })
+
+  it('clicking setup transitions to recovery codes view', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('heading', { name: /recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('displays 10 recovery codes after setup', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(10)
+  })
+
+  it('each recovery code matches XXXX-XXXX-XXXX pattern', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const items = screen.getAllByRole('listitem')
+    items.forEach((item) => {
+      expect(item.textContent).toMatch(CODE_RE)
+    })
+  })
+
+  it('codes are displayed in a list with aria-label', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('list', { name: /recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('copy all button is present', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('button', { name: /copy all/i })).toBeInTheDocument()
+  })
+
+  it('download .txt button is present', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('button', { name: /download \.txt/i })).toBeInTheDocument()
+  })
+
+  it('print button is present', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('button', { name: /print/i })).toBeInTheDocument()
+  })
+
+  it('confirmation checkbox is present and unchecked by default', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const checkbox = screen.getByRole('checkbox', { name: /i.ve saved/i })
+    expect(checkbox).toBeInTheDocument()
+    expect(checkbox).not.toBeChecked()
+  })
+
+  it('continue button is disabled until codes are confirmed', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const continueBtn = screen.getByRole('button', { name: /continue/i })
+    expect(continueBtn).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    expect(continueBtn).toBeEnabled()
+  })
+
+  it('confirming codes transitions to MFA active state', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(screen.getByText(/two-factor authentication is enabled/i)).toBeInTheDocument()
+  })
+
+  it('shows enabled status after completing setup', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(screen.getByRole('button', { name: /disable/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /view recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('view recovery codes from active state shows codes again', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /view recovery codes/i }))
+    expect(screen.getByRole('list', { name: /recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('disable button returns to initial off state', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /disable/i }))
+    expect(screen.getByRole('button', { name: /set up two-factor authentication/i })).toBeInTheDocument()
+  })
+})
