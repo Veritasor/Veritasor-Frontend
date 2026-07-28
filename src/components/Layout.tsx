@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, Link } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
 import BottomTabBar from './BottomTabBar'
 import { ToastProvider, useToast } from './ToastContext'
-import { useCookieConsent } from './CookieConsentContext'
+import OfflineBanner from './OfflineBanner'
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast()
@@ -39,7 +39,23 @@ const navItems = [
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { openSettings: openCookieSettings } = useCookieConsent()
+
+  // Register Shift+? globally to open the shortcuts overlay
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore when user is typing in an input/textarea/select
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.shiftKey && e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen((o) => !o)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o);
@@ -51,6 +67,7 @@ function LayoutInner() {
 
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      <OfflineBanner />
       {/* Sidebar Layout shell */}
       <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-6">
         <div className="flex items-center space-x-2 px-2">
@@ -129,6 +146,7 @@ function LayoutInner() {
       </div>
       <BottomTabBar />
       <ToastContainer />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }

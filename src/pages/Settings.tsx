@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
+import MfaMethodChooser, { type MfaMethod } from '../components/MfaMethodChooser'
+import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import WebhookCreateForm from '../components/webhooks/WebhookCreateForm'
+import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
+import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
+import { useToast } from '../components/ToastContext'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -10,10 +16,12 @@ const TABS = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'api-keys', label: 'API Keys' },
+  { id: 'webhooks', label: 'Webhooks' },
   { id: 'tokens', label: 'Tokens' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
   { id: 'audit-log', label: 'Audit Log' },
+  { id: 'webhooks', label: 'Webhooks' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -175,7 +183,157 @@ function BillingPanel() {
   )
 }
 
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+function generateRecoveryCodes(): string[] {
+  return Array.from({ length: 10 }, () => {
+    const seg = () =>
+      Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('')
+    return `${seg()}-${seg()}-${seg()}`
+  })
+}
+
 function SecurityPanel() {
+  const [mfaState, setMfaState] = useState<'off' | 'setup' | 'codes' | 'active'>('off')
+  const [codes, setCodes] = useState<string[]>([])
+  const [codesConfirmed, setCodesConfirmed] = useState(false)
+
+  const inputStyle = {
+    padding: '0.6rem 0.8rem',
+    borderRadius: 8,
+    border: '1px solid var(--border)',
+    background: 'var(--surface-strong)',
+    color: 'var(--text)',
+    fontSize: '0.95rem',
+  }
+
+  const btnStyle = {
+    alignSelf: 'start' as const,
+    padding: '0.6rem 1.25rem',
+    borderRadius: 8,
+    border: 'none',
+    background: 'var(--accent)',
+    color: '#04111f',
+    fontWeight: 700,
+    cursor: 'pointer' as const,
+    fontSize: '0.95rem',
+  }
+
+  const handleStartSetup = () => {
+    setCodes(generateRecoveryCodes())
+    setMfaState('codes')
+  }
+
+  const handleCopyAll = useCallback(async () => {
+    const text = codes.join('\n')
+    await navigator.clipboard.writeText(text)
+  }, [codes])
+
+  const handleDownloadTxt = useCallback(() => {
+    const text = `Veritasor Recovery Codes\n${'='.repeat(22)}\n\n${codes.join('\n')}\n\nKeep these codes safe. Each code can only be used once.`
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'veritasor-recovery-codes.txt'
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [codes])
+
+  const handlePrint = useCallback(() => {
+    const pw = window.open('', '_blank')
+    if (!pw) return
+    pw.document.write(`<!DOCTYPE html><html><head><title>Recovery Codes — Veritasor</title><style>body{font-family:system-ui,sans-serif;padding:2rem;max-width:600px;margin:0 auto}h1{font-size:1.4rem}code{font-family:"Courier New",monospace;font-size:1.15rem;display:block;padding:0.35rem 0}@media print{button{display:none}}</style></head><body><h1>Veritasor Recovery Codes</h1><p style="color:#555">Save these codes in a secure place. Each code can only be used once.</p><hr>${codes.map((c) => `<code>${c}</code>`).join('')}<hr><p style="font-size:0.85rem;color:#999">Generated ${new Date().toLocaleDateString()}</p><button onclick="window.print()">Print</button></body></html>`)
+    pw.document.close()
+  }, [codes])
+
+  const mfaSection: Record<string, () => JSX.Element> = useMemo(
+    () => ({
+      off: () => (
+        <div>
+          <h3>Two-Factor Authentication</h3>
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 480 }}>
+            Add an extra layer of security. Once enabled, you will be asked for a one-time code from your authenticator app when signing in.
+          </p>
+          <button type="button" onClick={handleStartSetup} style={btnStyle}>
+            Set up two-factor authentication
+          </button>
+        </div>
+      ),
+      codes: () => (
+        <div>
+          <h3>Recovery Codes</h3>
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 480 }}>
+            Save these recovery codes in a secure place. Each code can only be used once. If you lose access to your authenticator app, you can use one of these codes to sign in.
+          </p>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '0.4rem',
+              maxWidth: 480,
+              fontFamily: '"Courier New", monospace',
+              fontSize: '1rem',
+              background: 'var(--surface-strong)',
+              padding: '1rem',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              marginBottom: '1rem',
+            }}
+            role="list"
+            aria-label="Recovery codes"
+          >
+            {codes.map((code, i) => (
+              <div key={code} role="listitem" style={{ padding: '0.25rem 0' }}>
+                <code style={{ fontSize: '1rem', userSelect: 'all' }}>{code}</code>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+            <button type="button" onClick={handleCopyAll} style={btnStyle}>Copy all</button>
+            <button type="button" onClick={handleDownloadTxt} style={{ ...btnStyle, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' }}>
+              Download .txt
+            </button>
+            <button type="button" onClick={handlePrint} style={{ ...btnStyle, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' }}>
+              Print
+            </button>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={codesConfirmed}
+              onChange={(e) => setCodesConfirmed(e.target.checked)}
+              style={{ width: 16, height: 16 }}
+            />
+            I've saved these recovery codes
+          </label>
+          <button type="button" disabled={!codesConfirmed} onClick={() => { setMfaState('active'); setCodesConfirmed(false) }} style={{ ...btnStyle, marginTop: '1rem', opacity: codesConfirmed ? 1 : 0.5 }}>
+            Continue
+          </button>
+        </div>
+      ),
+      active: () => (
+        <div>
+          <h3>Two-Factor Authentication</h3>
+          <p style={{ color: 'var(--accent)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span aria-label="Enabled">✓</span> Two-factor authentication is enabled
+          </p>
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 480 }}>
+            Your account is protected with two-factor authentication. You can disable it at any time.
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="button" onClick={() => { setMfaState('codes'); setCodes(generateRecoveryCodes()); setCodesConfirmed(false) }} style={{ ...btnStyle, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' }}>
+              View recovery codes
+            </button>
+            <button type="button" onClick={() => setMfaState('off')} style={{ ...btnStyle, background: 'transparent', border: '1px solid var(--danger, #dc3545)', color: 'var(--danger, #dc3545)' }}>
+              Disable
+            </button>
+          </div>
+        </div>
+      ),
+    }),
+    [codes, codesConfirmed, handleCopyAll, handleDownloadTxt, handlePrint, handleStartSetup],
+  )
   const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null)
 
   return (
@@ -190,14 +348,7 @@ function SecurityPanel() {
           <input
             id="settings-current-password"
             type="password"
-            style={{
-              padding: '0.6rem 0.8rem',
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: 'var(--surface-strong)',
-              color: 'var(--text)',
-              fontSize: '0.95rem',
-            }}
+            style={inputStyle}
           />
         </div>
         <div style={{ display: 'grid', gap: '0.4rem' }}>
@@ -207,33 +358,18 @@ function SecurityPanel() {
           <input
             id="settings-new-password"
             type="password"
-            style={{
-              padding: '0.6rem 0.8rem',
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: 'var(--surface-strong)',
-              color: 'var(--text)',
-              fontSize: '0.95rem',
-            }}
+            style={inputStyle}
           />
         </div>
         <button
           type="submit"
-          style={{
-            alignSelf: 'start',
-            padding: '0.6rem 1.25rem',
-            borderRadius: 8,
-            border: 'none',
-            background: 'var(--accent)',
-            color: '#04111f',
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontSize: '0.95rem',
-          }}
+          style={btnStyle}
         >
           Update password
         </button>
       </form>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
+      {mfaSection[mfaState]()}
 
       <hr style={{ margin: '2rem 0', borderColor: 'var(--border)', opacity: 0.5 }} />
 
@@ -330,6 +466,18 @@ function AuditLogPanel() {
 
 function WebhooksPanel() {
   const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const { addToast } = useToast()
+
+  function handleCreate(data: { url: string; description: string; events: string[] }) {
+    // In a real app, this would call the API to create the webhook endpoint
+    addToast(
+      `Webhook endpoint created with ${data.events.length} event${data.events.length === 1 ? '' : 's'}.`,
+      'success',
+      5000,
+    )
+    setShowCreateForm(false)
+  }
 
   const mockDeliveries: WebhookDelivery[] = [
     {
@@ -405,18 +553,70 @@ function WebhooksPanel() {
     setRetryingId(id)
     setTimeout(() => {
       setRetryingId(null)
-      // Real app: trigger retry via API
     }, 2000)
   }
 
   return (
     <div>
-      <h2>Webhooks</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        View webhook delivery history and retry failed attempts. Each delivery shows its backoff
-        intervals and final status.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 900, display: 'grid', gap: '1rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          marginBottom: '1rem',
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>Webhooks</h2>
+          <p style={{ color: 'var(--muted)', margin: '0.35rem 0 0' }}>
+            Create and manage webhook endpoints. View delivery history and retry failed attempts.
+          </p>
+        </div>
+        {!showCreateForm && (
+          <button
+            type="button"
+            className="app-button app-button-primary"
+            style={{ width: 'auto' }}
+            onClick={() => setShowCreateForm(true)}
+          >
+            Create endpoint
+          </button>
+        )}
+      </div>
+
+      {showCreateForm && (
+        <section
+          aria-label="Create webhook endpoint"
+          style={{
+            padding: '1.25rem',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--surface)',
+            marginBottom: '2rem',
+          }}
+        >
+          <WebhookCreateForm
+            onSubmit={handleCreate}
+            onCancel={() => setShowCreateForm(false)}
+          />
+        </section>
+      )}
+
+      <h3
+        style={{
+          margin: '0 0 0.75rem',
+          fontSize: 'var(--text-sm)',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'var(--muted)',
+        }}
+      >
+        Recent deliveries
+      </h3>
+      <div style={{ maxWidth: 900, display: 'grid', gap: '1rem' }}>
         {mockDeliveries.map((delivery) => (
           <WebhookRetryPanel
             key={delivery.id}
@@ -426,92 +626,16 @@ function WebhooksPanel() {
           />
         ))}
       </div>
-    </div>
-  )
-}
 
-function TokensPanel() {
-  return (
-    <div>
-      <h2>Design tokens</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        Export a snapshot of Veritasor design tokens as CSS custom properties. Choose a scope,
-        then copy or download the file.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 720 }}>
-        <TokensExport />
-      </div>
-    </div>
-  )
-}
-
-function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: '1',
-      timestamp: '2026-07-28T08:12:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '2',
-      timestamp: '2026-07-28T08:14:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '3',
-      timestamp: '2026-07-28T08:15:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '4',
-      timestamp: '2026-07-28T09:00:00Z',
-      event: 'Revenue source connected',
-      details: 'Provider: Stripe',
-    },
-    {
-      id: '5',
-      timestamp: '2026-07-27T14:30:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '6',
-      timestamp: '2026-07-27T14:31:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '7',
-      timestamp: '2026-07-27T14:32:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '8',
-      timestamp: '2026-07-27T14:33:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '9',
-      timestamp: '2026-07-26T10:00:00Z',
-      event: 'API key rotated',
-    },
-  ]
-
-  return (
-    <div>
-      <h2>Audit Log</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        Recent activity for this workspace. In compact density mode, identical consecutive events are
-        grouped by day and collapsed into summary badges.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
-      </div>
+      <WebhookSecretRotationDialog
+        open={rotationOpen}
+        endpointLabel="https://example.com/webhooks"
+        oldSecret={mockOldSecret}
+        newSecret={mockNewSecret}
+        onConfirm={() => setRotationOpen(false)}
+        onCancelRotation={() => setRotationOpen(false)}
+        onClose={() => setRotationOpen(false)}
+      />
     </div>
   )
 }
@@ -521,10 +645,12 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   notifications: NotificationsPanel,
   integrations: SettingsIntegrationsPanel,
   'api-keys': ApiKeysPanel,
+  webhooks: WebhooksPanel,
   tokens: TokensPanel,
   billing: BillingPanel,
   security: SecurityPanel,
   'audit-log': AuditLogPanel,
+  webhooks: WebhooksPanel,
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
