@@ -178,6 +178,8 @@ function BillingPanel() {
 }
 
 function SecurityPanel() {
+  const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null)
+
   return (
     <div>
       <h2>Security</h2>
@@ -234,6 +236,10 @@ function SecurityPanel() {
           Update password
         </button>
       </form>
+
+      <hr style={{ margin: '2rem 0', borderColor: 'var(--border)', opacity: 0.5 }} />
+
+      <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
     </div>
   )
 }
