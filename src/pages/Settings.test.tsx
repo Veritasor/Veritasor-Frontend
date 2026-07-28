@@ -317,7 +317,7 @@ describe('Settings — panel content', () => {
 
   it('Security panel shows active sessions heading', () => {
     renderSettings('#security')
-    expect(screen.getByText(/active sessions/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /active sessions/i })).toBeInTheDocument()
   })
 
   it('Security panel shows session count', () => {
@@ -327,7 +327,8 @@ describe('Settings — panel content', () => {
 
   it('Security panel shows current session badge', () => {
     renderSettings('#security')
-    expect(screen.getByText(/current/i)).toBeInTheDocument()
+    const badges = screen.getAllByText('Current')
+    expect(badges.length).toBeGreaterThanOrEqual(1)
   })
 
   it('Security panel shows revoke buttons for non-current sessions', () => {
@@ -348,6 +349,7 @@ describe('Settings — panel content', () => {
 
   it('Audit Log panel shows audit entries', () => {
     renderSettings('#audit-log')
-    expect(screen.getByText('Attestation completed')).toBeInTheDocument()
+    const entries = screen.getAllByText('Attestation completed')
+    expect(entries.length).toBeGreaterThan(0)
   })
 })
