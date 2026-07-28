@@ -38,6 +38,8 @@ export interface ExportJob {
   fileSize: string | null
   /** Short error reason when status is "failed". */
   error: string | null
+  /** Optional email for async delivery notification. */
+  notifyEmail?: string | null
 }
 
 export const FORMAT_META: Record<
