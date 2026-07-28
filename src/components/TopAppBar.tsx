@@ -26,6 +26,9 @@ export default function TopAppBar({
   onSearchClick,
 }: TopAppBarProps) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
+  const [recentWorkspaces, setRecentWorkspaces] = useState<string[]>([
+  initialWorkspace,
+]);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [environment, setEnvironment] = useState<"testnet" | "mainnet">(
     initialEnvironment,
@@ -165,11 +168,17 @@ export default function TopAppBar({
     [],
   );
 
-  function selectWorkspace(ws: string) {
-    setWorkspace(ws);
-    setWorkspaceOpen(false);
-    workspaceBtnRef.current?.focus();
-  }
+ function selectWorkspace(ws: string) {
+  setWorkspace(ws);
+
+  setRecentWorkspaces((prev) => {
+    const updated = [ws, ...prev.filter((item) => item !== ws)];
+    return updated.slice(0, 5);
+  });
+
+  setWorkspaceOpen(false);
+  workspaceBtnRef.current?.focus();
+}
 
   function closeAccountMenu() {
     setAccountOpen(false);

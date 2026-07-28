@@ -4,21 +4,23 @@ import { Link } from 'react-router-dom'
 import { useOnboardingDraft } from '../hooks/useOnboardingDraft'
 import BusinessDetailsStep from './onboarding/BusinessDetailsStep'
 import OwnerDetailsStep from './onboarding/OwnerDetailsStep'
+import SelfieCaptureStep from './onboarding/SelfieCaptureStep'
 import DocumentUploadStep from './onboarding/DocumentUploadStep'
 import type { FileMap } from './onboarding/DocumentUploadStep'
 import BankDetailsStep from './onboarding/BankDetailsStep'
 import ReviewSubmitStep from './onboarding/ReviewSubmitStep'
-import type { OnboardingDraft, BusinessDetails, OwnerDetails, DocumentUpload, BankDetails } from '../hooks/useOnboardingDraft'
+import type { OnboardingDraft, BusinessDetails, OwnerDetails, SelfieCapture, DocumentUpload, BankDetails } from '../hooks/useOnboardingDraft'
 import Breadcrumb from '../components/Breadcrumb'
 
-const TOTAL_STEPS = 5
+const TOTAL_STEPS = 6
 
 const STEP_META = [
-  { eyebrow: 'Step 1 of 5', title: 'Business details', description: 'Tell us about your registered business.' },
-  { eyebrow: 'Step 2 of 5', title: 'Owner / Director', description: 'Provide details for the primary business owner or director.' },
-  { eyebrow: 'Step 3 of 5', title: 'Document upload', description: 'Upload the required KYB/KYC documents. Accepted: PDF, JPG, PNG · max 10 MB each.' },
-  { eyebrow: 'Step 4 of 5', title: 'Bank & payout details', description: 'Where should FluxaPay send your settlements?' },
-  { eyebrow: 'Step 5 of 5', title: 'Review & submit', description: 'Check everything looks right before we send your application for review.' },
+  { eyebrow: 'Step 1 of 6', title: 'Business details', description: 'Tell us about your registered business.' },
+  { eyebrow: 'Step 2 of 6', title: 'Owner / Director', description: 'Provide details for the primary business owner or director.' },
+  { eyebrow: 'Step 3 of 6', title: 'Selfie verification', description: 'Take a selfie to verify your identity. Position your face within the oval guide in good lighting.' },
+  { eyebrow: 'Step 4 of 6', title: 'Document upload', description: 'Upload the required KYB/KYC documents. Accepted: PDF, JPG, PNG · max 10 MB each.' },
+  { eyebrow: 'Step 5 of 6', title: 'Bank & payout details', description: 'Where should FluxaPay send your settlements?' },
+  { eyebrow: 'Step 6 of 6', title: 'Review & submit', description: 'Check everything looks right before we send your application for review.' },
 ]
 
 export default function OnboardingWizard() {
@@ -84,7 +86,7 @@ export default function OnboardingWizard() {
     if (id === 'ob-legal-name') return setNested('business', 'legalName', target.value)
     if (id === 'ob-reg-number') return setNested('business', 'registrationNumber', target.value)
     if (id === 'ob-country') return setNested('business', 'country', target.value)
-    if (id === 'ob-biz-type') return setNested('business', 'businessType', target.value)
+    if (id === 'ob-biz-type' || id.startsWith('ob-biz-type-')) return setNested('business', 'businessType', target.value)
     if (id === 'ob-website') return setNested('business', 'website', target.value)
 
     if (id === 'ob-full-name') return setNested('owner', 'fullName', target.value)
@@ -94,6 +96,17 @@ export default function OnboardingWizard() {
     if (id === 'ob-addr2') return setNested('owner', 'addressLine2', target.value)
     if (id === 'ob-city') return setNested('owner', 'city', target.value)
     if (id === 'ob-postal') return setNested('owner', 'postalCode', target.value)
+
+    if (id === 'ob-selfie-input') {
+      const uploadedFile = (target as HTMLInputElement).files?.[0]
+      if (uploadedFile) {
+        scheduleDraftUpdate(prev => ({
+          ...prev,
+          selfie: { captured: true, fileName: uploadedFile.name },
+        }))
+      }
+      return
+    }
 
     if (id === 'ob-bank-name') return setNested('bank', 'bankName', target.value)
     if (id === 'ob-account-number') return setNested('bank', 'accountNumber', target.value)
@@ -125,13 +138,17 @@ export default function OnboardingWizard() {
     setDraft(prev => ({ ...prev, owner: data, step: 3 }))
   }
 
+  function handleSelfie(data: SelfieCapture, _file: File | null) {
+    setDraft(prev => ({ ...prev, selfie: data, step: 4 }))
+  }
+
   function handleDocuments(data: DocumentUpload, _files: FileMap) {
     // File objects can't be serialised to localStorage; we store names only
-    setDraft(prev => ({ ...prev, documents: data, step: 4 }))
+    setDraft(prev => ({ ...prev, documents: data, step: 5 }))
   }
 
   function handleBank(data: BankDetails) {
-    setDraft(prev => ({ ...prev, bank: data, step: 5 }))
+    setDraft(prev => ({ ...prev, bank: data, step: 6 }))
   }
 
   async function handleSubmit() {
@@ -269,23 +286,30 @@ export default function OnboardingWizard() {
               />
             )}
             {step === 3 && (
-              <DocumentUploadStep
-                data={draft.documents}
+              <SelfieCaptureStep
+                data={draft.selfie}
                 onBack={() => goTo(2)}
-                onNext={handleDocuments}
+                onNext={handleSelfie}
               />
             )}
             {step === 4 && (
-              <BankDetailsStep
-                data={draft.bank}
+              <DocumentUploadStep
+                data={draft.documents}
                 onBack={() => goTo(3)}
-                onNext={handleBank}
+                onNext={handleDocuments}
               />
             )}
             {step === 5 && (
+              <BankDetailsStep
+                data={draft.bank}
+                onBack={() => goTo(4)}
+                onNext={handleBank}
+              />
+            )}
+            {step === 6 && (
               <ReviewSubmitStep
                 draft={draft}
-                onBack={() => goTo(4)}
+                onBack={() => goTo(5)}
                 onSubmit={handleSubmit}
                 submitting={submitting}
               />
