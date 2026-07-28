@@ -8,6 +8,7 @@ import TokensExport from "../components/tokens/TokensExport";
 import MfaMethodChooser, {
   type MfaMethod,
 } from "../components/MfaMethodChooser";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -103,44 +104,473 @@ function ProfilePanel() {
   );
 }
 
+type NotificationChannel = "email" | "inapp" | "webhook";
+
+interface NotificationCategory {
+  id: string;
+  title: string;
+  description: string;
+  defaults: Record<NotificationChannel, boolean>;
+}
+
+const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
+  {
+    id: "attestation-completed",
+    title: "Attestation completed",
+    description:
+      "A revenue attestation run finished successfully with a valid Merkle root.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "attestation-failed",
+    title: "Attestation failed",
+    description:
+      "An attestation run timed out, returned an error, or produced invalid evidence.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "source-connected",
+    title: "Revenue source connected",
+    description:
+      "A new data source (Stripe, QuickBooks, Plaid, etc.) was linked to the workspace.",
+    defaults: { email: true, inapp: true, webhook: false },
+  },
+  {
+    id: "source-disconnected",
+    title: "Revenue source disconnected",
+    description:
+      "A previously connected data source lost authorization or was removed by a team member.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "invoice-generated",
+    title: "Billing invoice generated",
+    description:
+      "A new subscription invoice is ready. Receipts are also available in Billing.",
+    defaults: { email: true, inapp: false, webhook: false },
+  },
+  {
+    id: "payment-failed",
+    title: "Payment failed",
+    description:
+      "A subscription charge could not be processed. Service may be interrupted.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "team-invite",
+    title: "Team member invite or removal",
+    description:
+      "Someone was invited to the workspace, accepted, or was removed by an admin.",
+    defaults: { email: true, inapp: true, webhook: false },
+  },
+  {
+    id: "api-key-rotated",
+    title: "API key rotated or revoked",
+    description:
+      "A workspace API key was rotated, revoked, or is about to expire.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "security-alert",
+    title: "Security alerts",
+    description:
+      "Sign-in from a new device, MFA method changes, or recovery code usage.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+];
+
+const CHANNEL_META: Record<
+  NotificationChannel,
+  { label: string; icon: string; help: string }
+> = {
+  email: {
+    label: "Email",
+    icon: "✉",
+    help: "Delivered to your verified inbox with reply-to support.",
+  },
+  inapp: {
+    label: "In-app",
+    icon: "🔔",
+    help: "Shown in the product bell menu and marked as read/unread.",
+  },
+  webhook: {
+    label: "Webhook",
+    icon: "🔗",
+    help: "POST event payload to the configured endpoint URL.",
+  },
+};
+
+function buildInitialPrefs(): Record<
+  string,
+  Record<NotificationChannel, boolean>
+> {
+  const prefs: Record<string, Record<NotificationChannel, boolean>> = {};
+  for (const cat of NOTIFICATION_CATEGORIES) {
+    prefs[cat.id] = { ...cat.defaults };
+  }
+  return prefs;
+}
+
 function NotificationsPanel() {
+  const [prefs, setPrefs] = useState(buildInitialPrefs);
+  const [muteAll, setMuteAll] = useState(false);
+  const [showMuteDialog, setShowMuteDialog] = useState(false);
+  const [pendingMute, setPendingMute] = useState<boolean | null>(null);
+
+  const toggleChannel = (catId: string, ch: NotificationChannel) => {
+    setPrefs((prev) => ({
+      ...prev,
+      [catId]: { ...prev[catId], [ch]: !prev[catId][ch] },
+    }));
+  };
+
+  const countEnabled = useMemo(() => {
+    let n = 0;
+    for (const cat of NOTIFICATION_CATEGORIES) {
+      for (const ch of Object.keys(CHANNEL_META) as NotificationChannel[]) {
+        if (!muteAll && prefs[cat.id]?.[ch]) n++;
+      }
+    }
+    return n;
+  }, [prefs, muteAll]);
+
+  const handleMuteAllToggle = (target: boolean) => {
+    if (target) {
+      setPendingMute(true);
+      setShowMuteDialog(true);
+    } else {
+      setMuteAll(false);
+      setPendingMute(null);
+    }
+  };
+
+  const confirmMuteAll = () => {
+    setMuteAll(true);
+    setPendingMute(null);
+    setShowMuteDialog(false);
+  };
+
+  const cancelMuteAll = () => {
+    setPendingMute(null);
+    setShowMuteDialog(false);
+  };
+
+  const channelHeaderStyle: React.CSSProperties = {
+    fontSize: "0.78rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: "var(--muted)",
+    padding: "0.6rem 0.5rem",
+    textAlign: "center" as const,
+    whiteSpace: "nowrap" as const,
+    minWidth: 96,
+  };
+
+  const toggleCellStyle: React.CSSProperties = {
+    textAlign: "center" as const,
+    padding: "0.6rem 0.5rem",
+    verticalAlign: "middle",
+    minWidth: 96,
+  };
+
   return (
     <div>
-      <h2>Notifications</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Choose which events trigger email notifications.
-      </p>
-      <ul
+      <header
         style={{
-          listStyle: "none",
-          padding: 0,
           display: "grid",
-          gap: "0.75rem",
-          maxWidth: 480,
+          gap: "1rem",
+          marginBottom: "1.5rem",
         }}
       >
-        {[
-          "Attestation completed",
-          "Attestation failed",
-          "New revenue source connected",
-          "Billing invoice generated",
-        ].map((item) => (
-          <li
-            key={item}
-            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+        <div>
+          <h2 style={{ margin: 0 }}>Notifications</h2>
+          <p
+            style={{
+              color: "var(--muted)",
+              margin: "0.35rem 0 0",
+              lineHeight: 1.6,
+            }}
           >
-            <input
-              id={`notif-${item}`}
-              type="checkbox"
-              defaultChecked
-              style={{ width: 16, height: 16 }}
-            />
-            <label htmlFor={`notif-${item}`} style={{ fontSize: "0.95rem" }}>
-              {item}
+            Choose how Veritasor delivers event alerts. Configure Email, In-app,
+            and Webhook channels per category below.
+          </p>
+        </div>
+
+        <div
+          role="region"
+          aria-label="Master notification controls"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+            flexWrap: "wrap",
+            padding: "1rem 1.1rem",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--border)",
+            background: "var(--surface-strong)",
+          }}
+        >
+          <div style={{ display: "grid", gap: "0.25rem" }}>
+            <div style={{ fontWeight: 700 }}>
+              {muteAll
+                ? "All channels muted"
+                : `Active deliveries: ${countEnabled}`}
+            </div>
+            <div style={{ color: "var(--muted)", fontSize: "0.88rem" }}>
+              {muteAll
+                ? "No Email, In-app, or Webhook notifications will be sent."
+                : "Per-category toggles below override defaults for each channel."}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <label
+              htmlFor="mute-all-master"
+              style={{
+                fontSize: "0.92rem",
+                fontWeight: 600,
+                color: muteAll ? "var(--danger)" : "var(--text)",
+              }}
+            >
+              Mute all
             </label>
-          </li>
-        ))}
-      </ul>
+            <button
+              id="mute-all-master"
+              type="button"
+              role="switch"
+              aria-checked={muteAll}
+              aria-label="Mute all notification channels"
+              onClick={() => handleMuteAllToggle(!muteAll)}
+              style={{
+                position: "relative",
+                width: 48,
+                height: 28,
+                borderRadius: 999,
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                flexShrink: 0,
+                minWidth: 48,
+                transition: "background-color 140ms ease",
+                background: muteAll
+                  ? "linear-gradient(135deg, var(--danger), #f43f5e)"
+                  : "rgba(148, 163, 184, 0.28)",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  left: muteAll ? 23 : 3,
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                  transition: "left 140ms ease",
+                }}
+              />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section
+        aria-labelledby="notif-matrix-heading"
+        style={{
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          background: "var(--surface)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          role="region"
+          aria-label="Notification channels matrix"
+          style={{ overflowX: "auto" }}
+        >
+          <table
+            aria-describedby="notif-matrix-help"
+            style={{
+              width: "100%",
+              minWidth: 640,
+              borderCollapse: "separate",
+              borderSpacing: 0,
+            }}
+          >
+            <caption className="sr-only">
+              Notification preferences per category and delivery channel.
+            </caption>
+            <thead>
+              <tr style={{ background: "var(--surface-strong)" }}>
+                <th
+                  scope="col"
+                  style={{
+                    ...channelHeaderStyle,
+                    textAlign: "left",
+                    minWidth: 280,
+                    padding: "0.75rem 1rem",
+                  }}
+                >
+                  Event category
+                </th>
+                {(Object.keys(CHANNEL_META) as NotificationChannel[]).map(
+                  (ch) => (
+                    <th
+                      key={ch}
+                      scope="col"
+                      style={channelHeaderStyle}
+                      aria-label={`${CHANNEL_META[ch].label} channel — ${CHANNEL_META[ch].help}`}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.35rem",
+                        }}
+                      >
+                        <span aria-hidden="true">{CHANNEL_META[ch].icon}</span>
+                        {CHANNEL_META[ch].label}
+                      </span>
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {NOTIFICATION_CATEGORIES.map((cat, idx) => {
+                const rowPaused = muteAll;
+                return (
+                  <tr
+                    key={cat.id}
+                    style={{
+                      borderTop: idx === 0 ? "none" : "1px solid var(--border)",
+                      background: rowPaused
+                        ? "rgba(148, 163, 184, 0.05)"
+                        : "transparent",
+                      opacity: rowPaused ? 0.55 : 1,
+                    }}
+                  >
+                    <th
+                      scope="row"
+                      style={{
+                        textAlign: "left",
+                        padding: "1rem",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: "0.3rem",
+                        }}
+                      >
+                        <label
+                          htmlFor={`notif-${cat.id}-email`}
+                          style={{
+                            fontWeight: 600,
+                            fontSize: "0.95rem",
+                            cursor: "pointer",
+                            color: "var(--text)",
+                          }}
+                        >
+                          {cat.title}
+                        </label>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--muted)",
+                            fontSize: "0.88rem",
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          {cat.description}
+                        </p>
+                      </div>
+                    </th>
+                    {(Object.keys(CHANNEL_META) as NotificationChannel[]).map(
+                      (ch) => {
+                        const checked = !rowPaused && !!prefs[cat.id]?.[ch];
+                        const inputId = `notif-${cat.id}-${ch}`;
+                        return (
+                          <td key={ch} style={toggleCellStyle}>
+                            <label htmlFor={inputId} className="sr-only">
+                              {cat.title} — {CHANNEL_META[ch].label}
+                            </label>
+                            <button
+                              id={inputId}
+                              type="button"
+                              role="switch"
+                              aria-checked={checked}
+                              aria-label={`${cat.title} — ${CHANNEL_META[ch].label}`}
+                              disabled={rowPaused}
+                              onClick={() => toggleChannel(cat.id, ch)}
+                              style={{
+                                position: "relative",
+                                width: 42,
+                                height: 24,
+                                borderRadius: 999,
+                                border: "none",
+                                cursor: rowPaused ? "not-allowed" : "pointer",
+                                padding: 0,
+                                opacity: rowPaused ? 0.5 : 1,
+                                transition: "background-color 120ms ease",
+                                background: checked
+                                  ? "linear-gradient(135deg, var(--accent), #60a5fa)"
+                                  : "rgba(148, 163, 184, 0.28)",
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  position: "absolute",
+                                  top: 2,
+                                  left: checked ? 20 : 2,
+                                  width: 20,
+                                  height: 20,
+                                  borderRadius: "50%",
+                                  background: "#fff",
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
+                                  transition: "left 120ms ease",
+                                }}
+                              />
+                            </button>
+                          </td>
+                        );
+                      },
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p id="notif-matrix-help" className="sr-only">
+          Use the switches to enable or disable Email, In-app, and Webhook
+          delivery for each event category. Use the Mute all master toggle to
+          pause all deliveries.
+        </p>
+      </section>
+
+      <ConfirmDialog
+        open={showMuteDialog}
+        title="Mute all notifications?"
+        description="You will stop receiving Email, In-app, and Webhook alerts for every category. Team members will still see in-app items if they have their own preferences enabled. You can resume anytime by toggling Mute all off."
+        confirmText="Mute everything"
+        cancelText="Keep notifications"
+        tone="danger"
+        onConfirm={confirmMuteAll}
+        onClose={cancelMuteAll}
+      />
     </div>
   );
 }
@@ -1206,18 +1636,65 @@ function BillingPanel() {
   );
 }
 
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function generateRecoveryCodes(): string[] {
   return Array.from({ length: 10 }, () => {
     const seg = () =>
-      Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('')
-    return `${seg()}-${seg()}-${seg()}`
-  })
+      Array.from(
+        { length: 4 },
+        () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)],
+      ).join("");
+    return `${seg()}-${seg()}-${seg()}`;
+  });
 }
 
 function SecurityPanel() {
   const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null);
+  const [mfaStatus, setMfaStatus] = useState<
+    "not-enabled" | "setting-up" | "enabled"
+  >("not-enabled");
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [showCodes, setShowCodes] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  const handleBeginSetup = () => {
+    if (!mfaMethod) {
+      // Auto-pick recommended security key if none selected yet
+      setMfaMethod("security-key");
+    }
+    setMfaStatus("setting-up");
+  };
+
+  const handleConfirmSetup = () => {
+    const codes = generateRecoveryCodes();
+    setRecoveryCodes(codes);
+    setShowCodes(true);
+    setMfaStatus("enabled");
+  };
+
+  const handleDisableMfa = () => {
+    setMfaStatus("not-enabled");
+    setMfaMethod(null);
+    setRecoveryCodes(null);
+    setShowCodes(false);
+  };
+
+  const handleCopyCode = (idx: number, code: string) => {
+    navigator.clipboard
+      ?.writeText(code)
+      .then(() => {
+        setCopiedIdx(idx);
+        setTimeout(() => setCopiedIdx(null), 1200);
+      })
+      .catch(() => {});
+  };
+
+  const METHOD_LABEL: Record<MfaMethod, string> = {
+    totp: "Authenticator app (TOTP)",
+    sms: "SMS text message",
+    "security-key": "Security key / FIDO2",
+  };
 
   return (
     <div>
@@ -1283,14 +1760,503 @@ function SecurityPanel() {
           Update password
         </button>
       </form>
-      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
-      {mfaSection[mfaState]()}
-
       <hr
-        style={{ margin: "2rem 0", borderColor: "var(--border)", opacity: 0.5 }}
+        style={{
+          border: "none",
+          borderTop: "1px solid var(--border)",
+          margin: "1.5rem 0",
+        }}
       />
 
-      <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
+      {/* MFA Section */}
+      <section
+        aria-labelledby="mfa-settings-heading"
+        style={{
+          display: "grid",
+          gap: "1rem",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h3
+              id="mfa-settings-heading"
+              style={{ margin: 0, fontSize: "1.05rem" }}
+            >
+              Two-factor authentication
+            </h3>
+            <p
+              style={{
+                margin: "0.25rem 0 0",
+                color: "var(--muted)",
+                fontSize: "0.9rem",
+                lineHeight: 1.55,
+              }}
+            >
+              Add a second layer of protection to your account. Choose a
+              security key, authenticator app, or SMS.
+            </p>
+          </div>
+          <span
+            role="status"
+            aria-label={
+              mfaStatus === "enabled"
+                ? "Two-factor authentication is active"
+                : "Two-factor authentication is not enabled"
+            }
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              padding: "0.3rem 0.7rem",
+              borderRadius: 999,
+              fontWeight: 800,
+              fontSize: "0.8rem",
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              background:
+                mfaStatus === "enabled"
+                  ? "var(--success-soft)"
+                  : "var(--warning-soft)",
+              border: `1px solid ${
+                mfaStatus === "enabled"
+                  ? "rgba(52, 211, 153, 0.35)"
+                  : "rgba(251, 191, 36, 0.35)"
+              }`,
+              color:
+                mfaStatus === "enabled" ? "var(--success)" : "var(--warning)",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: "0.45rem",
+                height: "0.45rem",
+                borderRadius: "50%",
+                background:
+                  mfaStatus === "enabled" ? "var(--success)" : "var(--warning)",
+              }}
+            />
+            {mfaStatus === "enabled" ? "Enabled" : "Not enabled"}
+          </span>
+        </div>
+
+        {/* Enabled state */}
+        {mfaStatus === "enabled" && mfaMethod && recoveryCodes && (
+          <div
+            style={{
+              display: "grid",
+              gap: "0.75rem",
+              padding: "1rem 1.1rem",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid rgba(52, 211, 153, 0.28)",
+              background:
+                "linear-gradient(180deg, rgba(52, 211, 153, 0.06), rgba(15, 23, 42, 0))",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.65rem",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "2.25rem",
+                  height: "2.25rem",
+                  borderRadius: "var(--radius-sm)",
+                  background: "rgba(52, 211, 153, 0.12)",
+                  color: "var(--success)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 800,
+                  flexShrink: 0,
+                }}
+              >
+                ✓
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700 }}>
+                  {METHOD_LABEL[mfaMethod]} active
+                </div>
+                <div
+                  style={{
+                    color: "var(--muted)",
+                    fontSize: "0.88rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Sign-in requires both your password and this second factor.
+                </div>
+              </div>
+            </div>
+
+            <div
+              role="group"
+              aria-label="Two-factor controls"
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowCodes((s) => !s)}
+                aria-expanded={showCodes}
+                aria-controls="recovery-codes-panel"
+                style={iconBtnStyle}
+              >
+                🛡 {showCodes ? "Hide recovery codes" : "View recovery codes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const codes = generateRecoveryCodes();
+                  setRecoveryCodes(codes);
+                  setShowCodes(true);
+                }}
+                style={iconBtnStyle}
+              >
+                ↻ Regenerate recovery codes
+              </button>
+              <button
+                type="button"
+                onClick={handleDisableMfa}
+                style={{
+                  ...iconBtnStyle,
+                  color: "var(--danger)",
+                  borderColor: "rgba(251, 113, 133, 0.35)",
+                }}
+              >
+                Disable 2FA
+              </button>
+            </div>
+
+            {showCodes && (
+              <div
+                id="recovery-codes-panel"
+                role="region"
+                aria-label="Recovery codes list"
+                style={{
+                  display: "grid",
+                  gap: "0.65rem",
+                  padding: "0.875rem",
+                  borderRadius: "calc(var(--radius-sm) - 0.1rem)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-strong)",
+                }}
+              >
+                <div
+                  className="auth-message auth-message-warning"
+                  role="note"
+                  style={{
+                    margin: 0,
+                    padding: "0.6rem 0.75rem",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="auth-message-icon"
+                    style={{ marginRight: "0.35rem" }}
+                  >
+                    ⚠
+                  </span>
+                  Store these codes in a safe place. Each can be used once to
+                  sign in without your second factor.
+                </div>
+                <ul
+                  role="list"
+                  style={{
+                    listStyle: "none",
+                    margin: 0,
+                    padding: 0,
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(13rem, 1fr))",
+                    gap: "0.4rem 0.75rem",
+                  }}
+                >
+                  {recoveryCodes.map((code, i) => (
+                    <li
+                      key={code}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.5rem",
+                        padding: "0.35rem 0.5rem",
+                        borderRadius: 6,
+                        background: "rgba(15, 23, 42, 0.7)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <code
+                        style={{
+                          fontFamily:
+                            "ui-monospace, SFMono-Regular, Menlo, monospace",
+                          fontSize: "0.82rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {code}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyCode(i, code)}
+                        aria-label={`Copy recovery code ${i + 1} to clipboard`}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          padding: "0.25rem",
+                          borderRadius: 4,
+                          color:
+                            copiedIdx === i ? "var(--success)" : "var(--muted)",
+                          fontSize: "0.8rem",
+                          fontWeight: 700,
+                          minWidth: "2.25rem",
+                          minHeight: "2.25rem",
+                        }}
+                      >
+                        {copiedIdx === i ? "✓" : "📋"}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Setting-up state */}
+        {mfaStatus === "setting-up" && mfaMethod && (
+          <div
+            style={{
+              display: "grid",
+              gap: "0.875rem",
+              padding: "1rem 1.1rem",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border-strong)",
+              background: "var(--surface-strong)",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gap: "0.2rem",
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>
+                Set up {METHOD_LABEL[mfaMethod]}
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--muted)",
+                  fontSize: "0.9rem",
+                  lineHeight: 1.55,
+                }}
+              >
+                {mfaMethod === "security-key"
+                  ? "Insert your security key into a USB port (or bring it near your phone) and tap the button. Your browser will verify the key and pair it with Veritasor."
+                  : mfaMethod === "totp"
+                    ? "Scan the QR code below with Google Authenticator, 1Password, or Authy. Then enter the 6-digit code shown in the app to confirm pairing."
+                    : "Enter the phone number that should receive one-time codes via SMS. Standard carrier rates may apply."}
+              </p>
+            </div>
+
+            {/* Setup mock surface — QR / input / key area */}
+            <div
+              style={{
+                padding: "1.25rem 1rem",
+                borderRadius: "calc(var(--radius-sm) - 0.1rem)",
+                border: "1px dashed var(--border)",
+                background:
+                  "linear-gradient(135deg, rgba(94, 234, 212, 0.06), rgba(96, 165, 250, 0.04))",
+                display: "grid",
+                placeItems: "center",
+                gap: "0.75rem",
+              }}
+            >
+              {mfaMethod === "totp" ? (
+                <>
+                  <div
+                    aria-label="QR code placeholder — scan with authenticator app"
+                    role="img"
+                    style={{
+                      width: 160,
+                      height: 160,
+                      borderRadius: "var(--radius-sm)",
+                      background:
+                        "repeating-conic-gradient(#fff 0% 25%, rgba(15,23,42,0.95) 0% 50%) 50% / 16px 16px",
+                      border: "4px solid #fff",
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontFamily:
+                        "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontSize: "0.82rem",
+                      color: "var(--muted)",
+                      textAlign: "center",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    otpauth://totp/Veritasor:joel%40example.com?secret=JBSWY3DPEHPK3PXP
+                  </div>
+                </>
+              ) : mfaMethod === "sms" ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "0.5rem",
+                    width: "min(100%, 22rem)",
+                  }}
+                >
+                  <label
+                    htmlFor="mfa-phone"
+                    style={{
+                      fontSize: "0.88rem",
+                      fontWeight: 600,
+                      textAlign: "left",
+                    }}
+                  >
+                    Phone number
+                  </label>
+                  <input
+                    id="mfa-phone"
+                    type="tel"
+                    autoComplete="tel"
+                    placeholder="+1 (555) 444-4242"
+                    style={{
+                      ...inputStyle,
+                      width: "100%",
+                    }}
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "0.5rem",
+                    textAlign: "center",
+                    justifyItems: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 96,
+                      height: 96,
+                      borderRadius: "var(--radius-md)",
+                      background: "var(--accent)",
+                      color: "#04111f",
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: "2.5rem",
+                      fontWeight: 800,
+                    }}
+                  >
+                    🔑
+                  </div>
+                  <div
+                    style={{
+                      color: "var(--text)",
+                      fontWeight: 700,
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    Tap your security key
+                  </div>
+                  <div
+                    style={{
+                      color: "var(--muted)",
+                      fontSize: "0.85rem",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Touch the metal disc on your YubiKey, or use Touch ID /
+                    Windows Hello on this device.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setMfaStatus("not-enabled")}
+                style={iconBtnStyle}
+              >
+                Cancel setup
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSetup}
+                className="app-button app-button-primary"
+                style={{
+                  width: "auto",
+                  minHeight: "2.75rem",
+                  padding: "0.55rem 1.1rem",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Enable 2FA &amp; show recovery codes
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Not-enabled state */}
+        {mfaStatus !== "setting-up" && (
+          <>
+            <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+              }}
+            >
+              <button
+                type="button"
+                className="app-button app-button-primary"
+                disabled={!mfaMethod && mfaStatus === "not-enabled"}
+                onClick={handleBeginSetup}
+                style={{
+                  width: "auto",
+                  minHeight: "2.75rem",
+                  padding: "0.55rem 1.1rem",
+                  fontSize: "0.9rem",
+                }}
+              >
+                {mfaStatus === "enabled"
+                  ? "Change MFA method"
+                  : "Set up two-factor"}
+              </button>
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }
