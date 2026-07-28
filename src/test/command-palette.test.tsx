@@ -7,7 +7,7 @@ import CommandPalette from '../components/CommandPalette'
 // Mock useNavigate
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {
-  const actual = await importOriginal<any>()
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     useNavigate: () => mockNavigate,

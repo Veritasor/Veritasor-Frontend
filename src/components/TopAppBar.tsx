@@ -26,6 +26,7 @@ export default function TopAppBar({
   onSearchClick,
 }: TopAppBarProps) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [recentWorkspaces, setRecentWorkspaces] = useState<string[]>([
   initialWorkspace,
 ]);

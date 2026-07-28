@@ -4,6 +4,7 @@ import TopAppBar from './TopAppBar'
 import BottomTabBar from './BottomTabBar'
 import { ToastProvider, useToast } from './ToastContext'
 import { useCookieConsent } from './CookieConsentContext'
+import PageTransition from './PageTransition'
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast()
@@ -124,7 +125,9 @@ function LayoutInner() {
         )}
 
         <main id="main-content" tabIndex={-1} className="app-main">
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </main>
       </div>
       <BottomTabBar />

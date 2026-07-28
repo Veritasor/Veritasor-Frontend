@@ -1,8 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { IntlProvider } from 'react-intl'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { render } from '@testing-library/react'
 import { LocaleProvider } from './provider'
-import messages from './messages/en.json'
 
 beforeEach(() => {
   window.localStorage.clear()

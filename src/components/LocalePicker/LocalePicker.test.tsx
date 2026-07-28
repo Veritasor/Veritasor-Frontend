@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { IntlProvider } from 'react-intl'
 import LocalePicker from './LocalePicker'
 import { LocaleProvider } from '../../i18n/provider'
-import messages from '../../i18n/messages/en.json'
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<LocaleProvider>{ui}</LocaleProvider>)

@@ -448,24 +448,3 @@ export default function AttestationDetail() {
   )
 }
 
-function BackLink() {
-  return (
-    <Link
-      to="/attestations"
-      aria-label="Back to attestations list"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.4rem',
-        fontSize: '0.9rem',
-        color: 'var(--muted)',
-      }}
-    >
-      {/* left arrow */}
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M9 2 4 7l5 5" />
-      </svg>
-      Attestations
-    </Link>
-  )
-}

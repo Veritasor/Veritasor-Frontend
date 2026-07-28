@@ -75,9 +75,10 @@ export default function OnboardingWizard() {
       value: string,
     ) => {
       scheduleDraftUpdate(prev => {
-        const current = (prev[key] as any)?.[field]
+        const keyObj = prev[key] as Record<string, unknown> | undefined
+        const current = keyObj?.[field]
         if (current === value) return prev
-        return { ...prev, [key]: { ...(prev as any)[key], [field]: value } }
+        return { ...prev, [key]: { ...keyObj, [field]: value } }
       })
     }
 
