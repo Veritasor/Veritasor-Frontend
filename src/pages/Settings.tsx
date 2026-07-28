@@ -1143,6 +1143,753 @@ function PaymentMethodsPanel() {
   );
 }
 
+// ─── Plan Comparison ─────────────────────────────────────────────────────────
+
+type PlanId = "starter" | "growth" | "enterprise";
+
+interface PlanFeature {
+  label: string;
+  values: Record<PlanId, string | boolean>;
+}
+
+interface PlanMeta {
+  id: PlanId;
+  name: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  description: string;
+  badge?: string;
+  recommended?: boolean;
+}
+
+const PLANS: PlanMeta[] = [
+  {
+    id: "starter",
+    name: "Starter",
+    monthlyPrice: 29,
+    annualPrice: 290,
+    description: "For small teams getting started with attestations.",
+  },
+  {
+    id: "growth",
+    name: "Growth",
+    monthlyPrice: 49,
+    annualPrice: 490,
+    description: "For growing businesses that need more capacity.",
+    badge: "Current plan",
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    monthlyPrice: 99,
+    annualPrice: 990,
+    description: "For organizations with advanced compliance needs.",
+    recommended: true,
+  },
+];
+
+const PLAN_FEATURES: PlanFeature[] = [
+  {
+    label: "Attestations per month",
+    values: { starter: "1,000", growth: "10,000", enterprise: "Unlimited" },
+  },
+  {
+    label: "Team members",
+    values: { starter: "3", growth: "10", enterprise: "Unlimited" },
+  },
+  {
+    label: "API access",
+    values: { starter: true, growth: true, enterprise: true },
+  },
+  {
+    label: "Webhook integrations",
+    values: { starter: "5", growth: "20", enterprise: "Unlimited" },
+  },
+  {
+    label: "Audit log retention",
+    values: { starter: "30 days", growth: "90 days", enterprise: "365 days" },
+  },
+  {
+    label: "Custom branding",
+    values: { starter: false, growth: true, enterprise: true },
+  },
+  {
+    label: "Priority support",
+    values: { starter: false, growth: "Email", enterprise: "24/7 Phone + Email" },
+  },
+  {
+    label: "SSO / SAML",
+    values: { starter: false, growth: false, enterprise: true },
+  },
+  {
+    label: "Dedicated account manager",
+    values: { starter: false, growth: false, enterprise: true },
+  },
+  {
+    label: "SLA guarantee",
+    values: { starter: "99.5%", growth: "99.9%", enterprise: "99.99%" },
+  },
+];
+
+const CURRENT_PLAN_ID: PlanId = "growth";
+const BILLING_CYCLE = "monthly";
+
+function getPrice(plan: PlanMeta, cycle: string) {
+  return cycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
+}
+
+function formatProratedImpact(from: PlanMeta, to: PlanMeta): {
+  label: string;
+  amount: string;
+  isCredit: boolean;
+} {
+  const fromPrice = getPrice(from, BILLING_CYCLE);
+  const toPrice = getPrice(to, BILLING_CYCLE);
+  const diff = Math.abs(toPrice - fromPrice);
+  const isCredit = toPrice < fromPrice;
+  // Prorate for remaining ~15 days in a 30-day cycle
+  const prorated = ((diff / 30) * 15).toFixed(2);
+  return {
+    label: isCredit
+      ? `Prorated credit for remaining billing period`
+      : `Prorated charge for remaining billing period`,
+    amount: `$${prorated}`,
+    isCredit,
+  };
+}
+
+function PlanCard({
+  plan,
+  isCurrent,
+  onSelect,
+  selected,
+}: {
+  plan: PlanMeta;
+  isCurrent: boolean;
+  onSelect: (id: PlanId) => void;
+  selected: PlanId | null;
+}) {
+  const price = getPrice(plan, BILLING_CYCLE);
+  const isSelected = selected === plan.id;
+  const isDowngrade =
+    !isCurrent && plan.id !== CURRENT_PLAN_ID && plan.monthlyPrice < PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+  const isUpgrade =
+    !isCurrent && plan.monthlyPrice > PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+
+  return (
+    <div
+      role="region"
+      aria-label={`${plan.name} plan${plan.recommended ? " (recommended)" : ""}`}
+      className={`plan-card${plan.recommended ? " plan-card-recommended" : ""}${isSelected ? " plan-card-selected" : ""}`}
+      style={{
+        display: "grid",
+        gap: "1rem",
+        padding: "1.25rem",
+        borderRadius: "var(--radius-sm)",
+        border: `2px solid ${
+          plan.recommended
+            ? "var(--accent)"
+            : isCurrent
+              ? "var(--border-strong)"
+              : "var(--border)"
+        }`,
+        background:
+          plan.recommended
+            ? "rgba(94, 234, 212, 0.06)"
+            : isCurrent
+              ? "rgba(96, 165, 250, 0.06)"
+              : "var(--surface)",
+        position: "relative",
+        transition: "border-color 150ms ease, box-shadow 150ms ease",
+      }}
+    >
+      {/* Badges */}
+      {plan.badge && (
+        <span
+          aria-label={`Current plan: ${plan.name}`}
+          style={{
+            position: "absolute",
+            top: "-0.6rem",
+            left: "1rem",
+            padding: "0.2rem 0.7rem",
+            borderRadius: 999,
+            background: "var(--surface-strong)",
+            border: "1px solid var(--border-strong)",
+            color: "var(--accent)",
+            fontWeight: 700,
+            fontSize: "0.72rem",
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+          }}
+        >
+          {plan.badge}
+        </span>
+      )}
+      {plan.recommended && !isCurrent && (
+        <span
+          aria-label="Recommended plan"
+          style={{
+            position: "absolute",
+            top: "-0.6rem",
+            right: "1rem",
+            padding: "0.2rem 0.7rem",
+            borderRadius: 999,
+            background: "var(--accent)",
+            color: "#04111f",
+            fontWeight: 800,
+            fontSize: "0.72rem",
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+          }}
+        >
+          Recommended
+        </span>
+      )}
+
+      <div>
+        <h3 style={{ margin: 0, fontSize: "1.1rem" }}>{plan.name}</h3>
+        <p
+          style={{
+            margin: "0.25rem 0 0",
+            color: "var(--muted)",
+            fontSize: "0.88rem",
+            lineHeight: 1.4,
+          }}
+        >
+          {plan.description}
+        </p>
+      </div>
+
+      <div>
+        <span
+          style={{
+            fontSize: "1.75rem",
+            fontWeight: 800,
+            fontVariantNumeric: "tabular-nums",
+            color: plan.recommended ? "var(--accent)" : "var(--text)",
+          }}
+        >
+          ${price}
+        </span>
+        <span style={{ color: "var(--muted)", fontSize: "0.88rem" }}>
+          /month
+        </span>
+      </div>
+
+      {/* Prorated impact when selected and different from current */}
+      {isSelected && !isCurrent && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: "0.6rem 0.8rem",
+            borderRadius: 8,
+            background: isUpgrade
+              ? "rgba(251, 191, 36, 0.1)"
+              : "rgba(52, 211, 153, 0.1)",
+            border: `1px solid ${
+              isUpgrade
+                ? "rgba(251, 191, 36, 0.3)"
+                : "rgba(52, 211, 153, 0.3)"
+            }`,
+            fontSize: "0.85rem",
+            display: "grid",
+            gap: "0.3rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <span style={{ color: "var(--muted)", fontSize: "0.82rem" }}>
+              {(() => {
+                const impact = formatProratedImpact(
+                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
+                  plan,
+                );
+                return impact.label;
+              })()}
+            </span>
+            <span
+              style={{
+                fontWeight: 700,
+                color: isUpgrade ? "var(--warning)" : "var(--success)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {(() => {
+                const impact = formatProratedImpact(
+                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
+                  plan,
+                );
+                return `${impact.isCredit ? "−" : "+"}${impact.amount}`;
+              })()}
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--muted)",
+            }}
+          >
+            {isUpgrade
+              ? `Upgrade charge prorated for remaining 15 days`
+              : `Credit prorated for remaining 15 days`}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => onSelect(plan.id)}
+        disabled={isCurrent}
+        aria-label={
+          isCurrent
+            ? `${plan.name} is your current plan`
+            : isUpgrade
+              ? `Upgrade to ${plan.name} plan`
+              : isDowngrade
+                ? `Downgrade to ${plan.name} plan`
+                : `Switch to ${plan.name} plan`
+        }
+        style={{
+          padding: "0.65rem 1rem",
+          borderRadius: 8,
+          border: "none",
+          background: isSelected
+            ? "var(--accent)"
+            : isCurrent
+              ? "var(--surface-strong)"
+              : "transparent",
+          color:
+            isSelected
+              ? "#04111f"
+              : isCurrent
+                ? "var(--muted)"
+                : "var(--text)",
+          fontWeight: 700,
+          fontSize: "0.9rem",
+          cursor: isCurrent ? "default" : "pointer",
+          border: isCurrent
+            ? "1px solid var(--border)"
+            : isSelected
+              ? "none"
+              : "1px solid var(--border)",
+          transition: "all 150ms ease",
+        }}
+      >
+        {isCurrent
+          ? "Current plan"
+          : isSelected
+            ? "Selected"
+            : isUpgrade
+              ? "Upgrade"
+              : isDowngrade
+                ? "Downgrade"
+                : "Switch"}
+      </button>
+    </div>
+  );
+}
+
+function PlanComparisonTable({
+  selectedPlan,
+}: {
+  selectedPlan: PlanId | null;
+}) {
+  const isComparing = selectedPlan != null && selectedPlan !== CURRENT_PLAN_ID;
+
+  return (
+    <section aria-labelledby="plan-comparison-heading">
+      <h3
+        id="plan-comparison-heading"
+        style={{ margin: 0, fontSize: "1.05rem" }}
+      >
+        Plan comparison
+      </h3>
+
+      {/* Desktop table */}
+      <div
+        role="region"
+        aria-label="Plan features comparison table"
+        style={{ overflowX: "auto", marginTop: "1rem" }}
+        className="plan-comparison-table-wrapper"
+      >
+        <table
+          aria-label="Compare plan features across Starter, Growth, and Enterprise tiers"
+          style={{
+            width: "100%",
+            minWidth: 640,
+            borderCollapse: "separate",
+            borderSpacing: 0,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            overflow: "hidden",
+            background: "var(--surface)",
+          }}
+        >
+          <thead>
+            <tr style={{ background: "var(--surface-strong)" }}>
+              <th scope="col" style={{ ...thStyle, width: "30%" }}>
+                Feature
+              </th>
+              {PLANS.map((plan) => (
+                <th
+                  key={plan.id}
+                  scope="col"
+                  style={{
+                    ...thStyle,
+                    width: "23.33%",
+                    color:
+                      plan.id === CURRENT_PLAN_ID
+                        ? "var(--accent)"
+                        : plan.recommended
+                          ? "var(--accent)"
+                          : "var(--muted)",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: "0.85rem" }}>
+                    {plan.name}
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: 400,
+                      fontSize: "0.75rem",
+                      color: "var(--muted)",
+                      marginTop: "0.15rem",
+                    }}
+                  >
+                    ${getPrice(plan, BILLING_CYCLE)}/mo
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {PLAN_FEATURES.map((feature, idx) => (
+              <tr
+                key={feature.label}
+                style={{
+                  borderTop: "1px solid var(--border)",
+                  background:
+                    idx % 2 === 0 ? "transparent" : "var(--surface-soft)",
+                }}
+              >
+                <th
+                  scope="row"
+                  style={{
+                    ...tdStyle,
+                    fontWeight: 600,
+                    fontSize: "0.88rem",
+                    textAlign: "left",
+                  }}
+                >
+                  {feature.label}
+                </th>
+                {PLANS.map((plan) => (
+                  <td
+                    key={plan.id}
+                    style={{
+                      ...tdStyle,
+                      color:
+                        plan.id === CURRENT_PLAN_ID
+                          ? "var(--accent)"
+                          : "var(--text)",
+                      fontWeight:
+                        plan.id === CURRENT_PLAN_ID ? 600 : 400,
+                    }}
+                  >
+                    {typeof feature.values[plan.id] === "boolean" ? (
+                      feature.values[plan.id] === true ? (
+                        <span
+                          aria-label={`${feature.label}: included in ${plan.name}`}
+                          style={{ color: "var(--success)" }}
+                        >
+                          <svg
+                            aria-hidden="true"
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>
+                      ) : (
+                        <span
+                          aria-label={`${feature.label}: not included in ${plan.name}`}
+                          style={{ color: "var(--muted)" }}
+                        >
+                          —
+                        </span>
+                      )
+                    ) : (
+                      <span style={{ fontSize: "0.92rem" }}>
+                        {String(feature.values[plan.id])}
+                      </span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Responsive card layout (visible on narrow viewports via CSS) */}
+      <div
+        className="plan-comparison-cards"
+        style={{
+          display: "none",
+          marginTop: "1rem",
+          gap: "1rem",
+        }}
+      >
+        {PLANS.map((plan) => (
+          <div
+            key={plan.id}
+            style={{
+              padding: "1rem",
+              borderRadius: "var(--radius-sm)",
+              border: `1px solid ${
+                plan.id === CURRENT_PLAN_ID
+                  ? "var(--border-strong)"
+                  : "var(--border)"
+              }`,
+              background: "var(--surface)",
+            }}
+          >
+            <h4
+              style={{
+                margin: 0,
+                fontSize: "1rem",
+                color:
+                  plan.id === CURRENT_PLAN_ID
+                    ? "var(--accent)"
+                    : "var(--text)",
+              }}
+            >
+              {plan.name}
+              {plan.id === CURRENT_PLAN_ID && (
+                <span
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    color: "var(--accent)",
+                    marginLeft: "0.5rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  (Current)
+                </span>
+              )}
+            </h4>
+            <div
+              style={{
+                fontSize: "1.25rem",
+                fontWeight: 800,
+                marginTop: "0.5rem",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              ${getPrice(plan, BILLING_CYCLE)}
+              <span style={{ fontSize: "0.85rem", fontWeight: 400, color: "var(--muted)" }}>
+                /mo
+              </span>
+            </div>
+            <ul
+              role="list"
+              style={{
+                listStyle: "none",
+                padding: 0,
+                margin: "0.75rem 0 0",
+                display: "grid",
+                gap: "0.5rem",
+              }}
+            >
+              {PLAN_FEATURES.map((feature) => (
+                <li
+                  key={feature.label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "0.5rem",
+                    fontSize: "0.85rem",
+                    padding: "0.3rem 0",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <span style={{ color: "var(--muted)" }}>
+                    {feature.label}
+                  </span>
+                  <span style={{ fontWeight: 600 }}>
+                    {typeof feature.values[plan.id] === "boolean" ? (
+                      feature.values[plan.id] === true ? (
+                        <span style={{ color: "var(--success)" }}>✓</span>
+                      ) : (
+                        <span style={{ color: "var(--muted)" }}>—</span>
+                      )
+                    ) : (
+                      String(feature.values[plan.id])
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PlanComparison() {
+  const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
+
+  return (
+    <section
+      aria-labelledby="plan-comparison-section-heading"
+      style={{ display: "grid", gap: "1.5rem" }}
+    >
+      <div>
+        <h3
+          id="plan-comparison-section-heading"
+          style={{ margin: 0, fontSize: "1.05rem" }}
+        >
+          Compare plans
+        </h3>
+        <p
+          style={{
+            margin: "0.25rem 0 0",
+            color: "var(--muted)",
+            fontSize: "0.9rem",
+          }}
+        >
+          See what each plan offers and find the right fit for your team.
+          Prorated charges or credits apply when switching mid-cycle.
+        </p>
+      </div>
+
+      {/* Plan cards */}
+      <div
+        className="plan-cards-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: "1rem",
+        }}
+      >
+        {PLANS.map((plan) => (
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            isCurrent={plan.id === CURRENT_PLAN_ID}
+            onSelect={setSelectedPlan}
+            selected={selectedPlan}
+          />
+        ))}
+      </div>
+
+      {/* Feature comparison table */}
+      <PlanComparisonTable selectedPlan={selectedPlan} />
+
+      {/* Action footer when a plan is selected */}
+      {selectedPlan && selectedPlan !== CURRENT_PLAN_ID && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: "1rem 1.25rem",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid rgba(94, 234, 212, 0.3)",
+            background: "rgba(94, 234, 212, 0.06)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                color: "var(--accent)",
+              }}
+            >
+              {(() => {
+                const plan = PLANS.find((p) => p.id === selectedPlan)!;
+                const isUpgrade =
+                  plan.monthlyPrice >
+                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+                return isUpgrade
+                  ? `Ready to upgrade to ${plan.name}?`
+                  : `Ready to downgrade to ${plan.name}?`;
+              })()}
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: "0.2rem" }}>
+              Changes will apply to your next billing cycle.{" "}
+              {(() => {
+                const plan = PLANS.find((p) => p.id === selectedPlan)!;
+                const impact = formatProratedImpact(
+                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
+                  plan,
+                );
+                return `${impact.label}: ${impact.isCredit ? "−" : "+"}${impact.amount}`;
+              })()}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setSelectedPlan(null)}
+              style={{
+                padding: "0.55rem 1rem",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "transparent",
+                color: "var(--text)",
+                fontWeight: 600,
+                fontSize: "0.88rem",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="app-button app-button-primary"
+              style={{
+                width: "auto",
+                minHeight: "2.75rem",
+                padding: "0.55rem 1.25rem",
+                fontSize: "0.9rem",
+              }}
+            >
+              {(() => {
+                const plan = PLANS.find((p) => p.id === selectedPlan)!;
+                const isUpgrade =
+                  plan.monthlyPrice >
+                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+                return `Confirm ${isUpgrade ? "upgrade" : "downgrade"}`;
+              })()}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function BillingPanel() {
   return (
     <div style={{ display: "grid", gap: "2rem" }}>
@@ -1178,6 +1925,8 @@ function BillingPanel() {
           </dd>
         </dl>
       </div>
+
+      <PlanComparison />
 
       <hr
         style={{

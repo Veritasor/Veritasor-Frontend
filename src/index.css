@@ -4733,3 +4733,38 @@ button[style*="pagerBtnStyle"]:active:not(:disabled) {
     display: none;
   }
 }
+
+/* ─── Plan comparison responsive ───────────────────────────────────────── */
+
+@media (max-width: 767.98px) {
+  .plan-comparison-table-wrapper {
+    display: none;
+  }
+  .plan-comparison-cards {
+    display: grid !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .plan-comparison-cards {
+    display: none !important;
+  }
+}
+
+.plan-card {
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.plan-card:hover {
+  box-shadow: 0 4px 20px rgba(2, 6, 23, 0.3);
+}
+
+.plan-card-selected {
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 20px rgba(94, 234, 212, 0.15);
+}
+
+.plan-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
