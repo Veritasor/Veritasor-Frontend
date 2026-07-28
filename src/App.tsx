@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { LocaleProvider } from './i18n/provider'
-import { Layout } from './components/Layout'
+import Layout from './components/Layout'
 import ApiKeys from './pages/ApiKeys'
 
 const Dashboard = () => <div className="p-6 text-zinc-900 dark:text-white font-semibold">Dashboard Content View</div>
