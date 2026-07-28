@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Toast } from './ToastContext'
 
+export type ToastAnimationState = 'entering' | 'idle' | 'exiting'
+
 interface ToastItemProps {
   toast: Toast
   onRemove: (id: string) => void
@@ -19,14 +21,40 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
 
   const [timeLeft, setTimeLeft] = useState(initialDuration)
   const [isPaused, setIsPaused] = useState(false)
+  const [animationState, setAnimationState] = useState<ToastAnimationState>('entering')
   const timerRef = useRef<number | null>(null)
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastTickRef = useRef<number>(Date.now())
 
+  // Mark entrance complete after animation duration
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const timer = setTimeout(() => {
+        setAnimationState('idle')
+      }, 300) // matches motion.duration.lg
+      return () => clearTimeout(timer)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  // Cleanup exit timer on unmount
+  useEffect(() => {
+    return () => {
+      if (exitTimerRef.current !== null) {
+        clearTimeout(exitTimerRef.current)
+      }
+    }
+  }, [])
+
   const handleRemove = useCallback(() => {
-    onRemove(id)
+    setAnimationState('exiting')
+    // Wait for exit animation to complete before removing from DOM
+    exitTimerRef.current = setTimeout(() => {
+      onRemove(id)
+    }, 200) // matches motion.duration.sm for fast exit
   }, [id, onRemove])
 
-  // Handle global Escape key to close this toast
+  // Handle global Escape key to close this toast (animated)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -131,9 +159,16 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
   const progressPercent = initialDuration > 0 ? (timeLeft / initialDuration) * 100 : 0
   const ariaRole = type === 'error' ? 'alert' : 'status'
 
+  const animationClass =
+    animationState === 'entering'
+      ? 'toast-entering'
+      : animationState === 'exiting'
+      ? 'toast-exiting'
+      : ''
+
   return (
     <div
-      className={`toast toast-${type}`}
+      className={`toast toast-${type} ${animationClass}`.trim()}
       role={ariaRole}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
