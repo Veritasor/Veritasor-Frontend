@@ -275,3 +275,136 @@ describe('Toast Notification System', () => {
     expect(screen.queryByText('Success message')).not.toBeInTheDocument()
   })
 })
+
+describe('Toast Motion', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const renderSystem = () => {
+    return render(
+      <MemoryRouter initialEntries={['/']}>
+        <CookieConsentProvider>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<TestTrigger />} />
+            </Route>
+          </Routes>
+        </CookieConsentProvider>
+      </MemoryRouter>
+    )
+  }
+
+  it('applies toast-entering class on mount', () => {
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    const toastEl = screen.getByText('Success message').closest('.toast')
+    expect(toastEl).toHaveClass('toast-entering')
+  })
+
+  it('transitions from toast-entering to idle after animation completes', () => {
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    const toastEl = screen.getByText('Success message').closest('.toast')
+    expect(toastEl).toHaveClass('toast-entering')
+
+    // Advance past enter animation (280ms)
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+
+    const toastElAfter = screen.getByText('Success message').closest('.toast')
+    expect(toastElAfter).not.toHaveClass('toast-entering')
+    expect(toastElAfter).not.toHaveClass('toast-exiting')
+  })
+
+  it('applies toast-exiting class when dismiss is triggered', () => {
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    // Advance past enter animation
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+
+    // Click close button
+    const closeBtn = screen.getByRole('button', { name: /close notification/i })
+    act(() => {
+      closeBtn.click()
+    })
+
+    // Should have exiting class briefly (within 200ms before removal)
+    // After 200ms the toast is removed from DOM
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
+
+    // Toast should be fully removed
+    expect(screen.queryByText('Success message')).not.toBeInTheDocument()
+  })
+
+  it('toast container renders with correct aria attributes', () => {
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    const container = document.querySelector('.toast-container')
+    expect(container).toHaveAttribute('aria-live', 'polite')
+    expect(container).toHaveAttribute('aria-atomic', 'false')
+  })
+
+  it('warning and error toasts use alert role', () => {
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger warning/i }).click()
+      screen.getByRole('button', { name: /trigger error/i }).click()
+    })
+
+    const warningToast = screen.getByText('Warning message').closest('.toast')
+    const errorToast = screen.getByText('Error message').closest('.toast')
+
+    expect(warningToast).toHaveAttribute('role', 'alert')
+    expect(errorToast).toHaveAttribute('role', 'alert')
+  })
+
+  it('shows progress bar for auto-dismissing toasts', () => {
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    const progressBar = document.querySelector('.toast-progress-bar')
+    expect(progressBar).toBeInTheDocument()
+    expect(progressBar).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('does not show progress bar for persistent toasts', () => {
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger warning/i }).click()
+    })
+
+    const progressBar = document.querySelector('.toast-progress-bar')
+    expect(progressBar).not.toBeInTheDocument()
+  })
+})

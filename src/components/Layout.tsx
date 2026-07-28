@@ -1,33 +1,8 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
-import { ToastProvider, useToast } from './ToastContext'
-
-function ToastContainer() {
-  const { toasts, removeToast } = useToast()
-  if (toasts.length === 0) return null
-  return (
-    <div aria-live="polite" aria-atomic="false" className="toast-container">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
-          className={`toast toast-${toast.type}`}
-        >
-          <span>{toast.message}</span>
-          <button
-            type="button"
-            aria-label="Close notification"
-            onClick={() => removeToast(toast.id)}
-            className="toast-close"
-          >
-            ×
-          </button>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { ToastProvider } from './ToastContext'
+import ToastContainer from './ToastContainer'
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
