@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import SearchFilter, { parseFilterState } from '../components/SearchFilter'
+import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
+import AttestationConfirmModal, { AttestationDetails, FeeInfo } from '../components/AttestationConfirmModal'
 import type { ChipDef, FilterState } from '../components/SearchFilter'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -432,6 +435,11 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
 
 export default function Attestations() {
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const attestations: AttestationListItem[] = [
     {
       id: 'att-001',
@@ -453,37 +461,99 @@ export default function Attestations() {
     '2026-05-28',
   ]
 
+  // Mock attestation details (would come from API in real app)
+  const mockDetails: AttestationDetails = {
+    source: 'Stripe Connect API',
+    period: 'May 2026',
+    recordCount: 15420,
+    merkleRoot: '0x3a7bd3e2360a3d29eea436fcfb7e44c735d117c9f4e4b5e6a1c2d3e4f5a6b7c8',
+  }
+
+  const mockFeeInfo: FeeInfo = {
+    total: 2.5,
+    breakdown: [
+      { label: 'Network fee', amount: 0.001 },
+      { label: 'Attestation service', amount: 2.499 },
+    ],
+  }
+
+  function handleOpenModal() {
+    setError(null)
+    setModalOpen(true)
+  }
+
+  function handleCloseModal() {
+    setModalOpen(false)
+    setIsLoading(false)
+  }
+
+  async function handleConfirmAttestation() {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      // Mock success
+      console.log('Attestation confirmed and published')
+      setModalOpen(false)
+      setIsLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process attestation')
+      setIsLoading(false)
+    }
+  }
+
   return (
-    <div style={{ maxWidth: 1040 }}>
-      <header style={{ display: 'grid', gap: 'var(--density-row-gap)' }}>
-        <h1 style={{ margin: 0 }}>Attestations</h1>
-        <p
-          style={{
-            color: 'var(--muted)',
-            margin: 0,
-            lineHeight: 1.65,
-            maxWidth: 78 * 10,
-          }}
-        >
-          Revenue attestations published on Stellar. Merkle roots and metadata are stored on-chain,
-          with a proof-history timeline for each run.
-        </p>
-      </header>
+    <>
+      <div style={{ maxWidth: 1040, paddingBottom: 'var(--space-touch)' }}>
+        <header style={{ display: 'grid', gap: 'var(--density-row-gap)' }}>
+          <h1 style={{ margin: 0 }}>Attestations</h1>
+          <p
+            style={{
+              color: 'var(--muted)',
+              margin: 0,
+              lineHeight: 1.65,
+              maxWidth: 78 * 10,
+            }}
+          >
+            Revenue attestations published on Stellar. Merkle roots and metadata are stored on-chain,
+            with a proof-history timeline for each run.
+          </p>
+        </header>
 
-      <AttestationCalendar scheduledDates={scheduledDates} />
+        <AttestationCalendar scheduledDates={scheduledDates} />
 
-      <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
-        {attestations.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <ol style={{ margin: 0, padding: 0 }}>
-            {attestations.map((item) => (
-              <TimelineRow key={item.id} item={item} />
-            ))}
-          </ol>
-        )}
-      </section>
-    </div>
+        <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
+          {attestations.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ol style={{ margin: 0, padding: 0 }}>
+              {attestations.map((item) => (
+                <TimelineRow key={item.id} item={item} />
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      {/* Mobile FAB - triggers attestation modal */}
+      <TriggerAttestationFAB
+        onTrigger={handleOpenModal}
+        isLoading={isLoading}
+      />
+
+      {/* Attestation confirmation modal */}
+      <AttestationConfirmModal
+        open={modalOpen}
+        onClose={handleCloseModal}
+        onConfirm={handleConfirmAttestation}
+        isLoading={isLoading}
+        error={error}
+        details={mockDetails}
+        feeInfo={mockFeeInfo}
+      />
+    </>
   )
-}
 
