@@ -2121,6 +2121,20 @@ input {
   }
 }
 
+/* ─── Webhook event picker ────────────────────────────────────────────── */
+.webhook-event-label:hover {
+  background: rgba(148, 163, 184, 0.06) !important;
+}
+
+.webhook-event-label:has(input:checked):hover {
+  background: rgba(94, 234, 212, 0.12) !important;
+}
+
+.webhook-event-label:focus-within {
+  outline: 2px solid rgba(94, 234, 212, 0.25);
+  outline-offset: 2px;
+}
+
 /* ─── Toast motion tokens ─────────────────────────────────────────────── */
 /* Entry: soft spring using cubic-bezier that overshoots slightly
    Exit:  quick ease-out for fast removal */

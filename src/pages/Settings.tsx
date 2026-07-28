@@ -3,7 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
-import WebhookSecretRotationDialog, { type RotatingSecret } from '../components/WebhookSecretRotationDialog'
+import MfaMethodChooser, { type MfaMethod } from '../components/MfaMethodChooser'
+import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import WebhookCreateForm from '../components/webhooks/WebhookCreateForm'
+import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
+import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
+import { useToast } from '../components/ToastContext'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -16,6 +21,7 @@ const TABS = [
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
   { id: 'audit-log', label: 'Audit Log' },
+  { id: 'webhooks', label: 'Webhooks' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -460,21 +466,17 @@ function AuditLogPanel() {
 
 function WebhooksPanel() {
   const [retryingId, setRetryingId] = useState<string | null>(null)
-  const [rotationOpen, setRotationOpen] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const { addToast } = useToast()
 
-  // Demo rotation state — real app gets this from the API
-  const graceEndsAt = new Date(Date.now() + 1000 * 60 * 60 * 23.5).toISOString()
-  const mockOldSecret: RotatingSecret = {
-    masked: 'whsec_••••••••••••3f9a',
-    full: 'whsec_oldSecretValueForDemo3f9a',
-    lastUsedAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
-    expiresAt: graceEndsAt,
-  }
-  const mockNewSecret: RotatingSecret = {
-    masked: 'whsec_••••••••••••b2c7',
-    full: 'whsec_newSecretValueForDemob2c7',
-    lastUsedAt: null,
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString(),
+  function handleCreate(data: { url: string; description: string; events: string[] }) {
+    // In a real app, this would call the API to create the webhook endpoint
+    addToast(
+      `Webhook endpoint created with ${data.events.length} event${data.events.length === 1 ? '' : 's'}.`,
+      'success',
+      5000,
+    )
+    setShowCreateForm(false)
   }
 
   const mockDeliveries: WebhookDelivery[] = [
@@ -556,40 +558,64 @@ function WebhooksPanel() {
 
   return (
     <div>
-      <h2>Webhooks</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        View webhook delivery history and retry failed attempts. Each delivery shows its backoff
-        intervals and final status.
-      </p>
-
-      {/* Signing secret section */}
-      <section aria-labelledby="webhook-secret-heading" style={{ marginTop: '1.5rem', maxWidth: 600 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-          <h3 id="webhook-secret-heading" style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
-            Signing secret
-          </h3>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          marginBottom: '1rem',
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>Webhooks</h2>
+          <p style={{ color: 'var(--muted)', margin: '0.35rem 0 0' }}>
+            Create and manage webhook endpoints. View delivery history and retry failed attempts.
+          </p>
+        </div>
+        {!showCreateForm && (
           <button
             type="button"
-            className="modal-btn modal-btn-cancel"
-            style={{ fontSize: 'var(--text-sm)', minHeight: 36, padding: '0.4rem 0.9rem' }}
-            onClick={() => setRotationOpen(true)}
+            className="app-button app-button-primary"
+            style={{ width: 'auto' }}
+            onClick={() => setShowCreateForm(true)}
           >
-            Rotate secret
+            Create endpoint
           </button>
-        </div>
-        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 'var(--text-sm)' }}>
-          Used to verify webhook payloads. Rotate it if you suspect it has been compromised.
-        </p>
-        <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <code style={{ fontFamily: '"SF Mono","Fira Code",monospace', fontSize: 'var(--text-sm)', color: 'var(--text)' }}>
-            whsec_••••••••••••3f9a
-          </code>
-        </div>
-      </section>
+        )}
+      </div>
 
-      <hr style={{ margin: '1.5rem 0', borderColor: 'var(--border)', opacity: 0.5 }} />
+      {showCreateForm && (
+        <section
+          aria-label="Create webhook endpoint"
+          style={{
+            padding: '1.25rem',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--surface)',
+            marginBottom: '2rem',
+          }}
+        >
+          <WebhookCreateForm
+            onSubmit={handleCreate}
+            onCancel={() => setShowCreateForm(false)}
+          />
+        </section>
+      )}
 
-      {/* Delivery history */}
+      <h3
+        style={{
+          margin: '0 0 0.75rem',
+          fontSize: 'var(--text-sm)',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'var(--muted)',
+        }}
+      >
+        Recent deliveries
+      </h3>
       <div style={{ maxWidth: 900, display: 'grid', gap: '1rem' }}>
         {mockDeliveries.map((delivery) => (
           <WebhookRetryPanel
@@ -614,92 +640,6 @@ function WebhooksPanel() {
   )
 }
 
-function TokensPanel() {
-  return (
-    <div>
-      <h2>Design tokens</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        Export a snapshot of Veritasor design tokens as CSS custom properties. Choose a scope,
-        then copy or download the file.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 720 }}>
-        <TokensExport />
-      </div>
-    </div>
-  )
-}
-
-function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: '1',
-      timestamp: '2026-07-28T08:12:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '2',
-      timestamp: '2026-07-28T08:14:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '3',
-      timestamp: '2026-07-28T08:15:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '4',
-      timestamp: '2026-07-28T09:00:00Z',
-      event: 'Revenue source connected',
-      details: 'Provider: Stripe',
-    },
-    {
-      id: '5',
-      timestamp: '2026-07-27T14:30:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '6',
-      timestamp: '2026-07-27T14:31:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '7',
-      timestamp: '2026-07-27T14:32:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '8',
-      timestamp: '2026-07-27T14:33:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '9',
-      timestamp: '2026-07-26T10:00:00Z',
-      event: 'API key rotated',
-    },
-  ]
-
-  return (
-    <div>
-      <h2>Audit Log</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        Recent activity for this workspace. In compact density mode, identical consecutive events are
-        grouped by day and collapsed into summary badges.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
-      </div>
-    </div>
-  )
-}
-
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
@@ -710,6 +650,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   'audit-log': AuditLogPanel,
+  webhooks: WebhooksPanel,
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
