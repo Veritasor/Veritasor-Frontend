@@ -2189,6 +2189,73 @@ input {
   }
 }
 
+/* ─── Audit log saved filters dropdown ─────────────────────────────── */
+.sf-saved-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: var(--density-touch-min, 2.75rem);
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.sf-saved-trigger:hover,
+.sf-saved-trigger[aria-expanded='true'] {
+  border-color: rgba(94, 234, 212, 0.45);
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.sf-saved-trigger:focus-visible {
+  outline: 3px solid rgba(94, 234, 212, 0.35);
+  outline-offset: 2px;
+}
+
+.sf-saved-menu {
+  position: absolute;
+  z-index: 220;
+  margin-top: 0.4rem;
+  min-width: 22rem;
+  max-width: min(28rem, calc(100vw - 2rem));
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.sf-saved-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+[data-density='compact'] .sf-saved-trigger {
+  min-height: 2.4rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+[data-density='compact'] .sf-saved-menu {
+  min-width: 18rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-saved-trigger {
+    transition: none;
+  }
+}
+
 /* Loading Skeleton Styles */
 @keyframes shimmer {
   0% {

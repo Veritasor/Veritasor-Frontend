@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useIntl } from 'react-intl'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
 import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import SaveFilterModal from '../components/audit-log/SaveFilterModal'
+import SavedFiltersDropdown from '../components/audit-log/SavedFiltersDropdown'
+import { useSavedFilters } from '../hooks/useSavedFilters'
+import {
+  isFilterEmpty,
+  parseFilterUrl,
+  serializeFilterState,
+  type FilterState,
+} from '../utils/auditLogFilters'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -1613,75 +1623,468 @@ function TokensPanel() {
   );
 }
 
+const AUDIT_LOG_WORKSPACE_ID = 'default';
+
+const AUDIT_LOG_MOCK_ENTRIES: AuditLogEntry[] = [
+  {
+    id: "1",
+    timestamp: "2026-07-28T08:12:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "2",
+    timestamp: "2026-07-28T08:14:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "3",
+    timestamp: "2026-07-28T08:15:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "4",
+    timestamp: "2026-07-28T09:00:00Z",
+    event: "Revenue source connected",
+    details: "Provider: Stripe",
+  },
+  {
+    id: "5",
+    timestamp: "2026-07-27T14:30:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "6",
+    timestamp: "2026-07-27T14:31:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "7",
+    timestamp: "2026-07-27T14:32:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "8",
+    timestamp: "2026-07-27T14:33:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "9",
+    timestamp: "2026-07-26T10:00:00Z",
+    event: "API key rotated",
+  },
+];
+
+const AUDIT_LOG_CHIPS: { id: AuditLogChipId; label: string }[] = [
+  { id: "completed", label: "Completed" },
+  { id: "failed", label: "Failed" },
+  { id: "connection", label: "Connections" },
+  { id: "security", label: "Security" },
+];
+
+type AuditLogChipId = "completed" | "failed" | "connection" | "security";
+
+const KNOWN_CHIPS: ReadonlySet<AuditLogChipId> = new Set([
+  "completed",
+  "failed",
+  "connection",
+  "security",
+]);
+
+function normalizeChip(raw: string): AuditLogChipId | null {
+  return KNOWN_CHIPS.has(raw as AuditLogChipId) ? (raw as AuditLogChipId) : null;
+}
+
+function matchesChip(event: string, chip: AuditLogChipId): boolean {
+  const ev = event.toLowerCase();
+  if (chip === "completed") return ev.includes("completed");
+  if (chip === "failed") return ev.includes("failed");
+  if (chip === "connection") return ev.includes("connected") || ev.includes("connect");
+  return ev.includes("rotated") || ev.includes("security");
+}
+
+function filterAuditEntries(
+  entries: readonly AuditLogEntry[],
+  filters: FilterState,
+): AuditLogEntry[] {
+  const query = filters.query.trim().toLowerCase();
+  const fromTs = filters.dateFrom
+    ? Date.parse(`${filters.dateFrom}T00:00:00Z`)
+    : null;
+  const toTs = filters.dateTo
+    ? Date.parse(`${filters.dateTo}T23:59:59Z`)
+    : null;
+  return entries.filter((entry) => {
+    if (query) {
+      const haystack = `${entry.event} ${entry.details ?? ""}`.toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+    if (filters.activeChips.length > 0) {
+      const ids = filters.activeChips
+        .map(normalizeChip)
+        .filter((id): id is AuditLogChipId => id !== null);
+      if (ids.length === 0) return true;
+      if (!ids.some((chip) => matchesChip(entry.event, chip))) return false;
+    }
+    if (fromTs !== null || toTs !== null) {
+      const entryTs = Date.parse(entry.timestamp);
+      if (Number.isNaN(entryTs)) return false;
+      if (fromTs !== null && entryTs < fromTs) return false;
+      if (toTs !== null && entryTs > toTs) return false;
+    }
+    return true;
+  });
+}
+
 function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: "1",
-      timestamp: "2026-07-28T08:12:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "2",
-      timestamp: "2026-07-28T08:14:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "3",
-      timestamp: "2026-07-28T08:15:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "4",
-      timestamp: "2026-07-28T09:00:00Z",
-      event: "Revenue source connected",
-      details: "Provider: Stripe",
-    },
-    {
-      id: "5",
-      timestamp: "2026-07-27T14:30:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "6",
-      timestamp: "2026-07-27T14:31:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "7",
-      timestamp: "2026-07-27T14:32:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "8",
-      timestamp: "2026-07-27T14:33:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "9",
-      timestamp: "2026-07-26T10:00:00Z",
-      event: "API key rotated",
-    },
-  ];
+  const intl = useIntl();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // The URL is the single source of truth — parse directly. The audit
+  // view does not share URL state with other tabs (which use the hash),
+  // so bare `q`/`status`/`from`/`to` keys are unambiguous here.
+  const filters = useMemo(
+    () => parseFilterUrl(searchParams),
+    [searchParams],
+  );
+
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const saved = useSavedFilters(AUDIT_LOG_WORKSPACE_ID);
+
+  const entries = useMemo(
+    () => filterAuditEntries(AUDIT_LOG_MOCK_ENTRIES, filters),
+    [filters],
+  );
+
+  function updateParam(key: string, value: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function clearAll() {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }
+
+  function applySavedFilter(searchParamsString: string, filterName: string) {
+    // The stored searchParams string is canonical; treat it as the new
+    // source of truth and rewrite the URL.
+    const incoming = new URLSearchParams(searchParamsString.replace(/^\?/, ""));
+    setSearchParams(incoming, { replace: true });
+    // The second arg (filterName) is currently consumed only by the
+    // aria-live announcement inside the dropdown; the URL is the
+    // single source of truth for the active filter state.
+    void filterName;
+  }
+
+  function handleSave(name: string) {
+    const canonicalParams = serializeFilterState(filters);
+    if (!canonicalParams) {
+      // Should be guarded by the modal — but defensively bail.
+      setSaveOpen(false);
+      return;
+    }
+    const result = saved.save(name, canonicalParams);
+    if (result.ok) {
+      setSaveOpen(false);
+    }
+  }
+
+  async function handleCopyUrl() {
+    if (typeof window === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1800);
+    } catch {
+      setCopyState("idle");
+    }
+  }
+
+  const isEmpty = isFilterEmpty(filters);
+  // `saved.rename` already returns the `ValidationResult` shape expected
+  // by the dropdown — no wrapper needed.
+  const renameResult = saved.rename;
 
   return (
     <div>
-      <h2>Audit Log</h2>
+      <h2>{intl.formatMessage({ id: 'auditLog.filters.title', defaultMessage: 'Audit Log' })}</h2>
       <p style={{ color: "var(--muted)" }}>
         Recent activity for this workspace. In compact density mode, identical
         consecutive events are grouped by day and collapsed into summary badges.
       </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
+
+      <div
+        style={{
+          marginTop: "1.5rem",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+          alignItems: "center",
+        }}
+        role="toolbar"
+        aria-label={intl.formatMessage({
+          id: 'auditLog.filters.toolbarLabel',
+          defaultMessage: 'Filter and manage saved views',
+        })}
+      >
+        <SavedFiltersDropdown
+          filters={saved.filters}
+          isHydrated={saved.isHydrated}
+          maxFilters={saved.maxFilters}
+          isFull={saved.isFull}
+          maxNameLength={saved.maxNameLength}
+          onApply={(sp, name) => applySavedFilter(sp, name)}
+          onRename={renameResult}
+          onDelete={(id) => saved.remove(id)}
+        />
+
+        <button
+          type="button"
+          onClick={() => setSaveOpen(true)}
+          disabled={isEmpty || saved.isFull}
+          aria-disabled={isEmpty || saved.isFull}
+          title={
+            isEmpty
+              ? 'Apply filters before saving'
+              : saved.isFull
+                ? intl.formatMessage(
+                    { id: 'auditLog.filters.capReached', defaultMessage: 'This workspace is at its limit of {max} saved filters. Delete one to make room.' },
+                    { max: saved.maxFilters },
+                  )
+                : undefined
+          }
+          data-testid="open-save-filter-modal"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            minHeight: '2.75rem',
+            padding: '0.45rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-strong)',
+            background: isEmpty || saved.isFull ? 'var(--surface-soft)' : 'var(--surface)',
+            color: isEmpty || saved.isFull ? 'var(--muted)' : 'var(--text)',
+            font: 'inherit',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            cursor: isEmpty || saved.isFull ? 'not-allowed' : 'pointer',
+          }}
+        >
+          <span aria-hidden="true">＋</span>
+          {intl.formatMessage({
+            id: 'auditLog.filters.saveMenu',
+            defaultMessage: 'Save current filter…',
+          })}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCopyUrl}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            minHeight: '2.75rem',
+            padding: '0.45rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            font: 'inherit',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+          aria-label={intl.formatMessage({
+            id: 'auditLog.filters.copyUrl',
+            defaultMessage: 'Copy shareable URL',
+          })}
+          data-testid="copy-share-url"
+        >
+          <span aria-hidden="true">{copyState === 'copied' ? '✓' : '⧉'}</span>
+          {copyState === 'copied'
+            ? intl.formatMessage({ id: 'auditLog.filters.copied', defaultMessage: 'Copied to clipboard' })
+            : intl.formatMessage({ id: 'auditLog.filters.copyUrl', defaultMessage: 'Copy shareable URL' })}
+        </button>
+
+        {!isEmpty && (
+          <button
+            type="button"
+            onClick={clearAll}
+            data-testid="clear-audit-filters"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              minHeight: '2.75rem',
+              padding: '0.45rem 0.85rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid transparent',
+              background: 'transparent',
+              color: 'var(--muted)',
+              font: 'inherit',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {intl.formatMessage({ id: 'common.cancel', defaultMessage: 'Cancel' })} filters
+          </button>
+        )}
       </div>
+
+      {/* Filter chips + date range — pure UI that writes to the URL */}
+      <div style={{ marginTop: '1rem', display: 'grid', gap: '0.65rem' }}>
+        <div role="group" aria-label="Filter by status" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <button
+            type="button"
+            aria-pressed={filters.activeChips.length === 0}
+            onClick={() => updateParam('status', '')}
+            style={chipStyle(filters.activeChips.length === 0)}
+          >
+            All
+          </button>
+          {AUDIT_LOG_CHIPS.map((chip) => {
+            const active = (filters.activeChips as string[]).includes(chip.id);
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  const next = active
+                    ? (filters.activeChips as string[]).filter((c) => c !== chip.id)
+                    : [...(filters.activeChips as string[]), chip.id];
+                  updateParam('status', next.join(','));
+                }}
+                style={chipStyle(active)}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+          <label style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
+            From
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => updateParam('from', e.target.value)}
+              style={{
+                padding: '0.35rem 0.5rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+                font: 'inherit',
+              }}
+            />
+          </label>
+          <label style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
+            To
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => updateParam('to', e.target.value)}
+              style={{
+                padding: '0.35rem 0.5rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+                font: 'inherit',
+              }}
+            />
+          </label>
+          <input
+            type="search"
+            placeholder="Search audit log…"
+            value={filters.query}
+            onChange={(e) => updateParam('q', e.target.value)}
+            aria-label="Search audit log"
+            style={{
+              flex: '1 1 240px',
+              padding: '0.45rem 0.7rem',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'var(--surface-strong)',
+              color: 'var(--text)',
+              font: 'inherit',
+              minHeight: '2.5rem',
+            }}
+          />
+        </div>
+      </div>
+
+      <p
+        role="status"
+        aria-live="polite"
+        style={{ margin: '1rem 0 0', color: 'var(--muted)', fontSize: '0.9rem' }}
+        data-testid="audit-filter-summary"
+      >
+        {intl.formatMessage(
+          { id: 'auditLog.filters.results.singular', defaultMessage: 'Showing {count} of {total} entries' },
+          { count: entries.length, total: AUDIT_LOG_MOCK_ENTRIES.length },
+        )}
+      </p>
+
+      <div style={{ marginTop: "1rem", maxWidth: 800 }} data-testid="audit-log-timeline">
+        {entries.length === 0 ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              padding: '1rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px dashed var(--border)',
+              background: 'var(--surface-soft)',
+              color: 'var(--muted)',
+            }}
+          >
+            No entries match the current filters.
+          </div>
+        ) : (
+          <AuditLogTimeline entries={entries} />
+        )}
+      </div>
+
+      <SaveFilterModal
+        isOpen={saveOpen}
+        existingNames={saved.filters.map((f) => f.name)}
+        onSave={handleSave}
+        onClose={() => setSaveOpen(false)}
+      />
     </div>
   );
+}
+
+function chipStyle(active: boolean): React.CSSProperties {
+  return {
+    minHeight: '2.5rem',
+    padding: '0.35rem 0.85rem',
+    borderRadius: 999,
+    border: `1px solid ${active ? 'rgba(94, 234, 212, 0.55)' : 'var(--border)'}`,
+    background: active ? 'rgba(94, 234, 212, 0.18)' : 'var(--surface)',
+    color: active ? '#d8fffa' : 'var(--text)',
+    font: 'inherit',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  };
 }
 
 type TeamRole = "owner" | "admin" | "billing" | "member";
