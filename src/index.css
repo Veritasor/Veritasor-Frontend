@@ -1609,6 +1609,75 @@ input {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
 
+/* ─── Dashboard page wrapper ───────────────────────────────────────────── */
+.dashboard-page {
+  display: grid;
+  gap: var(--space-6);
+}
+
+/* ─── Dashboard section card ──────────────────────────────────────────── */
+.dashboard-section {
+  padding: var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.dashboard-section h2 {
+  margin-top: 0;
+  font-size: var(--text-base);
+}
+
+/* ─── Dashboard metrics grid ──────────────────────────────────────────── */
+.dashboard-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* ─── Dashboard metric card ───────────────────────────────────────────── */
+.dashboard-metric-card {
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.dashboard-metric-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.dashboard-metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.dashboard-metric-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* ─── Dashboard actions list ──────────────────────────────────────────── */
+.dashboard-actions-list {
+  color: var(--muted);
+  padding-left: 1.25rem;
+  margin: var(--space-0);
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* ─── Dashboard chart card (full-width reflow) ──────────────────────── */
+/* Use this class on any chart/data-visualisation card placed inside */
+/* .dashboard-grid so it spans full width at tablet/desktop widths.    */
+.dashboard-chart-card {
+  grid-column: 1 / -1;
+}
+
 .dashboard-card h2 {
   margin-top: 0;
   margin-bottom: 0.75rem;
@@ -2002,7 +2071,6 @@ input {
     padding: 1.75rem;
   }
 
-  .dashboard-grid,
   .wizard-two-column,
   .wizard-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2030,6 +2098,44 @@ input {
 
   .wizard-footer-actions .app-button {
     width: auto;
+  }
+}
+
+/* ─── Dashboard tablet portrait (768–900px) ──────────────────────────── */
+@media (min-width: 768px) and (max-width: 899px) {
+  .dashboard-page {
+    gap: var(--space-5);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+  }
+
+  .dashboard-section {
+    padding: var(--space-5);
+  }
+
+  .dashboard-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+
+  .app-main {
+    padding: var(--space-5);
+  }
+}
+
+/* ─── Dashboard desktop (≥900px) ──────────────────────────────────────── */
+@media (min-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-6);
+  }
+
+  .dashboard-section {
+    padding: var(--space-6);
   }
 }
 
