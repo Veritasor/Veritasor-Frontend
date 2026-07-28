@@ -10,3 +10,12 @@
 - [ ] Run TypeScript/build/tests to confirm no regressions
 - [ ] Quick manual keyboard/screen-reader sanity check
 
+# TODO - Issue #284 Design Tokens CSS Export
+
+- [x] Create `src/utils/parseTokens.ts` — parser for CSS custom properties from `src/index.css`
+- [x] Create `src/components/tokens/TokensExport.tsx` — export UI with scope selector, copy & download
+- [x] Add Tokens tab to Settings page (`src/pages/Settings.tsx`)
+- [x] Write tests in `src/test/tokens-export.test.tsx` (36 tests, 99% statement / 100% line coverage)
+- [x] Write documentation in `docs/uiux/tokens-css-export.md`
+- [x] Pass `npm run lint` with zero errors in new files
+- [ ] Create PR with detailed summary (Closes #284)

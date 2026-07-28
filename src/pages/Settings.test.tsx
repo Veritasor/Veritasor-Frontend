@@ -36,14 +36,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 5 tabs', () => {
+  it('renders all 6 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(screen.getAllByRole('tab')).toHaveLength(8)
   })
 
-  it('renders all 5 tab panels (including hidden)', () => {
+  it('renders all 6 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(5)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(8)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -51,13 +51,15 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('combobox', { name: /settings section/i })).toBeInTheDocument()
   })
 
-  it('renders tab labels: Profile, Notifications, API Keys, Billing, Security', () => {
+  it('renders tab labels: Profile, Notifications, API Keys, Billing, Security, Audit Log', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /webhooks/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
   })
 })
 
@@ -200,9 +202,9 @@ describe('Settings — keyboard navigation', () => {
   })
 
   it('ArrowRight wraps from last tab to first', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'ArrowRight' })
+    renderSettings('#audit-log')
+    const auditTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditTab, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -210,7 +212,7 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'ArrowLeft' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('Home key navigates to the first tab', () => {
@@ -224,7 +226,7 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'End' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('unrelated key does not change the active tab', () => {
@@ -251,11 +253,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 5 tabs', () => {
+  it('select options include all 6 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(5)
+    expect(options).toHaveLength(8)
   })
 })
 
@@ -290,5 +292,15 @@ describe('Settings — panel content', () => {
   it('Security panel contains a current-password input', () => {
     renderSettings('#security')
     expect(screen.getByLabelText(/current password/i)).toBeInTheDocument()
+  })
+
+  it('Audit Log panel contains a log role element', () => {
+    renderSettings('#audit-log')
+    expect(screen.getByRole('log', { name: /audit log timeline/i })).toBeInTheDocument()
+  })
+
+  it('Audit Log panel shows audit entries', () => {
+    renderSettings('#audit-log')
+    expect(screen.getByText('Attestation completed')).toBeInTheDocument()
   })
 })

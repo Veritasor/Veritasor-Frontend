@@ -1,16 +1,21 @@
-/* eslint-disable react/forbid-dom-props */
-
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
+import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
+import TokensExport from '../components/tokens/TokensExport'
+import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'api-keys', label: 'API Keys' },
+  { id: 'tokens', label: 'Tokens' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
+  { id: 'webhooks', label: 'Webhooks' },
+  { id: 'audit-log', label: 'Audit Log' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -173,6 +178,8 @@ function BillingPanel() {
 }
 
 function SecurityPanel() {
+  const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null)
+
   return (
     <div>
       <h2>Security</h2>
@@ -229,6 +236,198 @@ function SecurityPanel() {
           Update password
         </button>
       </form>
+
+      <hr style={{ margin: '2rem 0', borderColor: 'var(--border)', opacity: 0.5 }} />
+
+      <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
+    </div>
+  )
+}
+
+function TokensPanel() {
+  return (
+    <div>
+      <h2>Design tokens</h2>
+      <p style={{ color: 'var(--muted)' }}>
+        Export a snapshot of Veritasor design tokens as CSS custom properties. Choose a scope,
+        then copy or download the file.
+      </p>
+      <div style={{ marginTop: '1.5rem', maxWidth: 720 }}>
+        <TokensExport />
+      </div>
+    </div>
+  )
+}
+
+function AuditLogPanel() {
+  const mockEntries: AuditLogEntry[] = [
+    {
+      id: '1',
+      timestamp: '2026-07-28T08:12:00Z',
+      event: 'Attestation completed',
+      details: 'Merkle root: 0x7f...3a',
+    },
+    {
+      id: '2',
+      timestamp: '2026-07-28T08:14:00Z',
+      event: 'Attestation completed',
+      details: 'Merkle root: 0x7f...3a',
+    },
+    {
+      id: '3',
+      timestamp: '2026-07-28T08:15:00Z',
+      event: 'Attestation completed',
+      details: 'Merkle root: 0x7f...3a',
+    },
+    {
+      id: '4',
+      timestamp: '2026-07-28T09:00:00Z',
+      event: 'Revenue source connected',
+      details: 'Provider: Stripe',
+    },
+    {
+      id: '5',
+      timestamp: '2026-07-27T14:30:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '6',
+      timestamp: '2026-07-27T14:31:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '7',
+      timestamp: '2026-07-27T14:32:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '8',
+      timestamp: '2026-07-27T14:33:00Z',
+      event: 'Attestation failed',
+      details: 'Timeout after 30s',
+    },
+    {
+      id: '9',
+      timestamp: '2026-07-26T10:00:00Z',
+      event: 'API key rotated',
+    },
+  ]
+
+  return (
+    <div>
+      <h2>Audit Log</h2>
+      <p style={{ color: 'var(--muted)' }}>
+        Recent activity for this workspace. In compact density mode, identical consecutive events are
+        grouped by day and collapsed into summary badges.
+      </p>
+      <div style={{ marginTop: '1.5rem', maxWidth: 800 }}>
+        <AuditLogTimeline entries={mockEntries} />
+      </div>
+    </div>
+  )
+}
+
+function WebhooksPanel() {
+  const [retryingId, setRetryingId] = useState<string | null>(null)
+
+  const mockDeliveries: WebhookDelivery[] = [
+    {
+      id: 'wh_001',
+      event: 'attestation.completed',
+      triggeredAt: '2026-07-28T09:30:00Z',
+      status: 'failed',
+      attempts: [
+        {
+          attempt: 1,
+          at: '2026-07-28T09:30:00Z',
+          statusCode: null,
+          error: 'Connection refused',
+          backoffSeconds: 60,
+        },
+        {
+          attempt: 2,
+          at: '2026-07-28T09:31:00Z',
+          statusCode: 503,
+          error: 'Service Unavailable',
+          backoffSeconds: 120,
+        },
+        {
+          attempt: 3,
+          at: '2026-07-28T09:33:00Z',
+          statusCode: 500,
+          error: 'Internal Server Error',
+        },
+      ],
+    },
+    {
+      id: 'wh_002',
+      event: 'source.connected',
+      triggeredAt: '2026-07-28T08:00:00Z',
+      status: 'retrying',
+      attempts: [
+        {
+          attempt: 1,
+          at: '2026-07-28T08:00:00Z',
+          statusCode: 503,
+          backoffSeconds: 60,
+        },
+        {
+          attempt: 2,
+          at: '2026-07-28T08:01:00Z',
+          statusCode: 503,
+          backoffSeconds: 180,
+        },
+      ],
+    },
+    {
+      id: 'wh_003',
+      event: 'attestation.failed',
+      triggeredAt: '2026-07-27T18:45:00Z',
+      status: 'delivered',
+      attempts: [
+        {
+          attempt: 1,
+          at: '2026-07-27T18:45:00Z',
+          statusCode: 503,
+          backoffSeconds: 60,
+        },
+        {
+          attempt: 2,
+          at: '2026-07-27T18:46:00Z',
+          statusCode: 200,
+        },
+      ],
+    },
+  ]
+
+  function handleRetry(id: string) {
+    setRetryingId(id)
+    setTimeout(() => {
+      setRetryingId(null)
+      // Real app: trigger retry via API
+    }, 2000)
+  }
+
+  return (
+    <div>
+      <h2>Webhooks</h2>
+      <p style={{ color: 'var(--muted)' }}>
+        View webhook delivery history and retry failed attempts. Each delivery shows its backoff
+        intervals and final status.
+      </p>
+      <div style={{ marginTop: '1.5rem', maxWidth: 900, display: 'grid', gap: '1rem' }}>
+        {mockDeliveries.map((delivery) => (
+          <WebhookRetryPanel
+            key={delivery.id}
+            delivery={delivery}
+            onRetry={handleRetry}
+            isRetrying={retryingId === delivery.id}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -237,8 +436,11 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
   'api-keys': ApiKeysPanel,
+  tokens: TokensPanel,
   billing: BillingPanel,
   security: SecurityPanel,
+  webhooks: WebhooksPanel,
+  'audit-log': AuditLogPanel,
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
