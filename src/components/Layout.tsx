@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, Link } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
 import BottomTabBar from './BottomTabBar'
 import { ToastProvider, useToast } from './ToastContext'
 import { useCookieConsent } from './CookieConsentContext'
+import ShortcutsOverlay from './ShortcutsOverlay'
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast()
@@ -39,7 +40,23 @@ const navItems = [
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { openSettings: openCookieSettings } = useCookieConsent()
+
+  // Register Shift+? globally to open the shortcuts overlay
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore when user is typing in an input/textarea/select
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.shiftKey && e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen((o) => !o)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o);
@@ -129,6 +146,7 @@ function LayoutInner() {
       </div>
       <BottomTabBar />
       <ToastContainer />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }
