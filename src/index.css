@@ -4429,3 +4429,307 @@ input {
     justify-content: center;
   }
 }
+
+/* ─── Failed Payment Banner (#241) ────────────────────────────────────── */
+
+.failed-payment-banner {
+  width: 100%;
+  margin-bottom: 1.25rem;
+}
+
+.failed-payment-banner-inner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(135deg, rgba(251, 113, 133, 0.12), rgba(251, 191, 36, 0.08)),
+    var(--surface);
+  border: 1px solid rgba(251, 113, 133, 0.35);
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.failed-payment-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  border-radius: 50%;
+  background: var(--danger-soft);
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.failed-payment-content {
+  min-width: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.failed-payment-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.875rem;
+  font-size: 0.95rem;
+}
+
+.failed-payment-heading strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.failed-payment-amount {
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.failed-payment-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.failed-payment-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.failed-payment-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), #60a5fa);
+  color: #04111f;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  box-shadow: 0 6px 18px rgba(45, 212, 191, 0.18);
+}
+
+.failed-payment-cta:hover {
+  transform: translateY(-1px);
+  text-decoration: none;
+  box-shadow: 0 10px 24px rgba(45, 212, 191, 0.25);
+}
+
+.failed-payment-secondary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.1rem;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.failed-payment-secondary-link:hover {
+  text-decoration: underline;
+  text-decoration-color: rgba(94, 234, 212, 0.4);
+}
+
+.failed-payment-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.failed-payment-dismiss:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+@media (max-width: 560px) {
+  .failed-payment-banner-inner {
+    grid-template-columns: auto 1fr;
+  }
+  .failed-payment-dismiss {
+    grid-column: 2;
+    justify-self: end;
+    margin-top: -0.5rem;
+  }
+}
+
+/* ─── Status Chip Variants (Invoice + Role tokens) ───────────────────── */
+
+.status-chip {
+  line-height: 1.1;
+  transition: transform 120ms ease;
+}
+
+.status-chip:hover {
+  transform: translateY(-1px);
+}
+
+/* ─── Invoice Table (#237) ──────────────────────────────────────────── */
+
+.invoice-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.invoice-row:hover {
+  background: var(--surface-soft);
+}
+
+.invoice-row:focus-within {
+  background: rgba(94, 234, 212, 0.05);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* ─── Payment Method Cards (#240) ───────────────────────────────────── */
+
+.payment-method-card {
+  transition:
+    border-color 160ms ease,
+    transform 140ms ease,
+    box-shadow 160ms ease;
+}
+
+.payment-method-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(2, 6, 23, 0.35);
+}
+
+.payment-method-card.pm-expiring {
+  animation: pm-pulse-warning 3.5s ease-in-out infinite;
+}
+
+.payment-method-card.pm-expired {
+  animation: pm-pulse-danger 2.6s ease-in-out infinite;
+}
+
+@keyframes pm-pulse-warning {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.0); }
+  50%      { box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12); }
+}
+
+@keyframes pm-pulse-danger {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0.0); }
+  50%      { box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.14); }
+}
+
+@media (max-width: 640px) {
+  .payment-method-card {
+    grid-template-columns: auto 1fr !important;
+  }
+  .payment-method-card > :last-child {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* ─── Bulk Action Toolbar (#243) ─────────────────────────────────────── */
+
+.bulk-action-toolbar {
+  animation: bulk-slide-in 220ms var(--motion-easing-standard);
+}
+
+@keyframes bulk-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.team-member-row:hover {
+  background: var(--surface-soft);
+}
+
+.team-member-row:has(input[type="checkbox"]:checked) {
+  background: rgba(94, 234, 212, 0.06);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* ─── Undo Banner (#243) ────────────────────────────────────────────── */
+
+.undo-banner {
+  animation: undo-slide-in 240ms var(--motion-easing-standard);
+}
+
+@keyframes undo-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-action-toolbar,
+  .undo-banner,
+  .payment-method-card,
+  .status-chip,
+  .failed-payment-cta {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ─── Icon Button Hover ─────────────────────────────────────────────── */
+
+.icon-button:hover,
+button[style*="iconBtnStyle"]:hover,
+a[style*="iconBtnStyle"]:hover {
+  border-color: var(--border-strong) !important;
+  background: var(--surface-soft) !important;
+}
+
+button[style*="pagerBtnStyle"]:hover:not(:disabled) {
+  border-color: rgba(173, 192, 217, 0.45) !important;
+  background: var(--surface-soft) !important;
+}
+
+button[style*="pagerBtnStyle"]:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ─── Settings Tablist Mobile Fallback ──────────────────────────────── */
+
+@media (min-width: 768px) {
+  .settings-tab-select {
+    display: none;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .settings-tablist {
+    display: none;
+  }
+}
