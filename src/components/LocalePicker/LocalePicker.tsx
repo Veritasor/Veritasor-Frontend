@@ -155,14 +155,31 @@ function LocalePicker({ compact = false, className = '', onClose }: LocalePicker
                         {isActive ? '✓' : ''}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span dir="auto" className="block truncate font-medium">
+                        <span dir="auto" lang={option.code} className="block truncate font-medium">
                           {option.nativeLabel}
                         </span>
                         <span className="block truncate text-xs text-zinc-500">{option.label}</span>
                       </span>
                     </span>
-                    <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-[11px] uppercase tracking-wide text-zinc-500 dark:border-zinc-700">
-                      {option.code.toUpperCase()}
+                    <span className="flex items-center gap-2 flex-shrink-0">
+                      {/* Translation completion chip */}
+                      {option.translationCompletion < 100 && (
+                        <span
+                          aria-label={`${option.translationCompletion}% translated`}
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
+                          style={{
+                            color: option.translationCompletion >= 90 ? '#10b981' : option.translationCompletion >= 70 ? '#f59e0b' : '#ef4444',
+                            borderColor: option.translationCompletion >= 90 ? 'rgba(16,185,129,0.3)' : option.translationCompletion >= 70 ? 'rgba(245,158,11,0.3)' : 'rgba(239,68,68,0.3)',
+                            background: option.translationCompletion >= 90 ? 'rgba(16,185,129,0.1)' : option.translationCompletion >= 70 ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                          }}
+                        >
+                          {option.translationCompletion}%
+                        </span>
+                      )}
+                      {/* Locale code badge */}
+                      <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-[11px] uppercase tracking-wide text-zinc-500 dark:border-zinc-700">
+                        {option.code.toUpperCase()}
+                      </span>
                     </span>
                   </div>
                 )
