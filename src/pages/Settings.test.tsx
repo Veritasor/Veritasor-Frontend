@@ -36,14 +36,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 6 tabs', () => {
+  it('renders all 7 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(6)
+    expect(screen.getAllByRole('tab')).toHaveLength(7)
   })
 
-  it('renders all 6 tab panels (including hidden)', () => {
+  it('renders all 7 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(6)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(7)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -51,10 +51,11 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('combobox', { name: /settings section/i })).toBeInTheDocument()
   })
 
-  it('renders tab labels: Profile, Notifications, API Keys, Billing, Security, Audit Log', () => {
+  it('renders all tab labels', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /integrations/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
@@ -89,6 +90,11 @@ describe('Settings — deep links (URL hash)', () => {
   it('activates Notifications tab when hash is #notifications', () => {
     renderSettings('#notifications')
     expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('activates Integrations tab when hash is #integrations', () => {
+    renderSettings('#integrations')
+    expect(screen.getByRole('tab', { name: /integrations/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('activates API Keys tab when hash is #api-keys', () => {
@@ -201,9 +207,9 @@ describe('Settings — keyboard navigation', () => {
   })
 
   it('ArrowRight wraps from last tab to first', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'ArrowRight' })
+    renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -211,13 +217,13 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'ArrowLeft' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('Home key navigates to the first tab', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'Home' })
+    renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'Home' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -225,7 +231,7 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'End' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('unrelated key does not change the active tab', () => {
@@ -252,11 +258,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 6 tabs', () => {
+  it('select options include all 7 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(6)
+    expect(options).toHaveLength(7)
   })
 })
 
@@ -301,5 +307,101 @@ describe('Settings — panel content', () => {
   it('Audit Log panel shows audit entries', () => {
     renderSettings('#audit-log')
     expect(screen.getByText('Attestation completed')).toBeInTheDocument()
+  })
+})
+
+// ─── Integrations panel ───────────────────────────────────────────────────────
+
+describe('Settings — Integrations panel', () => {
+  it('renders the Integrations panel heading', () => {
+    renderSettings('#integrations')
+    expect(screen.getByRole('heading', { level: 2, name: /integrations/i })).toBeInTheDocument()
+  })
+
+  it('shows summary counts', () => {
+    renderSettings('#integrations')
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('5')).toBeInTheDocument()
+    expect(screen.getByText('connected')).toBeInTheDocument()
+    expect(screen.getByText('available')).toBeInTheDocument()
+  })
+
+  it('shows integration card articles', () => {
+    renderSettings('#integrations')
+    const articles = screen.getAllByRole('article')
+    expect(articles.length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('renders a filter tablist with All / Connected / Available', () => {
+    renderSettings('#integrations')
+    const filterTabs = screen.getAllByRole('tab', { name: /(all|connected|available)/i })
+    expect(filterTabs).toHaveLength(3)
+  })
+
+  it('defaults to All filter', () => {
+    renderSettings('#integrations')
+    const allTab = screen.getByRole('tab', { name: /^all$/i })
+    expect(allTab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('clicking Connected filter shows only connected cards', () => {
+    renderSettings('#integrations')
+    const connectedTab = screen.getByRole('tab', { name: /connected/i })
+    fireEvent.click(connectedTab)
+    const articles = screen.getAllByRole('article')
+    articles.forEach((article) => {
+      expect(article.querySelector('[role="status"]')).toHaveTextContent(/connected/i)
+    })
+  })
+
+  it('clicking Available filter shows non-connected cards', () => {
+    renderSettings('#integrations')
+    const availableTab = screen.getByRole('tab', { name: /^available$/i })
+    fireEvent.click(availableTab)
+    const articles = screen.getAllByRole('article')
+    expect(articles.length).toBeGreaterThan(0)
+  })
+
+  it('shows integration with error status', () => {
+    renderSettings('#integrations')
+    expect(screen.getByText('Reconnect needed')).toBeInTheDocument()
+  })
+
+  it('shows Connect button for available integrations', () => {
+    renderSettings('#integrations')
+    const connectBtns = screen.getAllByRole('button', { name: /^connect /i })
+    expect(connectBtns.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('shows Configure and Disconnect for connected integrations', () => {
+    renderSettings('#integrations')
+    const configureBtns = screen.getAllByRole('button', { name: /configure/i })
+    const disconnectBtns = screen.getAllByRole('button', { name: /disconnect/i })
+    expect(configureBtns.length).toBeGreaterThanOrEqual(3)
+    expect(disconnectBtns.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('clicking Connect moves card from available to connected', () => {
+    renderSettings('#integrations')
+    const connectBtn = screen.getAllByRole('button', { name: /^connect /i })[0]
+    fireEvent.click(connectBtn)
+    // The card now shows Configure instead of Connect
+    expect(screen.getAllByRole('button', { name: /configure/i }).length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('clicking Disconnect moves card from connected to available', () => {
+    renderSettings('#integrations')
+    const disconnectBtn = screen.getAllByRole('button', { name: /disconnect/i })[0]
+    fireEvent.click(disconnectBtn)
+    expect(screen.getAllByRole('button', { name: /^connect /i }).length).toBeGreaterThanOrEqual(5)
+  })
+
+  it('each integration card has a status role element', () => {
+    renderSettings('#integrations')
+    const statuses = screen.getAllByRole('status')
+    expect(statuses.length).toBeGreaterThanOrEqual(8)
+    statuses.forEach((s) => {
+      expect(s.textContent).toMatch(/connected|reconnect needed|available/i)
+    })
   })
 })

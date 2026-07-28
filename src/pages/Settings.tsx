@@ -3,11 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
+import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'notifications', label: 'Notifications' },
+  { id: 'integrations', label: 'Integrations' },
   { id: 'api-keys', label: 'API Keys' },
   { id: 'tokens', label: 'Tokens' },
   { id: 'billing', label: 'Billing' },
@@ -324,6 +326,7 @@ function AuditLogPanel() {
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
+  integrations: SettingsIntegrationsPanel,
   'api-keys': ApiKeysPanel,
   tokens: TokensPanel,
   billing: BillingPanel,
