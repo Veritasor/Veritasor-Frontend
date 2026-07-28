@@ -86,7 +86,7 @@ export default function OnboardingWizard() {
     if (id === 'ob-legal-name') return setNested('business', 'legalName', target.value)
     if (id === 'ob-reg-number') return setNested('business', 'registrationNumber', target.value)
     if (id === 'ob-country') return setNested('business', 'country', target.value)
-    if (id === 'ob-biz-type') return setNested('business', 'businessType', target.value)
+    if (id === 'ob-biz-type' || id.startsWith('ob-biz-type-')) return setNested('business', 'businessType', target.value)
     if (id === 'ob-website') return setNested('business', 'website', target.value)
 
     if (id === 'ob-full-name') return setNested('owner', 'fullName', target.value)
