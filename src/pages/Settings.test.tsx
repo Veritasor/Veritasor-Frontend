@@ -36,14 +36,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 6 tabs', () => {
+  it('renders all 9 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(6)
+    expect(screen.getAllByRole('tab')).toHaveLength(9)
   })
 
-  it('renders all 6 tab panels (including hidden)', () => {
+  it('renders all 9 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(6)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(9)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -51,15 +51,17 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('combobox', { name: /settings section/i })).toBeInTheDocument()
   })
 
-  it('renders tab labels: Profile, Notifications, API Keys, Billing, Security, Audit Log', () => {
+  it('renders all 9 tab labels', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /integrations/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /tokens/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /webhooks/i })).toBeInTheDocument()
   })
 })
 
@@ -260,11 +262,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 6 tabs', () => {
+  it('select options include all 9 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(6)
+    expect(options).toHaveLength(9)
   })
 })
 
