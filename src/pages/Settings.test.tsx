@@ -12,8 +12,25 @@
 
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import Settings from '../pages/Settings'
+
+beforeEach(() => {
+  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 function renderSettings(hash = '') {
   return render(
@@ -38,14 +55,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 8 tabs', () => {
+  it('renders all 10 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(8)
+    expect(screen.getAllByRole('tab')).toHaveLength(10)
   })
 
-  it('renders all 8 tab panels (including hidden)', () => {
+  it('renders all 10 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(8)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(10)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -53,17 +70,18 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('combobox', { name: /settings section/i })).toBeInTheDocument()
   })
 
-  it('renders tab labels: Profile, Notifications, Integrations, API Keys, Tokens, Billing, Security, Audit Log', () => {
+  it('renders tab labels: Profile, Appearance, Notifications, Team, Integrations, API Keys, Tokens, Billing, Security, Audit Log', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /appearance/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^team$/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /integrations/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /tokens/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /webhooks/i })).toBeInTheDocument()
   })
 })
 
@@ -84,6 +102,7 @@ describe('Settings — default tab', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('tabindex', '0')
     expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('tabindex', '-1')
+    expect(screen.getByRole('tab', { name: /appearance/i })).toHaveAttribute('tabindex', '-1')
     expect(screen.getByRole('tab', { name: /billing/i })).toHaveAttribute('tabindex', '-1')
   })
 })
@@ -207,18 +226,18 @@ describe('Settings — ARIA attributes', () => {
 // ─── Keyboard navigation ──────────────────────────────────────────────────────
 
 describe('Settings — keyboard navigation', () => {
-  it('ArrowRight moves focus from Profile to Notifications', () => {
+  it('ArrowRight moves focus from Profile to Appearance', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'ArrowRight' })
-    expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /appearance/i })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('ArrowLeft moves focus from Notifications to Profile', () => {
+  it('ArrowLeft moves focus from Notifications to Appearance', () => {
     renderSettings('#notifications')
     const notifTab = screen.getByRole('tab', { name: /notifications/i })
     fireEvent.keyDown(notifTab, { key: 'ArrowLeft' })
-    expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /appearance/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('ArrowRight wraps from last tab to first', () => {
@@ -275,11 +294,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 8 tabs', () => {
+  it('select options include all 10 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(8)
+    expect(options).toHaveLength(10)
   })
 })
 

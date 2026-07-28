@@ -1678,6 +1678,49 @@ input {
   grid-column: 1 / -1;
 }
 
+/* ─── Chart entrance animations ─────────────────────────────────────── */
+/* Bar grow: bars animate from zero height (y = baseline).              */
+/* Line draw: path is revealed via stroke-dashoffset.                   */
+/* All entrance animations respect prefers-reduced-motion.              */
+
+.dashboard-chart {
+  overflow: hidden;
+}
+
+/* Default: bar grow + line draw animations (controlled by JS inline    */
+/* transitions using CSS custom property durations).                    */
+.chart-bar {
+  transition:
+    y var(--motion-duration-lg) var(--motion-easing-standard),
+    height var(--motion-duration-lg) var(--motion-easing-standard);
+}
+
+.chart-line {
+  transition:
+    stroke-dashoffset var(--motion-duration-xl) var(--motion-easing-standard);
+}
+
+/* ─── Reduced-motion: instant rendering, subtle fade-only ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  .chart-bar,
+  .chart-line {
+    transition: opacity var(--motion-duration-xs) ease-in;
+  }
+
+  .dashboard-chart {
+    animation: chart-fade-in var(--motion-duration-xs) ease-in;
+  }
+}
+
+@keyframes chart-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .dashboard-card h2 {
   margin-top: 0;
   margin-bottom: 0.75rem;

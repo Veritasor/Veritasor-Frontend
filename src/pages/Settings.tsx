@@ -5,11 +5,14 @@ import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/Au
 import TokensExport from '../components/tokens/TokensExport'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
-import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import DensityToggle from '../components/DensityToggle'
+import ThemeSwitcher from '../components/ThemeSwitcher'
+import { useToast } from '../components/ToastContext'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: "profile", label: "Profile" },
+  { id: "appearance", label: "Appearance" },
   { id: "notifications", label: "Notifications" },
   { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
@@ -28,6 +31,78 @@ function getTabFromHash(hash: string): TabId {
 }
 
 // ─── Tab Panels ───────────────────────────────────────────────────────────────
+
+function AppearancePanel() {
+  const { addToast } = useToast();
+
+  // Listen for density rollback events and show a toast
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      addToast(
+        `Display density could not be saved. Reverted to ${detail.mode}.`,
+        "warning",
+        5000,
+      );
+    };
+    window.addEventListener("density:rollback", handler);
+    return () => window.removeEventListener("density:rollback", handler);
+  }, [addToast]);
+
+  return (
+    <div>
+      <h2>Appearance</h2>
+      <p style={{ color: "var(--muted)" }}>
+        Customize how Veritasor looks and feels across all devices.
+      </p>
+
+      <section
+        aria-labelledby="appearance-theme-heading"
+        style={{ marginTop: "1.5rem" }}
+      >
+        <h3
+          id="appearance-theme-heading"
+          style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}
+        >
+          Theme
+        </h3>
+        <ThemeSwitcher />
+      </section>
+
+      <hr
+        style={{
+          border: "none",
+          borderTop: "1px solid var(--border)",
+          margin: "1.5rem 0",
+          opacity: 0.5,
+        }}
+      />
+
+      <section aria-labelledby="appearance-density-heading">
+        <h3
+          id="appearance-density-heading"
+          style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}
+        >
+          Display density
+        </h3>
+        <p
+          style={{
+            color: "var(--muted)",
+            fontSize: "0.9rem",
+            margin: "0 0 1rem",
+            lineHeight: 1.5,
+          }}
+        >
+          Choose Comfortable for generous spacing or Compact to fit more content
+          per view. This preference syncs across all your signed-in devices.
+        </p>
+        <div style={{ maxWidth: 480 }}>
+          <DensityToggle workspace="default" />
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function ProfilePanel() {
   return (
@@ -1204,16 +1279,6 @@ function BillingPanel() {
   );
 }
 
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-
-function generateRecoveryCodes(): string[] {
-  return Array.from({ length: 10 }, () => {
-    const seg = () =>
-      Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('')
-    return `${seg()}-${seg()}-${seg()}`
-  })
-}
-
 interface ActiveSession {
   id: string
   device: string
@@ -1455,9 +1520,6 @@ function SecurityPanel() {
           Update password
         </button>
       </form>
-      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
-      {mfaSection[mfaState]()}
-
       <hr
         style={{ margin: "2rem 0", borderColor: "var(--border)", opacity: 0.5 }}
       />
@@ -1485,115 +1547,6 @@ function SecurityPanel() {
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No active sessions found.</p>
         ) : null}
       </section>
-    </div>
-  );
-}
-
-function WebhooksPanel() {
-  const [retryingId, setRetryingId] = useState<string | null>(null);
-
-  const mockDeliveries: WebhookDelivery[] = [
-    {
-      id: "wh_001",
-      event: "attestation.completed",
-      triggeredAt: "2026-07-28T09:30:00Z",
-      status: "failed",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-28T09:30:00Z",
-          statusCode: null,
-          error: "Connection refused",
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-28T09:31:00Z",
-          statusCode: 503,
-          error: "Service Unavailable",
-          backoffSeconds: 120,
-        },
-        {
-          attempt: 3,
-          at: "2026-07-28T09:33:00Z",
-          statusCode: 500,
-          error: "Internal Server Error",
-        },
-      ],
-    },
-    {
-      id: "wh_002",
-      event: "source.connected",
-      triggeredAt: "2026-07-28T08:00:00Z",
-      status: "retrying",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-28T08:00:00Z",
-          statusCode: 503,
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-28T08:01:00Z",
-          statusCode: 503,
-          backoffSeconds: 180,
-        },
-      ],
-    },
-    {
-      id: "wh_003",
-      event: "attestation.failed",
-      triggeredAt: "2026-07-27T18:45:00Z",
-      status: "delivered",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-27T18:45:00Z",
-          statusCode: 503,
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-27T18:46:00Z",
-          statusCode: 200,
-        },
-      ],
-    },
-  ];
-
-  function handleRetry(id: string) {
-    setRetryingId(id);
-    setTimeout(() => {
-      setRetryingId(null);
-      // Real app: trigger retry via API
-    }, 2000);
-  }
-
-  return (
-    <div>
-      <h2>Webhooks</h2>
-      <p style={{ color: "var(--muted)" }}>
-        View webhook delivery history and retry failed attempts. Each delivery
-        shows its backoff intervals and final status.
-      </p>
-      <div
-        style={{
-          marginTop: "1.5rem",
-          maxWidth: 900,
-          display: "grid",
-          gap: "1rem",
-        }}
-      >
-        {mockDeliveries.map((delivery) => (
-          <WebhookRetryPanel
-            key={delivery.id}
-            delivery={delivery}
-            onRetry={handleRetry}
-            isRetrying={retryingId === delivery.id}
-          />
-        ))}
-      </div>
     </div>
   );
 }
@@ -2385,6 +2338,7 @@ function TeamPanel() {
 
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
+  appearance: AppearancePanel,
   notifications: NotificationsPanel,
   team: TeamPanel,
   integrations: SettingsIntegrationsPanel,
