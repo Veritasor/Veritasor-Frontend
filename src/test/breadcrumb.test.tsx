@@ -88,4 +88,30 @@ describe('Breadcrumb', () => {
     expect(screen.getByText('A'.repeat(23) + '…')).toBeInTheDocument()
     unmount()
   })
+
+  it('injects JSON-LD BreadcrumbList for SEO', () => {
+    renderBreadcrumb({
+      items: [
+        { label: 'Home', href: '/' },
+        { label: 'Attestations', href: '/attestations' },
+        { label: 'att-001' }
+      ]
+    })
+    
+    // Using querySelector to find the script tag since it's not rendered in the DOM tree visually
+    const script = document.querySelector('script[type="application/ld+json"]')
+    expect(script).toBeInTheDocument()
+    
+    if (script) {
+      const json = JSON.parse(script.innerHTML)
+      expect(json['@type']).toBe('BreadcrumbList')
+      expect(json.itemListElement).toHaveLength(3)
+      
+      expect(json.itemListElement[0].name).toBe('Home')
+      expect(json.itemListElement[0].item).toMatch(/^http.*\/$/)
+      
+      expect(json.itemListElement[2].name).toBe('att-001')
+      expect(json.itemListElement[2].item).toBeUndefined()
+    }
+  })
 })
