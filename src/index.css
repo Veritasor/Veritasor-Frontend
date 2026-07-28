@@ -45,16 +45,61 @@
   --radius-lg: 1.75rem;
 
   /* ─── Motion tokens ─────────────────────────────────────────────────────── */
+  /*
+   * Duration scale
+   * Use the smallest value that clearly communicates the state change.
+   * Max in core dashboard flows: --motion-duration-xl (360ms).
+   *
+   *  none  → instant; reduced-motion baseline, skeleton no-shimmer
+   *  xs    → 80ms  — micro feedback: hover/focus ring, icon swap
+   *  sm    → 140ms — small element: chip, badge, inline status
+   *  md    → 200ms — panel/card content update
+   *  lg    → 280ms — toast enter, section transition
+   *  xl    → 360ms — layout-level transition requiring orientation support
+   */
   --motion-duration-none: 0ms;
-  --motion-duration-xs: 80ms;
-  --motion-duration-sm: 140ms;
-  --motion-duration-md: 200ms;
-  --motion-duration-lg: 280ms;
-  --motion-duration-xl: 360ms;
+  --motion-duration-xs:   80ms;
+  --motion-duration-sm:   140ms;
+  --motion-duration-md:   200ms;
+  --motion-duration-lg:   280ms;
+  --motion-duration-xl:   360ms;
 
-  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
-  --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  /*
+   * Easing curves
+   *
+   *  standard    → cubic-bezier(0.2, 0, 0, 1)
+   *                Most enter/update transitions. Snappy start, smooth settle.
+   *
+   *  decelerate  → cubic-bezier(0.0, 0, 0.2, 1)   (alias: "enter" or "ease-out")
+   *                Elements entering the screen: drawers, modals, toasts sliding in.
+   *
+   *  accelerate  → cubic-bezier(0.4, 0, 1, 1)      (alias: "exit" or "ease-in")
+   *                Elements leaving the screen. Fast fade/slide out.
+   *
+   *  linear      → linear
+   *                Indeterminate progress bars and value interpolation only.
+   *
+   *  spring      → cubic-bezier(0.34, 1.56, 0.64, 1)
+   *                Permitted only for non-trust-critical affordances (toasts).
+   *                Slight overshoot then settle. Do NOT use in data-dense panels.
+   *
+   * Note: --motion-easing-exit is kept as an alias for --motion-easing-accelerate
+   * so existing consumers do not break.
+   */
+  --motion-easing-standard:   cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-decelerate: cubic-bezier(0.0, 0, 0.2, 1);
+  --motion-easing-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --motion-easing-exit:       cubic-bezier(0.4, 0, 1, 1); /* alias → --motion-easing-accelerate */
+  --motion-easing-linear:     linear;
+  --motion-easing-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
 
+  /*
+   * Distance tokens  (spatial travel – keep to one axis per transition)
+   *
+   *  xs → 4px   micro nudge (hover lift)
+   *  sm → 8px   small element slide
+   *  md → 16px  panel/toast slide-in — do not exceed in data-dense panels
+   */
   --motion-distance-xs: 4px;
   --motion-distance-sm: 8px;
   --motion-distance-md: 16px;
@@ -556,7 +601,7 @@ input {
   gap: 0.3rem;
   padding: 0.25rem 0.5rem;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color var(--motion-duration-xs) var(--motion-easing-standard);
   position: relative;
   border-right: 1px solid var(--border);
   min-height: 100%;
@@ -2279,7 +2324,7 @@ input {
 }
 
 .toast-entering {
-  animation: toast-enter var(--motion-duration-lg) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: toast-enter var(--motion-duration-lg) var(--motion-easing-spring) forwards;
 }
 
 .toast-exiting {
@@ -4180,5 +4225,234 @@ input {
 
   .app-main {
     padding-bottom: 2rem;
+  }
+}
+
+/* ─── Motion Demo page ───────────────────────────────────────────────────── */
+
+.motion-demo-page {
+  display: grid;
+  gap: 2rem;
+  padding: 1.5rem;
+  max-width: 860px;
+}
+
+.motion-demo-section {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.motion-demo-section h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.motion-demo-section h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.motion-demo-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+/* Token table */
+.motion-token-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.motion-token-table th,
+.motion-token-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.motion-token-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.motion-token-table tr:last-child td {
+  border-bottom: none;
+}
+
+.motion-token-name {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+.motion-token-value {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.motion-token-usage {
+  color: var(--muted);
+}
+
+/* Duration preview bar */
+.motion-duration-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.motion-duration-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #60a5fa);
+  min-width: 4px;
+  flex-shrink: 0;
+}
+
+/* Easing curve swatch */
+.motion-easing-swatch {
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-soft);
+  position: relative;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+/* Interactive demo boxes */
+.motion-demo-box-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.motion-demo-box-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.motion-demo-box {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), #60a5fa);
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #04111f;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.motion-demo-box:hover {
+  opacity: 0.85;
+}
+
+.motion-demo-box-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+/* Transition preview track */
+.motion-transition-track {
+  position: relative;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.motion-transition-ball {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 36px;
+  height: 36px;
+  margin-top: -18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #60a5fa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #04111f;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.motion-transition-ball[data-running="true"] {
+  left: calc(100% - 40px);
+}
+
+/* Reduced-motion callout */
+.motion-reduced-callout {
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.motion-reduced-callout strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Accessibility callout */
+.motion-a11y-callout {
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.motion-a11y-callout strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .motion-demo-page {
+    padding: 1rem;
+    gap: 1.25rem;
+  }
+
+  .motion-demo-section {
+    padding: 1rem;
+  }
+
+  .motion-token-table th:last-child,
+  .motion-token-table td:last-child {
+    display: none;
   }
 }

@@ -35,6 +35,7 @@ const navItems = [
   { path: '/', name: 'Dashboard' },
   { path: '/attestations', name: 'Attestations' },
   { path: '/sources', name: 'Revenue Sources' },
+  { path: '/motion-tokens', name: 'Motion Tokens' },
 ]
 
 function LayoutInner() {
@@ -101,6 +102,9 @@ function LayoutInner() {
             </NavLink>
             <NavLink to="/sources" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
               Revenue Sources
+            </NavLink>
+            <NavLink to="/motion-tokens" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+              Motion Tokens
             </NavLink>
           </nav>
           <div className="sidebar-footer">
