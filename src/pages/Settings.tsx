@@ -8,10 +8,15 @@ import TokensExport from "../components/tokens/TokensExport";
 import MfaMethodChooser, {
   type MfaMethod,
 } from "../components/MfaMethodChooser";
+import LogoUpload from "../components/LogoUpload";
+import AddressAutocomplete, {
+  type AddressValue,
+} from "../components/AddressAutocomplete";
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: "profile", label: "Profile" },
+  { id: "business", label: "Business" },
   { id: "notifications", label: "Notifications" },
   { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
@@ -99,6 +104,117 @@ function ProfilePanel() {
           Save changes
         </button>
       </form>
+    </div>
+  );
+}
+
+// ─── Business profile panel (#230 logo upload, #231 address autocomplete) ──────
+
+function BusinessProfilePanel() {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoSaved, setLogoSaved] = useState(false);
+  const [addressValue, setAddressValue] = useState<AddressValue | null>(null);
+  const [addressError, setAddressError] = useState<string | undefined>();
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  function handleLogoSave(file: File) {
+    // In production, POST file to /api/org/logo
+    const url = URL.createObjectURL(file);
+    setLogoUrl(url);
+    setLogoSaved(true);
+    setTimeout(() => setLogoSaved(false), 3000);
+  }
+
+  function handleProfileSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addressValue?.fullAddress) {
+      setAddressError("Business address is required");
+      return;
+    }
+    setAddressError(undefined);
+    // POST to /api/org/profile
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 3000);
+  }
+
+  return (
+    <div style={{ display: "grid", gap: "2rem", maxWidth: 600 }}>
+      <div>
+        <h2>Business profile</h2>
+        <p style={{ color: "var(--muted)" }}>
+          Update your organisation's logo and registered address.
+        </p>
+      </div>
+
+      {/* ── Logo upload ─────────────────────────────────────────────── */}
+      <section aria-labelledby="biz-logo-heading">
+        <h3 id="biz-logo-heading" style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>
+          Organisation logo
+        </h3>
+        <p style={{ margin: "0 0 1rem", color: "var(--muted)", fontSize: "0.9rem" }}>
+          Used in reports, attestation certificates, and partner portals.
+          Square images crop best.
+        </p>
+        <LogoUpload
+          currentLogoUrl={logoUrl}
+          onSave={handleLogoSave}
+        />
+        {logoSaved && (
+          <p
+            role="status"
+            aria-live="polite"
+            style={{ color: "var(--success)", fontSize: "0.9rem", marginTop: "0.5rem" }}
+          >
+            ✓ Logo saved
+          </p>
+        )}
+      </section>
+
+      <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: 0 }} />
+
+      {/* ── Business address ─────────────────────────────────────────── */}
+      <section aria-labelledby="biz-addr-heading">
+        <h3 id="biz-addr-heading" style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>
+          Registered address
+        </h3>
+        <form onSubmit={handleProfileSubmit} noValidate style={{ display: "grid", gap: "1rem" }}>
+          <AddressAutocomplete
+            label="Business address"
+            required
+            value={addressValue}
+            onChange={setAddressValue}
+            onClear={() => setAddressValue(null)}
+            error={addressError}
+          />
+          <div>
+            <button
+              type="submit"
+              style={{
+                padding: "0.6rem 1.25rem",
+                borderRadius: 8,
+                border: "none",
+                background: "var(--accent)",
+                color: "#04111f",
+                fontWeight: 700,
+                cursor: "pointer",
+                fontSize: "0.95rem",
+                minHeight: "2.75rem",
+              }}
+            >
+              Save address
+            </button>
+            {profileSaved && (
+              <span
+                role="status"
+                aria-live="polite"
+                style={{ marginLeft: "1rem", color: "var(--success)", fontSize: "0.9rem", verticalAlign: "middle" }}
+              >
+                ✓ Saved
+              </span>
+            )}
+          </div>
+        </form>
+      </section>
     </div>
   );
 }
@@ -1490,92 +1606,6 @@ function WebhooksPanel() {
   );
 }
 
-function TokensPanel() {
-  return (
-    <div>
-      <h2>Design tokens</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Export a snapshot of Veritasor design tokens as CSS custom properties.
-        Choose a scope, then copy or download the file.
-      </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 720 }}>
-        <TokensExport />
-      </div>
-    </div>
-  );
-}
-
-function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: "1",
-      timestamp: "2026-07-28T08:12:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "2",
-      timestamp: "2026-07-28T08:14:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "3",
-      timestamp: "2026-07-28T08:15:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "4",
-      timestamp: "2026-07-28T09:00:00Z",
-      event: "Revenue source connected",
-      details: "Provider: Stripe",
-    },
-    {
-      id: "5",
-      timestamp: "2026-07-27T14:30:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "6",
-      timestamp: "2026-07-27T14:31:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "7",
-      timestamp: "2026-07-27T14:32:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "8",
-      timestamp: "2026-07-27T14:33:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "9",
-      timestamp: "2026-07-26T10:00:00Z",
-      event: "API key rotated",
-    },
-  ];
-
-  return (
-    <div>
-      <h2>Audit Log</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Recent activity for this workspace. In compact density mode, identical
-        consecutive events are grouped by day and collapsed into summary badges.
-      </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
-      </div>
-    </div>
-  );
-}
-
 type TeamRole = "owner" | "admin" | "billing" | "member";
 type MemberStatus = "active" | "pending" | "disabled";
 
@@ -2277,6 +2307,7 @@ function TeamPanel() {
 
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
+  business: BusinessProfilePanel,
   notifications: NotificationsPanel,
   team: TeamPanel,
   integrations: SettingsIntegrationsPanel,
