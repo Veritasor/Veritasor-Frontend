@@ -4182,3 +4182,375 @@ input {
     padding-bottom: 2rem;
   }
 }
+
+/* ─── Command Palette (cmd-*) ────────────────────────────────────────────── */
+
+.cmd-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 450;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 1rem 1rem;
+}
+
+.cmd-dialog {
+  width: min(640px, 100%);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 70vh;
+}
+
+.cmd-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cmd-search-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.cmd-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  outline: none;
+}
+
+.cmd-input::placeholder {
+  color: rgba(173, 192, 217, 0.5);
+}
+
+.cmd-esc-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.cmd-results {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cmd-group {
+  padding: 0.5rem 0;
+}
+
+.cmd-group-title {
+  margin: 0;
+  padding: 0.4rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cmd-group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.cmd-item-active {
+  background: var(--surface-soft);
+}
+
+.cmd-item-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+}
+
+.cmd-item-content {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.cmd-item-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-item-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-item-shortcut {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.cmd-item-shortcut kbd {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--muted);
+  font-family: var(--font-sans);
+}
+
+.cmd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.cmd-empty-icon {
+  font-size: 2rem;
+}
+
+.cmd-empty-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cmd-empty-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.cmd-footer {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.625rem 1rem;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cmd-tip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.cmd-tip kbd {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  color: var(--muted);
+  font-family: var(--font-sans);
+}
+
+/* ─── Keyboard Shortcuts Overlay (kso-*) ────────────────────────────────── */
+
+.kso-backdrop {
+  align-items: center;
+}
+
+.kso-dialog {
+  max-width: 36rem;
+  max-height: min(80vh, 600px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kso-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem 0.75rem;
+  flex-shrink: 0;
+}
+
+.kso-search-icon {
+  position: absolute;
+  left: 2.25rem;
+  color: var(--muted);
+  pointer-events: none;
+  font-size: 1rem;
+}
+
+.kso-search-input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem 0.6rem 2.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+  appearance: none;
+}
+
+.kso-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.kso-search-input::placeholder {
+  color: rgba(173, 192, 217, 0.5);
+}
+
+.kso-search-input:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 0.25rem rgba(96, 165, 250, 0.16);
+}
+
+.kso-body {
+  overflow-y: auto;
+  flex: 1;
+  padding-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.kso-category-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.kso-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.kso-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  transition: background 100ms ease;
+}
+
+.kso-row:hover {
+  background: var(--surface-soft);
+}
+
+.kso-label {
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+}
+
+.kso-keys {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.kso-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 0.4rem;
+  background: var(--surface-soft);
+  color: var(--text);
+  font: 700 0.72rem var(--font-sans);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.kso-kbd-muted {
+  color: var(--muted);
+}
+
+.kso-empty {
+  margin: 0;
+  padding: 2rem 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.kso-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .kso-dialog {
+    max-height: 90vh;
+  }
+
+  .kso-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kso-search-input {
+    transition: none;
+  }
+}
