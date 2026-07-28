@@ -36,14 +36,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 5 tabs', () => {
+  it('renders all 6 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(screen.getAllByRole('tab')).toHaveLength(6)
   })
 
-  it('renders all 5 tab panels (including hidden)', () => {
+  it('renders all 6 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(5)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(6)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -51,13 +51,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('combobox', { name: /settings section/i })).toBeInTheDocument()
   })
 
-  it('renders tab labels: Profile, Notifications, API Keys, Billing, Security', () => {
+  it('renders tab labels: Profile, Notifications, API Keys, Billing, Security, Audit Log', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
   })
 })
 
@@ -251,11 +252,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 5 tabs', () => {
+  it('select options include all 6 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(5)
+    expect(options).toHaveLength(6)
   })
 })
 
@@ -290,5 +291,15 @@ describe('Settings — panel content', () => {
   it('Security panel contains a current-password input', () => {
     renderSettings('#security')
     expect(screen.getByLabelText(/current password/i)).toBeInTheDocument()
+  })
+
+  it('Audit Log panel contains a log role element', () => {
+    renderSettings('#audit-log')
+    expect(screen.getByRole('log', { name: /audit log timeline/i })).toBeInTheDocument()
+  })
+
+  it('Audit Log panel shows audit entries', () => {
+    renderSettings('#audit-log')
+    expect(screen.getByText('Attestation completed')).toBeInTheDocument()
   })
 })
