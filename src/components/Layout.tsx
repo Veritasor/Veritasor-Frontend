@@ -3,6 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
 import { ToastProvider } from './ToastContext'
 import ToastContainer from './ToastContainer'
+import OfflineBanner from './OfflineBanner'
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -18,6 +19,7 @@ function LayoutInner() {
 
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      <OfflineBanner />
       {/* Sidebar Layout shell */}
       <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-6">
         <div className="flex items-center space-x-2 px-2">
