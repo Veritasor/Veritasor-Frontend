@@ -3,6 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
+import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
+import MfaMethodChooser from '../components/MfaMethodChooser'
+import type { MfaMethod } from '../components/MfaMethodChooser'
+import WebhookRetryPanel, { type WebhookDelivery } from '../components/WebhookRetryPanel'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -14,6 +18,7 @@ const TABS = [
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
   { id: 'audit-log', label: 'Audit Log' },
+  { id: 'webhooks', label: 'Webhooks' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -405,7 +410,6 @@ function WebhooksPanel() {
     setRetryingId(id)
     setTimeout(() => {
       setRetryingId(null)
-      // Real app: trigger retry via API
     }, 2000)
   }
 
@@ -430,92 +434,6 @@ function WebhooksPanel() {
   )
 }
 
-function TokensPanel() {
-  return (
-    <div>
-      <h2>Design tokens</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        Export a snapshot of Veritasor design tokens as CSS custom properties. Choose a scope,
-        then copy or download the file.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 720 }}>
-        <TokensExport />
-      </div>
-    </div>
-  )
-}
-
-function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: '1',
-      timestamp: '2026-07-28T08:12:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '2',
-      timestamp: '2026-07-28T08:14:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '3',
-      timestamp: '2026-07-28T08:15:00Z',
-      event: 'Attestation completed',
-      details: 'Merkle root: 0x7f...3a',
-    },
-    {
-      id: '4',
-      timestamp: '2026-07-28T09:00:00Z',
-      event: 'Revenue source connected',
-      details: 'Provider: Stripe',
-    },
-    {
-      id: '5',
-      timestamp: '2026-07-27T14:30:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '6',
-      timestamp: '2026-07-27T14:31:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '7',
-      timestamp: '2026-07-27T14:32:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '8',
-      timestamp: '2026-07-27T14:33:00Z',
-      event: 'Attestation failed',
-      details: 'Timeout after 30s',
-    },
-    {
-      id: '9',
-      timestamp: '2026-07-26T10:00:00Z',
-      event: 'API key rotated',
-    },
-  ]
-
-  return (
-    <div>
-      <h2>Audit Log</h2>
-      <p style={{ color: 'var(--muted)' }}>
-        Recent activity for this workspace. In compact density mode, identical consecutive events are
-        grouped by day and collapsed into summary badges.
-      </p>
-      <div style={{ marginTop: '1.5rem', maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
-      </div>
-    </div>
-  )
-}
-
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
@@ -525,6 +443,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   'audit-log': AuditLogPanel,
+  webhooks: WebhooksPanel,
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -533,12 +452,25 @@ export default function Settings() {
   const location = useLocation()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>(() => getTabFromHash(location.hash))
+  const [sheetOpen, setSheetOpen] = useState(false)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const sheetRef = useRef<HTMLDivElement>(null)
 
-  // Sync active tab with URL hash changes (e.g. browser back/forward)
   useEffect(() => {
     setActiveTab(getTabFromHash(location.hash))
   }, [location.hash])
+
+  useEffect(() => {
+    if (!sheetOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSheetOpen(false)
+        document.getElementById('settings-sheet-trigger')?.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [sheetOpen])
 
   const selectTab = useCallback(
     (id: TabId) => {
@@ -572,21 +504,21 @@ export default function Settings() {
     [selectTab],
   )
 
+  const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? 'Settings'
   const Panel = PANELS[activeTab]
 
   return (
     <div>
       <h1 style={{ marginTop: 0 }}>Settings</h1>
 
-      {/* Mobile: select collapse */}
-      <label htmlFor="settings-tab-select" className="sr-only">
-        Settings section
-      </label>
-      <select
-        id="settings-tab-select"
-        aria-label="Settings section"
-        value={activeTab}
-        onChange={(e) => selectTab(e.target.value as TabId)}
+      {/* Mobile: bottom-sheet trigger */}
+      <button
+        id="settings-sheet-trigger"
+        type="button"
+        className="settings-tab-select"
+        aria-haspopup="listbox"
+        aria-expanded={sheetOpen}
+        onClick={() => setSheetOpen(true)}
         style={{
           width: '100%',
           padding: '0.6rem 0.8rem',
@@ -596,15 +528,85 @@ export default function Settings() {
           color: 'var(--text)',
           fontSize: '0.95rem',
           marginBottom: '1.5rem',
+          textAlign: 'left',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}
-        className="settings-tab-select"
       >
-        {TABS.map((tab) => (
-          <option key={tab.id} value={tab.id}>
-            {tab.label}
-          </option>
-        ))}
-      </select>
+        <span>{activeLabel}</span>
+        <span aria-hidden="true" style={{ fontSize: '0.8rem' }}>▼</span>
+      </button>
+
+      {/* Bottom sheet */}
+      {sheetOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Settings sections"
+          ref={sheetRef}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            onClick={() => setSheetOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              background: 'var(--surface)',
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              padding: '1rem 0 2rem',
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              animation: 'slideUp 0.2s ease-out',
+            }}
+          >
+            <div
+              style={{
+                width: 40,
+                height: 4,
+                background: 'var(--border)',
+                borderRadius: 2,
+                margin: '0 auto 1rem',
+              }}
+            />
+            <ul role="listbox" aria-label="Settings sections" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {TABS.map((tab) => (
+                <li key={tab.id} role="option" aria-selected={tab.id === activeTab}>
+                  <button
+                    type="button"
+                    onClick={() => { selectTab(tab.id); setSheetOpen(false) }}
+                    style={{
+                      width: '100%',
+                      padding: '0.8rem 1.2rem',
+                      border: 'none',
+                      background: tab.id === activeTab ? 'var(--surface-strong)' : 'transparent',
+                      color: tab.id === activeTab ? 'var(--accent)' : 'var(--text)',
+                      fontSize: '1rem',
+                      fontWeight: tab.id === activeTab ? 600 : 400,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Desktop: tablist */}
       <div
