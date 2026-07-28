@@ -58,11 +58,11 @@ function LayoutInner() {
   }, [])
 
   function toggleSidebar() {
-    setSidebarOpen((o) => !o);
+    setSidebarOpen((o) => !o)
   }
 
   function closeSidebar() {
-    setSidebarOpen(false);
+    setSidebarOpen(false)
   }
 
   return (
@@ -99,7 +99,7 @@ function LayoutInner() {
       <div className="app-body">
         <aside
           id="app-sidebar"
-          className={`app-sidebar${sidebarOpen ? " app-sidebar-open" : ""}`}
+          className={`app-sidebar${sidebarOpen ? ' app-sidebar-open' : ''}`}
           aria-label="Site navigation"
         >
           <nav aria-label="Main navigation">
@@ -116,10 +116,14 @@ function LayoutInner() {
             >
               Attestations
             </NavLink>
-            <NavLink to="/sources" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+            <NavLink
+              to="/sources"
+              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
+            >
               Revenue Sources
             </NavLink>
           </nav>
+
           <div className="sidebar-footer">
             <button
               type="button"
@@ -140,9 +144,14 @@ function LayoutInner() {
           />
         )}
 
-        <main id="main-content" tabIndex={-1} className="app-main">
-          <Outlet />
-        </main>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <main id="main-content" tabIndex={-1} className="app-main">
+            <Outlet />
+          </main>
+
+          {/* Persistent footer with Cookie preferences link */}
+          <Footer />
+        </div>
       </div>
       <BottomTabBar />
       <ToastContainer />
