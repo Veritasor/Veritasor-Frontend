@@ -36,14 +36,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 5 tabs', () => {
+  it('renders all 9 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(screen.getAllByRole('tab')).toHaveLength(9)
   })
 
-  it('renders all 5 tab panels (including hidden)', () => {
+  it('renders all 9 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(5)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(9)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -51,13 +51,17 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('combobox', { name: /settings section/i })).toBeInTheDocument()
   })
 
-  it('renders tab labels: Profile, Notifications, API Keys, Billing, Security', () => {
+  it('renders all 9 tab labels', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /integrations/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /tokens/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /webhooks/i })).toBeInTheDocument()
   })
 })
 
@@ -88,6 +92,11 @@ describe('Settings — deep links (URL hash)', () => {
   it('activates Notifications tab when hash is #notifications', () => {
     renderSettings('#notifications')
     expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('activates Integrations tab when hash is #integrations', () => {
+    renderSettings('#integrations')
+    expect(screen.getByRole('tab', { name: /integrations/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('activates API Keys tab when hash is #api-keys', () => {
@@ -200,9 +209,11 @@ describe('Settings — keyboard navigation', () => {
   })
 
   it('ArrowRight wraps from last tab to first', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'ArrowRight' })
+    renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'ArrowRight' })
+    const auditTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditTab, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -210,13 +221,13 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'ArrowLeft' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('Home key navigates to the first tab', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'Home' })
+    renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'Home' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -224,7 +235,7 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'End' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('unrelated key does not change the active tab', () => {
@@ -251,11 +262,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 5 tabs', () => {
+  it('select options include all 9 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(5)
+    expect(options).toHaveLength(9)
   })
 })
 
@@ -290,5 +301,124 @@ describe('Settings — panel content', () => {
   it('Security panel contains a current-password input', () => {
     renderSettings('#security')
     expect(screen.getByLabelText(/current password/i)).toBeInTheDocument()
+  })
+
+  it('Audit Log panel contains a log role element', () => {
+    renderSettings('#audit-log')
+    expect(screen.getByRole('log', { name: /audit log timeline/i })).toBeInTheDocument()
+  })
+
+  it('Audit Log panel shows audit entries', () => {
+    renderSettings('#audit-log')
+    expect(screen.getByText('Attestation completed')).toBeInTheDocument()
+  })
+})
+
+// ─── MFA Recovery Codes ────────────────────────────────────────────────────────
+
+describe('Security — MFA recovery codes', () => {
+  const CODE_RE = /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/
+
+  it('shows MFA setup button when MFA is not enabled', () => {
+    renderSettings('#security')
+    expect(screen.getByRole('button', { name: /set up two-factor authentication/i })).toBeInTheDocument()
+  })
+
+  it('clicking setup transitions to recovery codes view', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('heading', { name: /recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('displays 10 recovery codes after setup', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(10)
+  })
+
+  it('each recovery code matches XXXX-XXXX-XXXX pattern', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const items = screen.getAllByRole('listitem')
+    items.forEach((item) => {
+      expect(item.textContent).toMatch(CODE_RE)
+    })
+  })
+
+  it('codes are displayed in a list with aria-label', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('list', { name: /recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('copy all button is present', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('button', { name: /copy all/i })).toBeInTheDocument()
+  })
+
+  it('download .txt button is present', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('button', { name: /download \.txt/i })).toBeInTheDocument()
+  })
+
+  it('print button is present', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    expect(screen.getByRole('button', { name: /print/i })).toBeInTheDocument()
+  })
+
+  it('confirmation checkbox is present and unchecked by default', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const checkbox = screen.getByRole('checkbox', { name: /i.ve saved/i })
+    expect(checkbox).toBeInTheDocument()
+    expect(checkbox).not.toBeChecked()
+  })
+
+  it('continue button is disabled until codes are confirmed', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    const continueBtn = screen.getByRole('button', { name: /continue/i })
+    expect(continueBtn).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    expect(continueBtn).toBeEnabled()
+  })
+
+  it('confirming codes transitions to MFA active state', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(screen.getByText(/two-factor authentication is enabled/i)).toBeInTheDocument()
+  })
+
+  it('shows enabled status after completing setup', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(screen.getByRole('button', { name: /disable/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /view recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('view recovery codes from active state shows codes again', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /view recovery codes/i }))
+    expect(screen.getByRole('list', { name: /recovery codes/i })).toBeInTheDocument()
+  })
+
+  it('disable button returns to initial off state', () => {
+    renderSettings('#security')
+    fireEvent.click(screen.getByRole('button', { name: /set up two-factor authentication/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /i.ve saved/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /disable/i }))
+    expect(screen.getByRole('button', { name: /set up two-factor authentication/i })).toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Outlet, NavLink, Link } from 'react-router-dom'
 import TopAppBar from './TopAppBar'
+import BottomTabBar from './BottomTabBar'
 import { ToastProvider, useToast } from './ToastContext'
 import OfflineBanner from './OfflineBanner'
 
@@ -30,9 +31,31 @@ function ToastContainer() {
   )
 }
 
+const navItems = [
+  { path: '/', name: 'Dashboard' },
+  { path: '/attestations', name: 'Attestations' },
+  { path: '/sources', name: 'Revenue Sources' },
+]
+
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { openSettings: openCookieSettings } = useCookieConsent()
+
+  // Register Shift+? globally to open the shortcuts overlay
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore when user is typing in an input/textarea/select
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.shiftKey && e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen((o) => !o)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o);
@@ -50,7 +73,7 @@ function LayoutInner() {
         <div className="flex items-center space-x-2 px-2">
           <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">Veritasor</span>
         </div>
-        
+
         <nav className="space-y-1">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -121,7 +144,9 @@ function LayoutInner() {
           <Outlet />
         </main>
       </div>
+      <BottomTabBar />
       <ToastContainer />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }
@@ -133,5 +158,3 @@ export default function Layout() {
     </ToastProvider>
   )
 }
-
-

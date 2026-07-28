@@ -17,6 +17,8 @@ interface AttestationRecord {
   totalRevenue: string
   currency: string
   status: VerificationStatus
+  failureReason?: string
+  remediation?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -43,6 +45,18 @@ const MOCK: Record<string, AttestationRecord> = {
     totalRevenue: '61,450.00',
     currency: 'USD',
     status: 'pending',
+  },
+  'att-003': {
+    id: 'att-003',
+    merkleRoot: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+    stellarTxHash: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+    timestamp: '2026-05-20T11:45:00Z',
+    recordCount: 56,
+    totalRevenue: '12,300.00',
+    currency: 'USD',
+    status: 'failed',
+    failureReason: 'Stellar network timeout during transaction submission.',
+    remediation: 'Verify network connectivity and retry the attestation proof submission.',
   },
 }
 
@@ -267,6 +281,72 @@ export default function AttestationDetail() {
           {status.label}
         </span>
       </header>
+
+      {/* ── Failure Banner ─────────────────────────────────────────────── */}
+      {attestation.status === 'failed' && (
+        <section
+          aria-labelledby="failure-banner-title"
+          style={{
+            background: 'var(--danger-soft)',
+            border: '1px solid var(--danger)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '1.25rem',
+            marginBottom: '2rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2" aria-hidden="true" style={{ marginTop: '0.1rem', flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <div>
+              <h2 id="failure-banner-title" style={{ margin: '0 0 0.5rem 0', fontSize: '1.05rem', color: 'var(--danger)' }}>
+                Attestation Failed
+              </h2>
+              <p style={{ margin: '0 0 0.25rem 0', color: 'var(--text)', fontSize: '0.95rem' }}>
+                <strong>Reason:</strong> {attestation.failureReason || 'Unknown error occurred.'}
+              </p>
+              {attestation.remediation && (
+                <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.95rem' }}>
+                  <strong>Suggested Remediation:</strong> {attestation.remediation}{' '}
+                  <a href="/docs/troubleshooting" style={{ color: 'var(--danger)', textDecoration: 'underline', fontWeight: 600 }}>
+                    Read docs
+                  </a>
+                </p>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Are you sure you want to retry this failed attestation?')) {
+                  alert('Retry initiated.')
+                }
+              }}
+              style={{
+                background: 'var(--danger)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '0.375rem',
+                padding: '0.5rem 1rem',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'opacity 0.2s',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
+              onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+            >
+              Retry Attestation
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* ── Metadata card ──────────────────────────────────────────────── */}
       <section
