@@ -1,7 +1,17 @@
 import { useMemo, useState } from 'react'
 import CreateApiKeyModal from '../components/api-keys/CreateApiKeyModal'
 import KeyRow from '../components/api-keys/KeyRow'
+import RotationReminderBanner from '../components/api-keys/RotationReminderBanner'
 import type { ApiKey, ApiKeyStatus } from '../components/api-keys/apiKeyTypes'
+import { useToast } from '../components/ToastContext'
+
+// 14-day lead-time window relative to today (2026-07-28)
+const today = new Date('2026-07-28T10:08:33Z')
+function addDays(base: Date, days: number) {
+  const d = new Date(base)
+  d.setDate(d.getDate() + days)
+  return d.toISOString()
+}
 
 const INITIAL_KEYS: ApiKey[] = [
   {
@@ -12,6 +22,8 @@ const INITIAL_KEYS: ApiKey[] = [
     expiresAt: '2026-12-01T00:00:00Z',
     scopes: ['read:attestations', 'write:attestations'],
     maskedKey: 'vtsr_live_5e3a…b91c',
+    // Due in 8 days – within the 14-day reminder window
+    rotationDue: addDays(today, 8),
   },
   {
     id: 'key_002',
@@ -21,6 +33,8 @@ const INITIAL_KEYS: ApiKey[] = [
     expiresAt: '2026-11-20T00:00:00Z',
     scopes: ['read:attestations'],
     maskedKey: 'vtsr_live_aa1f…0c2d',
+    // Due in 20 days – outside the window, no banner
+    rotationDue: addDays(today, 20),
   },
   {
     id: 'key_003',
@@ -41,6 +55,7 @@ export default function ApiKeys() {
   const [keys, setKeys] = useState<ApiKey[]>(INITIAL_KEYS)
   const [createOpen, setCreateOpen] = useState(false)
   const [mintedOnce, setMintedOnce] = useState<null | { keyId: string; fullKey: string }>(null)
+  const { addToast } = useToast()
 
   const sortedKeys = useMemo(() => {
     return [...keys].sort((a, b) => {
@@ -85,6 +100,27 @@ export default function ApiKeys() {
 
   function dismissMintedOnce() {
     setMintedOnce(null)
+  }
+
+  function handleSnooze(id: string) {
+    setKeys((prev) =>
+      prev.map((k) =>
+        k.id === id ? { ...k, snoozedAt: new Date().toISOString() } : k,
+      ),
+    )
+    addToast('Rotation reminder snoozed for 24 h', 'info', 4000)
+  }
+
+  function handleRotate(id: string) {
+    setKeys((prev) =>
+      prev.map((k) =>
+        k.id === id
+          ? { ...k, createdAt: new Date().toISOString(), maskedKey: 'vtsr_live_rotated…', snoozedAt: undefined }
+          : k,
+      ),
+    )
+    setMintedOnce(null)
+    addToast('Key rotated successfully', 'success', 4000)
   }
 
   return (
@@ -166,26 +202,23 @@ export default function ApiKeys() {
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
               {sortedKeys.map((key) => (
-                <KeyRow
-                  key={key.id}
-                  keyItem={key}
-                  onCopyMasked={() => {}}
-                  mintedOnce={mintedOnce?.keyId === key.id ? mintedOnce.fullKey : null}
-                  onRotate={(id) => {
-                    setKeys((prev) =>
-                      prev.map((k) =>
-                        k.id === id
-                          ? { ...k, createdAt: new Date().toISOString(), maskedKey: 'vtsr_live_rotated…' }
-                          : k,
-                      ),
-                    )
-                    setMintedOnce(null)
-                  }}
-                  onRevoke={(id) => {
-                    setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, status: 'revoked' } : k)))
-                    setMintedOnce(null)
-                  }}
-                />
+                <li key={key.id} style={{ display: 'grid', gap: '0.4rem' }}>
+                  <RotationReminderBanner
+                    keyItem={key}
+                    onRotate={handleRotate}
+                    onSnooze={handleSnooze}
+                  />
+                  <KeyRow
+                    keyItem={key}
+                    onCopyMasked={() => {}}
+                    mintedOnce={mintedOnce?.keyId === key.id ? mintedOnce.fullKey : null}
+                    onRotate={handleRotate}
+                    onRevoke={(id) => {
+                      setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, status: 'revoked' } : k)))
+                      setMintedOnce(null)
+                    }}
+                  />
+                </li>
               ))}
             </ul>
           )}

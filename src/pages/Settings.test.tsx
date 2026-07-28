@@ -38,12 +38,12 @@ describe('Settings — rendering', () => {
 
   it('renders all 6 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(6)
+    expect(screen.getAllByRole('tab')).toHaveLength(8)
   })
 
   it('renders all 6 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(6)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(8)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -58,6 +58,7 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /webhooks/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
   })
 })
@@ -201,9 +202,9 @@ describe('Settings — keyboard navigation', () => {
   })
 
   it('ArrowRight wraps from last tab to first', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'ArrowRight' })
+    renderSettings('#audit-log')
+    const auditTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditTab, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -211,7 +212,7 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'ArrowLeft' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('Home key navigates to the first tab', () => {
@@ -225,7 +226,7 @@ describe('Settings — keyboard navigation', () => {
     renderSettings()
     const profileTab = screen.getByRole('tab', { name: /profile/i })
     fireEvent.keyDown(profileTab, { key: 'End' })
-    expect(screen.getByRole('tab', { name: /security/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /audit log/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('unrelated key does not change the active tab', () => {
@@ -256,7 +257,7 @@ describe('Settings — mobile select', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(6)
+    expect(options).toHaveLength(8)
   })
 })
 

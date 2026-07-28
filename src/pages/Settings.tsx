@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
+import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -12,6 +14,7 @@ const TABS = [
   { id: 'tokens', label: 'Tokens' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
+  { id: 'webhooks', label: 'Webhooks' },
   { id: 'audit-log', label: 'Audit Log' },
 ] as const
 
@@ -327,6 +330,108 @@ function AuditLogPanel() {
   )
 }
 
+function WebhooksPanel() {
+  const [retryingId, setRetryingId] = useState<string | null>(null)
+
+  const mockDeliveries: WebhookDelivery[] = [
+    {
+      id: 'wh_001',
+      event: 'attestation.completed',
+      triggeredAt: '2026-07-28T09:30:00Z',
+      status: 'failed',
+      attempts: [
+        {
+          attempt: 1,
+          at: '2026-07-28T09:30:00Z',
+          statusCode: null,
+          error: 'Connection refused',
+          backoffSeconds: 60,
+        },
+        {
+          attempt: 2,
+          at: '2026-07-28T09:31:00Z',
+          statusCode: 503,
+          error: 'Service Unavailable',
+          backoffSeconds: 120,
+        },
+        {
+          attempt: 3,
+          at: '2026-07-28T09:33:00Z',
+          statusCode: 500,
+          error: 'Internal Server Error',
+        },
+      ],
+    },
+    {
+      id: 'wh_002',
+      event: 'source.connected',
+      triggeredAt: '2026-07-28T08:00:00Z',
+      status: 'retrying',
+      attempts: [
+        {
+          attempt: 1,
+          at: '2026-07-28T08:00:00Z',
+          statusCode: 503,
+          backoffSeconds: 60,
+        },
+        {
+          attempt: 2,
+          at: '2026-07-28T08:01:00Z',
+          statusCode: 503,
+          backoffSeconds: 180,
+        },
+      ],
+    },
+    {
+      id: 'wh_003',
+      event: 'attestation.failed',
+      triggeredAt: '2026-07-27T18:45:00Z',
+      status: 'delivered',
+      attempts: [
+        {
+          attempt: 1,
+          at: '2026-07-27T18:45:00Z',
+          statusCode: 503,
+          backoffSeconds: 60,
+        },
+        {
+          attempt: 2,
+          at: '2026-07-27T18:46:00Z',
+          statusCode: 200,
+        },
+      ],
+    },
+  ]
+
+  function handleRetry(id: string) {
+    setRetryingId(id)
+    setTimeout(() => {
+      setRetryingId(null)
+      // Real app: trigger retry via API
+    }, 2000)
+  }
+
+  return (
+    <div>
+      <h2>Webhooks</h2>
+      <p style={{ color: 'var(--muted)' }}>
+        View webhook delivery history and retry failed attempts. Each delivery shows its backoff
+        intervals and final status.
+      </p>
+      <div style={{ marginTop: '1.5rem', maxWidth: 900, display: 'grid', gap: '1rem' }}>
+        {mockDeliveries.map((delivery) => (
+          <WebhookRetryPanel
+            key={delivery.id}
+            delivery={delivery}
+            onRetry={handleRetry}
+            isRetrying={retryingId === delivery.id}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
@@ -334,6 +439,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   tokens: TokensPanel,
   billing: BillingPanel,
   security: SecurityPanel,
+  webhooks: WebhooksPanel,
   'audit-log': AuditLogPanel,
 }
 
