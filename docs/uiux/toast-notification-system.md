@@ -31,6 +31,75 @@ To ensure users do not miss critical notifications, auto-dismiss timing depends 
 - **Success & Info**: Auto-dismisses after **5 seconds** (5000ms). These represent low-priority confirmations.
 - **Warning & Error**: **Persists indefinitely** (no auto-dismiss) until explicitly closed by the user. This ensures critical alerts and cautions are not missed.
 
+
+---
+
+### Undo Toast Support
+Toasts can include an optional undo action via the `onUndo` and `undoLabel` parameters. When present, an **Undo** button appears alongside the close button. Clicking the Undo button executes the undo callback and immediately dismisses the toast (with exit animation). The countdown timer pauses on hover/focus, giving users ample time to review and click Undo.
+
+### Timer & Interactive Controls
+- **Countdown Visual**: A linear turquoise progress bar (`.toast-progress-bar`) runs along the bottom of the toast, showing the time remaining until auto-dismissal.
+- **Pause on Interaction**: Hovering the mouse over the toast or focusing any element within it (e.g., the Undo button) immediately pauses the timer and stops the progress bar.
+- **Resume on Blur/Leave**: The countdown resumes as soon as the mouse leaves the toast container and focus is shifted away.
+
+---
+
+## Stacking & Grouping Rules
+
+When multiple toasts are active simultaneously, stacking rules determine how they are displayed to avoid overwhelming the user.
+
+### Max-Visible Threshold
+- **`MAX_VISIBLE_TOASTS = 3`**: At most **3 individual toasts** are displayed at once.
+- When the toast count is **≤ 3**, all toasts are rendered individually, newest first (stacking upward).
+- When the toast count reaches **4 or more**, the **oldest toasts** (beyond the 3 newest) are collapsed into a **grouped summary toast**.
+
+### Collapse-to-Group Threshold
+- **Threshold**: 4+ active toasts trigger collapsing.
+- **Visible**: The 3 newest toasts remain visible as individual items.
+- **Collapsed**: The overflow (oldest) toasts are hidden behind a single `ToastGroup` component, rendered at the bottom of the stack.
+
+### Grouped Toast Summary Design
+The `ToastGroup` component replaces the overflow toasts with a compact summary:
+
+**Collapsed view (default):**
+- **Count badge**: A pill showing the number of collapsed notifications (e.g., "2").
+- **Type chips**: Small colored indicator chips showing the count of each type (e.g., success=1, error=1).
+- **Undo hint**: If any collapsed toast has an undo action, a "N undoable" label appears.
+- **Chevron**: A downward chevron indicates the group is clickable to expand.
+- **Progress bar**: A subtle animated indicator shows that timers are active.
+- **Click to expand**: Clicking the summary expands to show individual items.
+
+**Expanded view:**
+- **Header**: Shows total count ("3 notifications") with a collapse button.
+- **Item list**: Each collapsed toast is rendered individually using `ToastItem` (condensed styling: no borders, smaller buttons, no progress bars).
+- **Footer actions**:
+  - **Dismiss all**: Removes all collapsed toasts.
+  - **Undo all**: If any collapsed toast has an undo action, executes all undo callbacks and removes the toasts.
+
+### Dismissal & Undo Interaction
+- **Dismiss all**: Removes all collapsed toasts from state immediately (no exit animation for batch dismissals).
+- **Undo all**: Executes each toast's `onUndo` callback individually, then removes them.
+- **Individual dismiss**: When expanded, each toast's close/undo button works normally (with exit animation).
+- **Auto-dismiss**: Individual timers continue to run in the background. When a collapsed toast auto-dismisses, it's removed from state, and the group count updates automatically.
+
+### Auto-Dismiss Cadence per Severity
+| Severity | Duration | Behavior |
+|---|---|---|
+| `success` | 5000ms | Auto-dismisses |
+| `info` | 5000ms | Auto-dismisses |
+| `warning` | 0 (persistent) | Must be manually dismissed |
+| `error` | 0 (persistent) | Must be manually dismissed |
+| undo toasts (custom) | 8000ms default | Auto-dismisses unless custom duration specified |
+
+### Accessibility for Grouped View
+- The group summary button uses `aria-expanded="false"` and `aria-label` describing the count (e.g., "2 notifications. Click to expand.").
+- The expanded item list uses `role="list"` with each item having `role="listitem"`.
+- All buttons have `aria-label` attributes describing their action.
+- Focus-visible outlines are applied to all interactive elements.
+- Keyboard users can tab to the summary button and press Enter/Space to expand.
+
+The `ToastGroup` component is defined in `src/components/ToastGroup.tsx` and the stacking logic lives in `src/components/ToastContainer.tsx`.
+
 ---
 
 ## 2. Accessibility Compliance (WCAG 2.1 AA)

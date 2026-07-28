@@ -67,7 +67,12 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
     }
   }, [handleRemove])
 
-  // Countdown timer logic
+  // Ref-based remaining time for dismissal scheduling
+  const remainingRef = useRef(timeLeft)
+  remainingRef.current = timeLeft
+
+  // Countdown timer: setTimeout for dismissal, interval for progress bar
+  // Only re-creates when pause state changes (not on every tick)
   useEffect(() => {
     if (initialDuration <= 0 || isPaused) {
       if (timerRef.current !== null) {
@@ -77,23 +82,26 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
       return
     }
 
+    // Schedule dismissal after the remaining time (from ref, no closure issue)
+    const dismissTimer = setTimeout(() => {
+      handleRemove()
+    }, remainingRef.current)
+
+    // Run a lightweight interval for progress bar updates
     lastTickRef.current = Date.now()
     timerRef.current = window.setInterval(() => {
       const now = Date.now()
-      const delta = now - lastTickRef.current
+      const elapsed = now - lastTickRef.current
       lastTickRef.current = now
-
       setTimeLeft((prev) => {
-        const next = prev - delta
-        if (next <= 0) {
-          handleRemove()
-          return 0
-        }
+        const next = prev - elapsed
+        if (next <= 0) return 0
         return next
       })
-    }, 50)
+    }, 100)
 
     return () => {
+      clearTimeout(dismissTimer)
       if (timerRef.current !== null) {
         clearInterval(timerRef.current)
         timerRef.current = null
