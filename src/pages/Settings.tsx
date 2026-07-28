@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
+import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
 import TokensExport from '../components/tokens/TokensExport'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
@@ -1613,72 +1614,156 @@ function TokensPanel() {
   );
 }
 
-function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: "1",
+const MOCK_AUDIT_ENTRIES: AuditLogEntry[] = [
+  {
+    id: "1",
+    timestamp: "2026-07-28T08:12:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "2",
+    timestamp: "2026-07-28T08:14:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "3",
+    timestamp: "2026-07-28T08:15:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "4",
+    timestamp: "2026-07-28T09:00:00Z",
+    event: "Revenue source connected",
+    details: "Provider: Stripe",
+  },
+  {
+    id: "5",
+    timestamp: "2026-07-27T14:30:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "6",
+    timestamp: "2026-07-27T14:31:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "7",
+    timestamp: "2026-07-27T14:32:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "8",
+    timestamp: "2026-07-27T14:33:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "9",
+    timestamp: "2026-07-26T10:00:00Z",
+    event: "API key rotated",
+  },
+];
+
+// Simulated detail data for each audit log entry.
+// In production this would be fetched from the API by entry id.
+const MOCK_AUDIT_DETAILS: Record<string, Partial<AuditLogEntryDetail>> = {
+  "1": {
+    actor: "joel@example.com",
+    ip: "203.0.113.42",
+    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    method: "POST",
+    path: "/api/v1/attestations",
+    statusCode: 200,
+    requestHeaders: {
+      "content-type": "application/json",
+      "authorization": "Bearer vrt_live_••••3f9a",
+      "x-request-id": "req_01j8abc123xyz",
+    },
+    requestPayload: {
+      source: "stripe",
+      period: "2026-06",
+      recordCount: 1247,
+    },
+    responsePayload: {
+      id: "att_01j8xyz",
+      merkleRoot: "0x7f3a2c9b1d8e4f06a5c2b7e3d1f09a4c",
+      status: "completed",
       timestamp: "2026-07-28T08:12:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
     },
-    {
-      id: "2",
-      timestamp: "2026-07-28T08:14:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
+  },
+  "4": {
+    actor: "joel@example.com",
+    ip: "203.0.113.42",
+    method: "POST",
+    path: "/api/v1/sources",
+    statusCode: 201,
+    requestPayload: {
+      provider: "stripe",
+      accountId: "acct_1Nxxxx",
     },
-    {
-      id: "3",
-      timestamp: "2026-07-28T08:15:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
+    responsePayload: {
+      id: "src_01j9stripe",
+      provider: "stripe",
+      status: "connected",
     },
-    {
-      id: "4",
-      timestamp: "2026-07-28T09:00:00Z",
-      event: "Revenue source connected",
-      details: "Provider: Stripe",
+  },
+  "5": {
+    actor: "scheduler@veritasor.internal",
+    ip: "10.0.0.5",
+    method: "POST",
+    path: "/api/v1/attestations",
+    statusCode: 504,
+    requestPayload: {
+      source: "shopify",
+      period: "2026-06",
     },
-    {
-      id: "5",
-      timestamp: "2026-07-27T14:30:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
+    responsePayload: {
+      error: "GATEWAY_TIMEOUT",
+      message: "Upstream service did not respond within 30s",
     },
-    {
-      id: "6",
-      timestamp: "2026-07-27T14:31:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
+  },
+  "9": {
+    actor: "joel@example.com",
+    ip: "203.0.113.42",
+    method: "POST",
+    path: "/api/v1/api-keys/rotate",
+    statusCode: 200,
+    requestHeaders: {
+      "content-type": "application/json",
+      "x-request-id": "req_01j7rotate",
     },
-    {
-      id: "7",
-      timestamp: "2026-07-27T14:32:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
+    responsePayload: {
+      keyId: "key_01j7newkey",
+      hint: "••••3f9a",
     },
-    {
-      id: "8",
-      timestamp: "2026-07-27T14:33:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "9",
-      timestamp: "2026-07-26T10:00:00Z",
-      event: "API key rotated",
-    },
-  ];
+  },
+};
+
+function AuditLogPanel() {
+  function handleFetchDetail(id: string): AuditLogEntryDetail {
+    const base = MOCK_AUDIT_ENTRIES.find((e) => e.id === id)!;
+    return { ...base, ...(MOCK_AUDIT_DETAILS[id] ?? {}) };
+  }
 
   return (
     <div>
       <h2>Audit Log</h2>
       <p style={{ color: "var(--muted)" }}>
-        Recent activity for this workspace. In compact density mode, identical
-        consecutive events are grouped by day and collapsed into summary badges.
+        Recent activity for this workspace. Click any event to view full
+        request/response detail. In compact density mode, identical consecutive
+        events are grouped by day and collapsed into summary badges.
       </p>
       <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
+        <AuditLogTimeline
+          entries={MOCK_AUDIT_ENTRIES}
+          onFetchDetail={handleFetchDetail}
+        />
       </div>
     </div>
   );
