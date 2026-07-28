@@ -14,7 +14,7 @@ function rows(entries: [string, string][]): ReviewRow[] {
 }
 
 export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting }: Props) {
-  const { business, owner, documents, bank } = draft
+  const { business, owner, selfie, documents, bank } = draft
 
   const businessRows = rows([
     ['Legal name', business.legalName],
@@ -29,6 +29,10 @@ export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting }
     ['Date of birth', owner.dateOfBirth],
     ['Nationality', owner.nationality],
     ['Address', [owner.addressLine1, owner.addressLine2, owner.city, owner.postalCode].filter(Boolean).join(', ')],
+  ])
+
+  const selfieRows = rows([
+    ['Selfie verification', selfie.captured ? 'Captured' : 'Not provided'],
   ])
 
   const docRows = rows([
@@ -54,6 +58,7 @@ export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting }
       <div className="ob-review-sections">
         <ReviewSection title="Business details" rows={businessRows} />
         <ReviewSection title="Owner / Director" rows={ownerRows} />
+        <ReviewSection title="Selfie verification" rows={selfieRows} />
         <ReviewSection title="Documents" rows={docRows} />
         <ReviewSection title="Bank & payout" rows={bankRows} />
       </div>

@@ -1,35 +1,94 @@
-import { useState } from 'react'
-import { Outlet, NavLink, Link } from 'react-router-dom'
-import TopAppBar from './TopAppBar'
-import BottomTabBar from './BottomTabBar'
-import { ToastProvider } from './ToastContext'
-import ToastContainer from './ToastContainer'
-import { useCookieConsent } from './CookieConsentContext'
+import { useState } from "react";
+import { Outlet, NavLink, Link } from "react-router-dom";
+import TopAppBar from "./TopAppBar";
+import BottomTabBar from "./BottomTabBar";
+import { ToastProvider, useToast } from "./ToastContext";
+import { useCookieConsent } from "./CookieConsentContext";
+import FailedPaymentBanner from "./FailedPaymentBanner";
+import { BillingProvider, useBilling } from "./BillingContext";
+
+function ToastContainer() {
+  const { toasts, removeToast } = useToast();
+  if (toasts.length === 0) return null;
+  return (
+    <div aria-live="polite" aria-atomic="false" className="toast-container">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          role={
+            toast.type === "error" || toast.type === "warning"
+              ? "alert"
+              : "status"
+          }
+          className={`toast toast-${toast.type}`}
+        >
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            aria-label="Close notification"
+            onClick={() => removeToast(toast.id)}
+            className="toast-close"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const navItems = [
-  { path: '/', name: 'Dashboard' },
-  { path: '/attestations', name: 'Attestations' },
-  { path: '/sources', name: 'Revenue Sources' },
-]
+  { path: "/", name: "Dashboard" },
+  { path: "/attestations", name: "Attestations" },
+  { path: "/sources", name: "Revenue Sources" },
+];
+
+function BillingBannerSlot() {
+  const { failedPayment, dismissFailedPayment } = useBilling();
+  return (
+    <FailedPaymentBanner
+      failure={failedPayment}
+      onDismiss={dismissFailedPayment}
+    />
+  );
+}
 
 function LayoutInner() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { openSettings: openCookieSettings } = useCookieConsent()
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { openSettings: openCookieSettings } = useCookieConsent();
+
+  // Register Shift+? globally to open the shortcuts overlay
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore when user is typing in an input/textarea/select
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.shiftKey && e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen((o) => !o)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   function toggleSidebar() {
-    setSidebarOpen((o) => !o);
+    setSidebarOpen((o) => !o)
   }
 
   function closeSidebar() {
-    setSidebarOpen(false);
+    setSidebarOpen(false)
   }
 
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      <OfflineBanner />
       {/* Sidebar Layout shell */}
       <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-6">
         <div className="flex items-center space-x-2 px-2">
-          <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">Veritasor</span>
+          <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">
+            Veritasor
+          </span>
         </div>
 
         <nav className="space-y-1">
@@ -41,8 +100,8 @@ function LayoutInner() {
                 to={item.path}
                 className={`block rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 shadow-xs'
-                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 shadow-xs"
+                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 }`}
               >
                 {item.name}
@@ -57,27 +116,37 @@ function LayoutInner() {
       <div className="app-body">
         <aside
           id="app-sidebar"
-          className={`app-sidebar${sidebarOpen ? " app-sidebar-open" : ""}`}
+          className={`app-sidebar${sidebarOpen ? ' app-sidebar-open' : ''}`}
           aria-label="Site navigation"
         >
           <nav aria-label="Main navigation">
             <NavLink
               to="/"
               end
-              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
+              className={({ isActive }) =>
+                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
+              }
             >
               Dashboard
             </NavLink>
             <NavLink
               to="/attestations"
-              className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
+              className={({ isActive }) =>
+                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
+              }
             >
               Attestations
             </NavLink>
-            <NavLink to="/sources" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+            <NavLink
+              to="/sources"
+              className={({ isActive }) =>
+                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
+              }
+            >
               Revenue Sources
             </NavLink>
           </nav>
+
           <div className="sidebar-footer">
             <button
               type="button"
@@ -99,19 +168,23 @@ function LayoutInner() {
         )}
 
         <main id="main-content" tabIndex={-1} className="app-main">
+          <BillingBannerSlot />
           <Outlet />
         </main>
       </div>
       <BottomTabBar />
       <ToastContainer />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
-  )
+  );
 }
 
 export default function Layout() {
   return (
-    <ToastProvider>
-      <LayoutInner />
-    </ToastProvider>
-  )
+    <BillingProvider>
+      <ToastProvider>
+        <LayoutInner />
+      </ToastProvider>
+    </BillingProvider>
+  );
 }
