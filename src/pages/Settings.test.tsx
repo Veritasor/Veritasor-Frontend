@@ -36,14 +36,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 5 tabs', () => {
+  it('renders all 6 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(screen.getAllByRole('tab')).toHaveLength(6)
   })
 
-  it('renders all 5 tab panels (including hidden)', () => {
+  it('renders all 6 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(5)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(6)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -251,11 +251,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 5 tabs', () => {
+  it('select options include all 6 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(5)
+    expect(options).toHaveLength(6)
   })
 })
 
@@ -290,5 +290,34 @@ describe('Settings — panel content', () => {
   it('Security panel contains a current-password input', () => {
     renderSettings('#security')
     expect(screen.getByLabelText(/current password/i)).toBeInTheDocument()
+  })
+})
+
+// ─── Design Tokens tab ──────────────────────────────────────────────────────
+
+describe('Settings — Design Tokens tab', () => {
+  it('renders the Design Tokens tab in the tablist', () => {
+    renderSettings()
+    expect(screen.getByRole('tab', { name: /design tokens/i })).toBeInTheDocument()
+  })
+
+  it('Design Tokens tab is reachable via deep link #design-tokens', () => {
+    renderSettings('#design-tokens')
+    expect(screen.getByRole('tab', { name: /design tokens/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('clicking Design Tokens reveals the TokensDiffViewer heading', () => {
+    renderSettings()
+    fireEvent.click(screen.getByRole('tab', { name: /design tokens/i }))
+    expect(
+      screen.getByRole('heading', { name: /design tokens.*version diff/i, level: 2 }),
+    ).toBeInTheDocument()
+  })
+
+  it('changing the mobile select to design-tokens activates the panel', () => {
+    renderSettings()
+    const select = screen.getByRole('combobox', { name: /settings section/i }) as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'design-tokens' } })
+    expect(screen.getByRole('tab', { name: /design tokens/i })).toHaveAttribute('aria-selected', 'true')
   })
 })

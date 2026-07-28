@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
+import TokensDiffViewer from '../components/tokens-admin/TokensDiffViewer'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -11,6 +12,7 @@ const TABS = [
   { id: 'api-keys', label: 'API Keys' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
+  { id: 'design-tokens', label: 'Design Tokens' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -233,12 +235,17 @@ function SecurityPanel() {
   )
 }
 
+function DesignTokensPanel() {
+  return <TokensDiffViewer />
+}
+
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   notifications: NotificationsPanel,
   'api-keys': ApiKeysPanel,
   billing: BillingPanel,
   security: SecurityPanel,
+  'design-tokens': DesignTokensPanel,
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
