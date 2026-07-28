@@ -38,12 +38,12 @@ describe('Settings — rendering', () => {
 
   it('renders all 6 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(8)
+    expect(screen.getAllByRole('tab')).toHaveLength(6)
   })
 
   it('renders all 6 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(8)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(6)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -55,10 +55,10 @@ describe('Settings — rendering', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /integrations/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /webhooks/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /audit log/i })).toBeInTheDocument()
   })
 })
@@ -90,6 +90,11 @@ describe('Settings — deep links (URL hash)', () => {
   it('activates Notifications tab when hash is #notifications', () => {
     renderSettings('#notifications')
     expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('activates Integrations tab when hash is #integrations', () => {
+    renderSettings('#integrations')
+    expect(screen.getByRole('tab', { name: /integrations/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('activates API Keys tab when hash is #api-keys', () => {
@@ -203,6 +208,8 @@ describe('Settings — keyboard navigation', () => {
 
   it('ArrowRight wraps from last tab to first', () => {
     renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'ArrowRight' })
     const auditTab = screen.getByRole('tab', { name: /audit log/i })
     fireEvent.keyDown(auditTab, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
@@ -216,9 +223,9 @@ describe('Settings — keyboard navigation', () => {
   })
 
   it('Home key navigates to the first tab', () => {
-    renderSettings('#security')
-    const securityTab = screen.getByRole('tab', { name: /security/i })
-    fireEvent.keyDown(securityTab, { key: 'Home' })
+    renderSettings('#audit-log')
+    const auditLogTab = screen.getByRole('tab', { name: /audit log/i })
+    fireEvent.keyDown(auditLogTab, { key: 'Home' })
     expect(screen.getByRole('tab', { name: /profile/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -257,7 +264,7 @@ describe('Settings — mobile select', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(8)
+    expect(options).toHaveLength(6)
   })
 })
 
