@@ -11,8 +11,9 @@
  */
 
 import { MemoryRouter } from 'react-router-dom'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { describe, expect, it, afterEach } from 'vitest'
+import { ToastProvider } from '../components/ToastContext'
 import RevenueSources from '../pages/RevenueSources'
 
 afterEach(() => cleanup())
@@ -20,7 +21,9 @@ afterEach(() => cleanup())
 function renderPage() {
   return render(
     <MemoryRouter>
-      <RevenueSources />
+      <ToastProvider>
+        <RevenueSources />
+      </ToastProvider>
     </MemoryRouter>,
   )
 }
@@ -55,9 +58,10 @@ describe('RevenueSources — page structure', () => {
 
   it('renders all three mock sources', () => {
     renderPage()
-    expect(screen.getByText('Stripe')).toBeInTheDocument()
-    expect(screen.getByText('Shopify')).toBeInTheDocument()
-    expect(screen.getByText('QuickBooks')).toBeInTheDocument()
+    // Provider names appear in both the banner and list rows
+    expect(screen.getAllByText('Stripe').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Shopify').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('QuickBooks').length).toBeGreaterThanOrEqual(1)
   })
 })
 
@@ -343,27 +347,45 @@ describe('RevenueSources — status badges', () => {
 // ---------------------------------------------------------------------------
 
 describe('RevenueSources — actions', () => {
+  function getSourcesList() {
+    return screen.getByRole('list', { name: /connected revenue sources/i })
+  }
+
   it('renders Disconnect buttons for all sources', () => {
     renderPage()
-    expect(screen.getAllByRole('button', { name: /disconnect/i }).length).toBe(3)
+    const list = getSourcesList()
+    expect(within(list).getAllByRole('button', { name: /disconnect/i }).length).toBe(3)
   })
 
   it('renders Reconnect buttons only for non-healthy sources', () => {
     renderPage()
-    expect(screen.getAllByRole('button', { name: /reconnect/i }).length).toBe(2)
+    const list = getSourcesList()
+    // 2 non-healthy sources (Shopify, QuickBooks) each have a reconnect button in the list
+    expect(within(list).getAllByRole('button', { name: /reconnect/i }).length).toBe(2)
   })
 
   it('reconnect updates status to Healthy', () => {
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: /reconnect shopify/i }))
-    expect(screen.queryByRole('button', { name: /reconnect shopify/i })).toBeNull()
-    expect(screen.getAllByRole('button', { name: /reconnect/i }).length).toBe(1)
+    const list = getSourcesList()
+    fireEvent.click(within(list).getByRole('button', { name: /reconnect shopify/i }))
+    expect(within(list).queryByRole('button', { name: /reconnect shopify/i })).toBeNull()
+    // Only QuickBooks reconnect remains in the list
+    expect(within(list).getAllByRole('button', { name: /reconnect/i }).length).toBe(1)
   })
 })
 
 // ---------------------------------------------------------------------------
 // Disconnect confirmation dialog (regression)
 // ---------------------------------------------------------------------------
+
+/** Helper to confirm disconnect in the dialog by typing the provider name */
+function confirmDisconnect(provider: string) {
+  const dialog = screen.getByRole('dialog')
+  const input = within(dialog).getByRole('textbox')
+  fireEvent.change(input, { target: { value: provider } })
+  const confirmBtn = within(dialog).getByRole('button', { name: new RegExp(`^disconnect ${provider}$`, 'i') })
+  fireEvent.click(confirmBtn)
+}
 
 describe('RevenueSources — disconnect confirmation', () => {
   it('opens confirmation dialog when Disconnect is clicked', () => {
@@ -390,23 +412,17 @@ describe('RevenueSources — disconnect confirmation', () => {
   it('Disconnect confirm removes the source from the list', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /disconnect stripe/i }))
-    const dialogDisconnect = screen.getAllByRole('button', { name: /disconnect/i }).find(
-      (btn) => btn.closest('[role="dialog"]'),
-    )!
-    fireEvent.click(dialogDisconnect)
+    confirmDisconnect('Stripe')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByText('Stripe')).toBeNull()
-    expect(screen.getByText('Shopify')).toBeInTheDocument()
+    expect(screen.getAllByText('Shopify').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows empty state when all sources are disconnected', () => {
     renderPage()
     for (const provider of ['Stripe', 'Shopify', 'QuickBooks']) {
       fireEvent.click(screen.getByRole('button', { name: new RegExp(`disconnect ${provider}`, 'i') }))
-      const dialogDisconnect = screen.getAllByRole('button', { name: /disconnect/i }).find(
-        (btn) => btn.closest('[role="dialog"]'),
-      )!
-      fireEvent.click(dialogDisconnect)
+      confirmDisconnect(provider)
     }
     expect(screen.getByRole('region', { name: /no sources connected/i })).toBeInTheDocument()
   })
@@ -457,10 +473,7 @@ describe('RevenueSources — single item edge case', () => {
     // Disconnect Shopify and QuickBooks
     for (const provider of ['Shopify', 'QuickBooks']) {
       fireEvent.click(screen.getByRole('button', { name: new RegExp(`disconnect ${provider}`, 'i') }))
-      const btn = screen.getAllByRole('button', { name: /disconnect/i }).find(
-        (b) => b.closest('[role="dialog"]'),
-      )!
-      fireEvent.click(btn)
+      confirmDisconnect(provider)
     }
 
     // Only Stripe remains
@@ -471,5 +484,111 @@ describe('RevenueSources — single item edge case', () => {
 
     fireEvent.keyDown(screen.getByRole('button', { name: /release stripe/i }), { key: 'ArrowUp' })
     expect(screen.getByRole('listitem', { name: /stripe, priority 1 of 1/i })).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Per-row move-up/move-down controls
+// ---------------------------------------------------------------------------
+
+describe('RevenueSources — move-up button', () => {
+  it('renders move-up buttons on each row except the first', () => {
+    renderPage()
+    // First row (Stripe, index 0) — no move-up (hidden via visibility)
+    const stripeUp = screen.getByTestId('move-up-0')
+    expect(stripeUp).toBeInTheDocument()
+    expect(stripeUp).toHaveStyle({ visibility: 'hidden' })
+
+    // Second row (Shopify, index 1)
+    const shopifyUp = screen.getByTestId('move-up-1')
+    expect(shopifyUp).toBeInTheDocument()
+    expect(shopifyUp).toHaveStyle({ visibility: 'visible' })
+
+    // Third row (QuickBooks, index 2)
+    const qbUp = screen.getByTestId('move-up-2')
+    expect(qbUp).toBeInTheDocument()
+    expect(qbUp).toHaveStyle({ visibility: 'visible' })
+  })
+
+  it('clicking move-up on Shopify moves it above Stripe', () => {
+    renderPage()
+    // Initial: Stripe(1), Shopify(2), QuickBooks(3)
+    const shopifyUp = screen.getByTestId('move-up-1')
+    fireEvent.click(shopifyUp)
+
+    // After move-up: Shopify(1), Stripe(2), QuickBooks(3)
+    expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
+    expect(getAnnouncement().textContent).toMatch(/moved up/i)
+  })
+
+  it('move-up button is hidden on first item (cannot move up)', () => {
+    renderPage()
+    const stripeUp = screen.getByTestId('move-up-0')
+    expect(stripeUp).toHaveStyle({ visibility: 'hidden' })
+  })
+})
+
+describe('RevenueSources — move-down button', () => {
+  it('renders move-down buttons on each row except the last', () => {
+    renderPage()
+    // First row (Stripe, index 0)
+    const stripeDown = screen.getByTestId('move-down-0')
+    expect(stripeDown).toBeInTheDocument()
+    expect(stripeDown).toHaveStyle({ visibility: 'visible' })
+
+    // Second row (Shopify, index 1)
+    const shopifyDown = screen.getByTestId('move-down-1')
+    expect(shopifyDown).toBeInTheDocument()
+    expect(shopifyDown).toHaveStyle({ visibility: 'visible' })
+
+    // Third row (QuickBooks, index 2, last)
+    const qbDown = screen.getByTestId('move-down-2')
+    expect(qbDown).toBeInTheDocument()
+    expect(qbDown).toHaveStyle({ visibility: 'hidden' })
+  })
+
+  it('clicking move-down on Stripe moves it below Shopify', () => {
+    renderPage()
+    // Initial: Stripe(1), Shopify(2), QuickBooks(3)
+    const stripeDown = screen.getByTestId('move-down-0')
+    fireEvent.click(stripeDown)
+
+    // After move-down: Shopify(1), Stripe(2), QuickBooks(3)
+    expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
+    expect(getAnnouncement().textContent).toMatch(/moved down/i)
+  })
+
+  it('move-down button is hidden on last item (cannot move down)', () => {
+    renderPage()
+    const qbDown = screen.getByTestId('move-down-2')
+    expect(qbDown).toHaveStyle({ visibility: 'hidden' })
+  })
+})
+
+describe('RevenueSources — move buttons respect list boundaries after reorder', () => {
+  it('move-up becomes available on former first item after it is moved down', () => {
+    renderPage()
+    // Move Stripe down once
+    fireEvent.click(screen.getByTestId('move-down-0'))
+    // Stripe is now at index 1, should have visible move-up
+    const stripeUp = screen.getByTestId('move-up-1')
+    expect(stripeUp).toHaveStyle({ visibility: 'visible' })
+    // Shopify is now at index 0, should have hidden move-up
+    const shopifyUp = screen.getByTestId('move-up-0')
+    expect(shopifyUp).toHaveStyle({ visibility: 'hidden' })
+  })
+
+  it('move-down becomes visible on former last item after it is moved up', () => {
+    renderPage()
+    // Move QuickBooks up once
+    fireEvent.click(screen.getByTestId('move-up-2'))
+    // QuickBooks is now at index 1, should have visible move-down
+    const qbDown = screen.getByTestId('move-down-1')
+    expect(qbDown).toHaveStyle({ visibility: 'visible' })
+    // Shopify is now at index 2, should have hidden move-down
+    const shopifyDown = screen.getByTestId('move-down-2')
+    expect(shopifyDown).toHaveStyle({ visibility: 'hidden' })
   })
 })

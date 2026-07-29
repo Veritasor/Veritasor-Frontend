@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo, type CSSProperties } from 'react'
+import { useState, useCallback, useMemo, useRef, type CSSProperties } from 'react'
+import { useToast } from '../components/ToastContext'
 import { useDragReorder } from '../hooks/useDragReorder'
 
 // ---------------------------------------------------------------------------
@@ -416,6 +417,23 @@ const accentBtn: CSSProperties = {
   color: 'var(--accent)',
 }
 
+const moveBtn: CSSProperties = {
+  ...baseBtn,
+  padding: '0',
+  width: '1.5rem',
+  height: '1.25rem',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '0.6rem',
+  lineHeight: 1,
+  background: 'rgba(148,163,184,0.06)',
+  borderColor: 'var(--border)',
+  color: 'var(--muted)',
+  cursor: 'pointer',
+  borderRadius: '0.25rem',
+}
+
 // Drag handle — six-dot grip icon rendered via box-shadow dots
 const HANDLE_SIZE = 20
 
@@ -493,6 +511,8 @@ interface SourceRowProps {
   onPointerEnter: () => void
   onKeyDown: (e: { key: string; preventDefault(): void }) => void
   onHandleClick: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
 }
 
 function SourceRow({
@@ -507,6 +527,8 @@ function SourceRow({
   onPointerEnter,
   onKeyDown,
   onHandleClick,
+  onMoveUp,
+  onMoveDown,
 }: SourceRowProps) {
   const s = STATUS_META[source.status]
 
@@ -547,6 +569,44 @@ function SourceRow({
         onKeyDown={onKeyDown}
         onClick={onHandleClick}
       />
+
+      {/* Per-row move up/down controls — keyboard-accessible alternative to drag */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+          flexShrink: 0,
+        }}
+        aria-hidden="true"
+      >
+        <button
+          type="button"
+          aria-label={`Move ${source.provider} up`}
+          disabled={index === 0}
+          data-testid={`move-up-${index}`}
+          onClick={onMoveUp}
+          style={{
+            ...moveBtn,
+            visibility: index === 0 ? 'hidden' : 'visible',
+          }}
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          aria-label={`Move ${source.provider} down`}
+          disabled={index === totalCount - 1}
+          data-testid={`move-down-${index}`}
+          onClick={onMoveDown}
+          style={{
+            ...moveBtn,
+            visibility: index === totalCount - 1 ? 'hidden' : 'visible',
+          }}
+        >
+          ▼
+        </button>
+      </div>
 
       {/* Provider + account */}
       <div style={{ flex: '1 1 10rem', minWidth: 0 }}>
@@ -610,6 +670,23 @@ function SourceRow({
 // ---------------------------------------------------------------------------
 // RevenueSources
 // ---------------------------------------------------------------------------
+//
+// Keyboard interaction model (WCAG 2.1 AA):
+//
+// 1. Drag handle (six-dot grip)
+//    - Click/Tap         → Enter keyboard-reorder mode (grab)
+//    - Pointer drag      → Drag-and-drop reorder
+//    - When grabbed: Arrow Up/Down to move, Enter/Space to drop, Escape to cancel
+//
+// 2. Per-row move-up/move-down buttons (▲ / ▼)
+//    - Single click moves the item one position up or down
+//    - Buttons are hidden at list boundaries (first item cannot move up, etc.)
+//    - aria-live region announces each move: "Stripe moved up to position 2 of 3"
+//
+// 3. aria-live="polite" region
+//    - Announces all reorder actions to screen readers
+//    - Visually hidden but present in the DOM for assistive technology
+// ---------------------------------------------------------------------------
 
 export default function RevenueSources() {
   const { addToast } = useToast()
@@ -630,6 +707,8 @@ export default function RevenueSources() {
     handlePointerUp,
     handleKeyboardGrab,
     handleKeyDown,
+    moveUp,
+    moveDown,
   } = useDragReorder(sources, setSources, getLabel)
 
   function handleReconnect(id: string) {
@@ -751,6 +830,8 @@ export default function RevenueSources() {
               onPointerEnter={handlePointerEnter(index)}
               onKeyDown={handleKeyDown}
               onHandleClick={() => handleKeyboardGrab(index)}
+              onMoveUp={() => moveUp(index)}
+              onMoveDown={() => moveDown(index)}
             />
           ))}
         </ul>
