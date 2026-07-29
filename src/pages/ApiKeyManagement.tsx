@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { CreateKeyModal } from '../components/CreateKeyModal';
+import { ApiKeyDetailPanel } from '../components/api-keys/ApiKeyDetailPanel';
 
 export interface ApiKey {
   id: string;
@@ -9,6 +10,10 @@ export interface ApiKey {
   status: 'active' | 'revoked';
   createdAt: string;
   lastUsedAt: string;
+  /** Recent IP addresses that called this key */
+  recentIps: string[];
+  /** Daily call volume for the past 14 days (sparkline data) */
+  callVolume: { date: string; count: number }[];
 }
 
 export const ApiKeyManagement: React.FC = () => {
@@ -21,6 +26,23 @@ export const ApiKeyManagement: React.FC = () => {
       status: 'active',
       createdAt: '2026-05-12',
       lastUsedAt: '2026-06-24',
+      recentIps: ['203.0.113.42', '198.51.100.17', '203.0.113.42'],
+      callVolume: [
+        { date: '2026-06-11', count: 1420 },
+        { date: '2026-06-12', count: 1380 },
+        { date: '2026-06-13', count: 980 },
+        { date: '2026-06-14', count: 1100 },
+        { date: '2026-06-15', count: 1560 },
+        { date: '2026-06-16', count: 1720 },
+        { date: '2026-06-17', count: 1410 },
+        { date: '2026-06-18', count: 1230 },
+        { date: '2026-06-19', count: 1350 },
+        { date: '2026-06-20', count: 990 },
+        { date: '2026-06-21', count: 1140 },
+        { date: '2026-06-22', count: 1310 },
+        { date: '2026-06-23', count: 1280 },
+        { date: '2026-06-24', count: 1450 },
+      ],
     },
     {
       id: 'key_02',
@@ -30,10 +52,28 @@ export const ApiKeyManagement: React.FC = () => {
       status: 'active',
       createdAt: '2026-06-01',
       lastUsedAt: '2026-06-25',
+      recentIps: ['10.0.0.55', '10.0.0.56'],
+      callVolume: [
+        { date: '2026-06-12', count: 3200 },
+        { date: '2026-06-13', count: 4150 },
+        { date: '2026-06-14', count: 3900 },
+        { date: '2026-06-15', count: 5100 },
+        { date: '2026-06-16', count: 4800 },
+        { date: '2026-06-17', count: 3600 },
+        { date: '2026-06-18', count: 4200 },
+        { date: '2026-06-19', count: 3950 },
+        { date: '2026-06-20', count: 3400 },
+        { date: '2026-06-21', count: 3800 },
+        { date: '2026-06-22', count: 4500 },
+        { date: '2026-06-23', count: 4100 },
+        { date: '2026-06-24', count: 4900 },
+        { date: '2026-06-25', count: 4700 },
+      ],
     }
   ]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [detailKey, setDetailKey] = useState<ApiKey | null>(null);
   const toastRef = useRef<HTMLDivElement>(null);
 
   const handleCreateSuccess = (newKey: ApiKey) => {
@@ -113,6 +153,14 @@ export const ApiKeyManagement: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right whitespace-nowrap font-medium space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setDetailKey(key)}
+                    className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 focus:outline-none focus:underline mr-3"
+                    aria-label={`View details for ${key.name}`}
+                  >
+                    Details
+                  </button>
                   {key.status === 'active' && (
                     <button
                       type="button"
@@ -135,6 +183,11 @@ export const ApiKeyManagement: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreated={handleCreateSuccess}
+      />
+
+      <ApiKeyDetailPanel
+        keyData={detailKey}
+        onClose={() => setDetailKey(null)}
       />
     </div>
   );

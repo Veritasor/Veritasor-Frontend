@@ -1,0 +1,104 @@
+/* ─── A11yCoverageMatrix — print stylesheet ──────────────────────────────
+ *
+ * Optimises the component-coverage matrix for print / PDF output.
+ * - Removes decorative backgrounds, borders, and shadows
+ * - Ensures table cells have enough contrast on white paper
+ * - Shows the print-url note
+ * - Collapses the matrix to fit a single page width where possible
+ */
+
+@media print {
+  /* Hide non-essential UI */
+  .a11y-coverage-matrix header p,
+  .a11y-matrix-summary,
+  .a11y-matrix-legend,
+  .a11y-coverage-matrix .sr-only {
+    display: none !important;
+  }
+
+  /* Show print-only URL note */
+  .a11y-matrix-print-url {
+    display: block !important;
+    margin-top: 0.5rem;
+  }
+
+  /* Reset backgrounds for print */
+  .a11y-coverage-matrix {
+    break-inside: avoid;
+  }
+
+  .a11y-matrix-table {
+    border: 1px solid #ccc !important;
+    font-size: 0.75rem !important;
+    page-break-inside: avoid;
+    width: 100% !important;
+  }
+
+  .a11y-matrix-table th,
+  .a11y-matrix-table td {
+    border: 1px solid #ddd !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .a11y-matrix-table th {
+    background: #f5f5f5 !important;
+    border-bottom: 2px solid #999 !important;
+  }
+
+  /* Sticky headers collapse for print */
+  .a11y-matrix-th-component,
+  .a11y-matrix-cell-component {
+    position: static !important;
+  }
+
+  .a11y-matrix-cell-component {
+    background: #fff !important;
+    border-right: 1px solid #ddd !important;
+  }
+
+  /* Footer row */
+  .a11y-matrix-footer th,
+  .a11y-matrix-footer td {
+    background: #f5f5f5 !important;
+    border-top: 2px solid #999 !important;
+  }
+
+  /* Chip backgrounds become solid black/white symbols */
+  .a11y-matrix-chip {
+    border: 1px solid #000 !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-weight: 700 !important;
+  }
+
+  .a11y-matrix-chip-automated {
+    background: #e8f5e9 !important;
+    border-color: #4caf50 !important;
+    color: #2e7d32 !important;
+  }
+
+  .a11y-matrix-chip-manual {
+    background: #fff8e1 !important;
+    border-color: #ff9800 !important;
+    color: #e65100 !important;
+  }
+
+  .a11y-matrix-chip-partial {
+    background: #fff3e0 !important;
+    border-color: #ff9800 !important;
+    color: #e65100 !important;
+  }
+
+  /* Avoid page breaks inside rows */
+  .a11y-matrix-row {
+    page-break-inside: avoid;
+  }
+
+  /* Table border collapsing */
+  .a11y-matrix-table,
+  .a11y-matrix-table th,
+  .a11y-matrix-table td {
+    border-collapse: collapse;
+  }
+}
