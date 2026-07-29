@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
-export type ToastType = 'success' | 'info' | 'warning' | 'error';
+export type ToastType = 'success' | 'info' | 'warning' | 'error' | 'bulk-undo';
 
 export interface Toast {
   id: string;
@@ -9,6 +9,7 @@ export interface Toast {
   duration?: number;
   onUndo?: () => void;
   undoLabel?: string;
+  count?: number;
 }
 
 interface ToastContextValue {
@@ -18,7 +19,8 @@ interface ToastContextValue {
     type: ToastType,
     duration?: number,
     onUndo?: () => void,
-    undoLabel?: string
+    undoLabel?: string,
+    count?: number
   ) => void;
   removeToast: (id: string) => void;
 }
@@ -38,12 +40,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       type: ToastType,
       duration?: number,
       onUndo?: () => void,
-      undoLabel?: string
+      undoLabel?: string,
+      count?: number
     ) => {
       const id = Math.random().toString(36).substring(2, 9);
       setToasts((prev) => [
         ...prev,
-        { id, message, type, duration, onUndo, undoLabel },
+        { id, message, type, duration, onUndo, undoLabel, count },
       ]);
     },
     []

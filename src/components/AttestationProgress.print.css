@@ -1,0 +1,203 @@
+/* ==========================================================================
+   AttestationProgress — Print / PDF stylesheet
+   Issue #218 · WCAG 2.1 AA · Forces light palette, black-on-white text,
+   repeats section header on every page, and inserts clean page breaks.
+   ========================================================================== */
+
+@media print {
+  /* ── 1. Page setup ────────────────────────────────────────────────────── */
+  @page {
+    size: A4 portrait;
+    margin: 20mm 16mm 24mm;
+
+    /* Repeating header on every page */
+    @top-center {
+      content: "Veritasor — Attestation Timeline";
+      font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
+      font-size: 9pt;
+      color: #444;
+    }
+
+    /* Page number footer */
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
+      font-size: 8pt;
+      color: #888;
+    }
+
+    /* Export timestamp footer */
+    @bottom-left {
+      content: "Exported " attr(data-export-date);
+      font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
+      font-size: 8pt;
+      color: #888;
+    }
+  }
+
+  /* ── 2. Force light palette — black on white ──────────────────────────── */
+  :root {
+    --bg: #ffffff !important;
+    --surface: #ffffff !important;
+    --surface-strong: #f5f7fa !important;
+    --surface-soft: #f0f2f5 !important;
+    --border: #d1d5db !important;
+    --border-strong: #9ca3af !important;
+    --text: #111827 !important;
+    --muted: #6b7280 !important;
+    --accent: #0e7862 !important;
+    --accent-strong: #0b6652 !important;
+    --success: #166534 !important;
+    --success-soft: #dcfce7 !important;
+    --danger: #991b1b !important;
+    --danger-soft: #fee2e2 !important;
+    --warning: #92400e !important;
+    --warning-soft: #fef3c7 !important;
+  }
+
+  /* Apply base print colours to the whole document */
+  body,
+  html {
+    background: #ffffff !important;
+    color: #111827 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── 3. Hide non-attestation chrome ───────────────────────────────────── */
+  /* Sidebar, top app bar, FAB, toast container, cookie banner, footer */
+  nav,
+  aside,
+  header:not([aria-labelledby="attestation-progress-label"]),
+  [data-sidebar],
+  [data-topbar],
+  [class*="BottomTabBar"],
+  [class*="TriggerAttestationFAB"],
+  [class*="ToastContainer"],
+  [class*="CookieBanner"],
+  [class*="AnnouncementBanner"],
+  [class*="IncidentBanner"],
+  .print-hide {
+    display: none !important;
+  }
+
+  /* ── 4. Show print-only elements ──────────────────────────────────────── */
+  .print-only {
+    display: block !important;
+  }
+
+  /* ── 5. Attestation section — print-specific overrides ───────────────── */
+  [aria-labelledby="attestation-progress-label"] {
+    background: #ffffff !important;
+    border: 1.5pt solid #d1d5db !important;
+    border-radius: 0 !important;          /* Rounded corners don't print well */
+    padding: 12pt 14pt !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Section title */
+  [aria-labelledby="attestation-progress-label"] #attestation-progress-label {
+    font-size: 14pt !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+    margin-bottom: 4pt !important;
+  }
+
+  /* Status summary row */
+  [aria-labelledby="attestation-progress-label"] [role="status"] {
+    background: #f5f7fa !important;
+    border: 1pt solid #d1d5db !important;
+    border-radius: 0 !important;
+    padding: 8pt 10pt !important;
+    color: #111827 !important;
+  }
+
+  /* Hide interactive controls — not useful in a PDF */
+  [aria-labelledby="attestation-progress-label"] button {
+    display: none !important;
+  }
+
+  /* ── 6. Step list ─────────────────────────────────────────────────────── */
+  [aria-labelledby="attestation-progress-label"] ol {
+    margin: 10pt 0 0 !important;
+    padding: 0 !important;
+    list-style: none !important;
+    display: grid !important;
+    gap: 6pt !important;
+  }
+
+  [aria-labelledby="attestation-progress-label"] li {
+    padding: 8pt 10pt !important;
+    border: 1pt solid #d1d5db !important;
+    border-radius: 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    background: #ffffff !important;
+  }
+
+  /* Completed step — light green tint */
+  [aria-labelledby="attestation-progress-label"] li[data-step-status="completed"] {
+    background: #dcfce7 !important;
+    border-color: #86efac !important;
+  }
+
+  /* Active step — light blue tint */
+  [aria-labelledby="attestation-progress-label"] li[data-step-status="active"] {
+    background: #eff6ff !important;
+    border-color: #93c5fd !important;
+  }
+
+  /* Step title text */
+  [aria-labelledby="attestation-progress-label"] li .step-title {
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+  }
+
+  /* Step detail text */
+  [aria-labelledby="attestation-progress-label"] li p {
+    font-size: 9pt !important;
+    color: #6b7280 !important;
+    margin: 3pt 0 0 !important;
+  }
+
+  /* Step status badge (Done / In progress / Pending) */
+  [aria-labelledby="attestation-progress-label"] li .step-status-badge {
+    font-size: 8pt !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+  }
+
+  /* ── 7. Page-break rules ─────────────────────────────────────────────── */
+  /* Keep the attestation section header with the first step */
+  [aria-labelledby="attestation-progress-label"] > div {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  /* Force a new page before a section if printing multi-attestation report */
+  .attestation-print-page-break {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  /* ── 8. Typography normalisation ──────────────────────────────────────── */
+  * {
+    font-family: "DM Sans", "Segoe UI", system-ui, sans-serif !important;
+    -webkit-font-smoothing: auto !important;
+  }
+
+  a {
+    color: #111827 !important;
+    text-decoration: none !important;
+  }
+
+  /* Print URL after external links */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #6b7280;
+  }
+}

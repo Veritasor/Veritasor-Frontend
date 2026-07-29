@@ -33,6 +33,13 @@ export const COMMANDS: Command[] = [
     category: 'Navigation',
   },
   {
+    id: 'action-workspace-jump',
+    title: 'Quick-jump Workspace',
+    description: 'Open workspace switcher in search mode for fast switching',
+    shortcut: ['Ctrl', 'K', 'W'],
+    category: 'Actions',
+  },
+  {
     id: 'action-connect-source',
     title: 'Connect Revenue Source',
     description: 'Integrate Stripe, Shopify, or other platforms',
@@ -74,7 +81,12 @@ export const COMMANDS: Command[] = [
 ]
 
 // Map commands to actions
-const executeCommand = (id: string, navigate: ReturnType<typeof useNavigate>, addToast: ReturnType<typeof useToast>['addToast']) => {
+const executeCommand = (
+  id: string,
+  navigate: ReturnType<typeof useNavigate>,
+  addToast: ReturnType<typeof useToast>['addToast'],
+  onWorkspaceJump?: () => void,
+) => {
   switch (id) {
     case 'nav-dashboard':
       navigate('/')
@@ -84,6 +96,9 @@ const executeCommand = (id: string, navigate: ReturnType<typeof useNavigate>, ad
       break
     case 'nav-sources':
       navigate('/sources')
+      break
+    case 'action-workspace-jump':
+      onWorkspaceJump?.()
       break
     case 'action-connect-source':
       navigate('/sources?connect=true')
@@ -116,9 +131,10 @@ const executeCommand = (id: string, navigate: ReturnType<typeof useNavigate>, ad
 interface CommandPaletteProps {
   isOpen: boolean
   onClose: () => void
+  onWorkspaceJump?: () => void
 }
 
-export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
+export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: CommandPaletteProps) {
   const navigate = useNavigate()
   const { addToast } = useToast()
 
@@ -212,7 +228,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
 
   const handleSelect = (cmd: Command) => {
     saveToRecents(cmd.id)
-    executeCommand(cmd.id, navigate, addToast)
+    executeCommand(cmd.id, navigate, addToast, onWorkspaceJump)
     onClose()
   }
 
@@ -376,6 +392,9 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
           </div>
           <div className="cmd-tip">
             <kbd>Esc</kbd> <span>Close</span>
+          </div>
+          <div className="cmd-tip">
+            <kbd>Ctrl</kbd><kbd>K</kbd><kbd>W</kbd> <span>Workspaces</span>
           </div>
         </div>
       </div>

@@ -72,6 +72,8 @@ type WizardContext = {
   toggleOptionalScope: (scopeId: string) => void
   setCurrencyMapping: (currency: string, field: 'category' | 'ledgerAccount', value: string) => void
   setConfirmLeastPrivilege: (checked: boolean) => void
+  runTestConnection: () => void
+  resetTestConnection: () => void
 }
 
 const providerOptions: ProviderDefinition[] = [
@@ -278,6 +280,24 @@ export function ConnectSourceWizard() {
   }, [data.authorizationStatus])
 
   useEffect(() => {
+    if (data.testConnectionStatus !== 'running') {
+      return
+    }
+
+    // Simulate a test connection that takes ~1.6 s and can randomly fail
+    const timeoutId = window.setTimeout(() => {
+      // Use a deterministic heuristic for demo: Razorpay always fails first try
+      const willFail = data.provider === 'razorpay'
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: willFail ? 'failure' : 'success',
+      }))
+    }, 1600)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [data.testConnectionStatus, data.provider])
+
+  useEffect(() => {
     const activeStep = wizardSteps[currentStepIndex]
 
     if (!activeStep) {
@@ -302,7 +322,9 @@ export function ConnectSourceWizard() {
         ? data.authorizationStatus !== 'authorized'
         : activeStep.id === 'confirm'
           ? !data.confirmLeastPrivilege
-          : false
+          : activeStep.id === 'test-connection'
+            ? data.testConnectionStatus !== 'success'
+            : false
 
   function goToStep(index: number) {
     navigate(wizardSteps[index].path)
@@ -369,6 +391,7 @@ export function ConnectSourceWizard() {
         syncWindow: windowId,
         scopeValidationAttempted: false,
         confirmLeastPrivilege: false,
+        testConnectionStatus: 'idle',
       })),
     toggleOptionalScope: (scopeId) =>
       setData((currentData) => ({
@@ -392,6 +415,16 @@ export function ConnectSourceWizard() {
       setData((currentData) => ({
         ...currentData,
         confirmLeastPrivilege: checked,
+      })),
+    runTestConnection: () =>
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: 'running',
+      })),
+    resetTestConnection: () =>
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: 'idle',
       })),
   }
 

@@ -572,9 +572,14 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
         : 'Start attestation'
   const actionHandler = phase === 'running' ? cancelAttestation : startAttestation
 
+  const exportDate = new Date().toLocaleDateString(undefined, {
+    year: 'numeric', month: 'long', day: 'numeric',
+  })
+
   return (
     <section
       aria-labelledby="attestation-progress-label"
+      data-export-date={exportDate}
       style={{
         marginTop: '2rem',
         padding: '1.5rem',
