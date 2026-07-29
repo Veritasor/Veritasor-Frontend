@@ -108,155 +108,473 @@ function ProfilePanel() {
   );
 }
 
-// ─── Business profile panel (#230 logo upload, #231 address autocomplete) ──────
+type NotificationChannel = "email" | "inapp" | "webhook";
 
-function BusinessProfilePanel() {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [logoSaved, setLogoSaved] = useState(false);
-  const [addressValue, setAddressValue] = useState<AddressValue | null>(null);
-  const [addressError, setAddressError] = useState<string | undefined>();
-  const [profileSaved, setProfileSaved] = useState(false);
+interface NotificationCategory {
+  id: string;
+  title: string;
+  description: string;
+  defaults: Record<NotificationChannel, boolean>;
+}
 
-  function handleLogoSave(file: File) {
-    // In production, POST file to /api/org/logo
-    const url = URL.createObjectURL(file);
-    setLogoUrl(url);
-    setLogoSaved(true);
-    setTimeout(() => setLogoSaved(false), 3000);
+const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
+  {
+    id: "attestation-completed",
+    title: "Attestation completed",
+    description:
+      "A revenue attestation run finished successfully with a valid Merkle root.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "attestation-failed",
+    title: "Attestation failed",
+    description:
+      "An attestation run timed out, returned an error, or produced invalid evidence.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "source-connected",
+    title: "Revenue source connected",
+    description:
+      "A new data source (Stripe, QuickBooks, Plaid, etc.) was linked to the workspace.",
+    defaults: { email: true, inapp: true, webhook: false },
+  },
+  {
+    id: "source-disconnected",
+    title: "Revenue source disconnected",
+    description:
+      "A previously connected data source lost authorization or was removed by a team member.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "invoice-generated",
+    title: "Billing invoice generated",
+    description:
+      "A new subscription invoice is ready. Receipts are also available in Billing.",
+    defaults: { email: true, inapp: false, webhook: false },
+  },
+  {
+    id: "payment-failed",
+    title: "Payment failed",
+    description:
+      "A subscription charge could not be processed. Service may be interrupted.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "team-invite",
+    title: "Team member invite or removal",
+    description:
+      "Someone was invited to the workspace, accepted, or was removed by an admin.",
+    defaults: { email: true, inapp: true, webhook: false },
+  },
+  {
+    id: "api-key-rotated",
+    title: "API key rotated or revoked",
+    description:
+      "A workspace API key was rotated, revoked, or is about to expire.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+  {
+    id: "security-alert",
+    title: "Security alerts",
+    description:
+      "Sign-in from a new device, MFA method changes, or recovery code usage.",
+    defaults: { email: true, inapp: true, webhook: true },
+  },
+];
+
+const CHANNEL_META: Record<
+  NotificationChannel,
+  { label: string; icon: string; help: string }
+> = {
+  email: {
+    label: "Email",
+    icon: "✉",
+    help: "Delivered to your verified inbox with reply-to support.",
+  },
+  inapp: {
+    label: "In-app",
+    icon: "🔔",
+    help: "Shown in the product bell menu and marked as read/unread.",
+  },
+  webhook: {
+    label: "Webhook",
+    icon: "🔗",
+    help: "POST event payload to the configured endpoint URL.",
+  },
+};
+
+function buildInitialPrefs(): Record<
+  string,
+  Record<NotificationChannel, boolean>
+> {
+  const prefs: Record<string, Record<NotificationChannel, boolean>> = {};
+  for (const cat of NOTIFICATION_CATEGORIES) {
+    prefs[cat.id] = { ...cat.defaults };
   }
-
-  function handleProfileSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!addressValue?.fullAddress) {
-      setAddressError("Business address is required");
-      return;
-    }
-    setAddressError(undefined);
-    // POST to /api/org/profile
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 3000);
-  }
-
-  return (
-    <div style={{ display: "grid", gap: "2rem", maxWidth: 600 }}>
-      <div>
-        <h2>Business profile</h2>
-        <p style={{ color: "var(--muted)" }}>
-          Update your organisation's logo and registered address.
-        </p>
-      </div>
-
-      {/* ── Logo upload ─────────────────────────────────────────────── */}
-      <section aria-labelledby="biz-logo-heading">
-        <h3 id="biz-logo-heading" style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>
-          Organisation logo
-        </h3>
-        <p style={{ margin: "0 0 1rem", color: "var(--muted)", fontSize: "0.9rem" }}>
-          Used in reports, attestation certificates, and partner portals.
-          Square images crop best.
-        </p>
-        <LogoUpload
-          currentLogoUrl={logoUrl}
-          onSave={handleLogoSave}
-        />
-        {logoSaved && (
-          <p
-            role="status"
-            aria-live="polite"
-            style={{ color: "var(--success)", fontSize: "0.9rem", marginTop: "0.5rem" }}
-          >
-            ✓ Logo saved
-          </p>
-        )}
-      </section>
-
-      <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: 0 }} />
-
-      {/* ── Business address ─────────────────────────────────────────── */}
-      <section aria-labelledby="biz-addr-heading">
-        <h3 id="biz-addr-heading" style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>
-          Registered address
-        </h3>
-        <form onSubmit={handleProfileSubmit} noValidate style={{ display: "grid", gap: "1rem" }}>
-          <AddressAutocomplete
-            label="Business address"
-            required
-            value={addressValue}
-            onChange={setAddressValue}
-            onClear={() => setAddressValue(null)}
-            error={addressError}
-          />
-          <div>
-            <button
-              type="submit"
-              style={{
-                padding: "0.6rem 1.25rem",
-                borderRadius: 8,
-                border: "none",
-                background: "var(--accent)",
-                color: "#04111f",
-                fontWeight: 700,
-                cursor: "pointer",
-                fontSize: "0.95rem",
-                minHeight: "2.75rem",
-              }}
-            >
-              Save address
-            </button>
-            {profileSaved && (
-              <span
-                role="status"
-                aria-live="polite"
-                style={{ marginLeft: "1rem", color: "var(--success)", fontSize: "0.9rem", verticalAlign: "middle" }}
-              >
-                ✓ Saved
-              </span>
-            )}
-          </div>
-        </form>
-      </section>
-    </div>
-  );
+  return prefs;
 }
 
 function NotificationsPanel() {
+  const [prefs, setPrefs] = useState(buildInitialPrefs);
+  const [muteAll, setMuteAll] = useState(false);
+  const [showMuteDialog, setShowMuteDialog] = useState(false);
+  const [pendingMute, setPendingMute] = useState<boolean | null>(null);
+
+  const toggleChannel = (catId: string, ch: NotificationChannel) => {
+    setPrefs((prev) => ({
+      ...prev,
+      [catId]: { ...prev[catId], [ch]: !prev[catId][ch] },
+    }));
+  };
+
+  const countEnabled = useMemo(() => {
+    let n = 0;
+    for (const cat of NOTIFICATION_CATEGORIES) {
+      for (const ch of Object.keys(CHANNEL_META) as NotificationChannel[]) {
+        if (!muteAll && prefs[cat.id]?.[ch]) n++;
+      }
+    }
+    return n;
+  }, [prefs, muteAll]);
+
+  const handleMuteAllToggle = (target: boolean) => {
+    if (target) {
+      setPendingMute(true);
+      setShowMuteDialog(true);
+    } else {
+      setMuteAll(false);
+      setPendingMute(null);
+    }
+  };
+
+  const confirmMuteAll = () => {
+    setMuteAll(true);
+    setPendingMute(null);
+    setShowMuteDialog(false);
+  };
+
+  const cancelMuteAll = () => {
+    setPendingMute(null);
+    setShowMuteDialog(false);
+  };
+
+  const channelHeaderStyle: React.CSSProperties = {
+    fontSize: "0.78rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: "var(--muted)",
+    padding: "0.6rem 0.5rem",
+    textAlign: "center" as const,
+    whiteSpace: "nowrap" as const,
+    minWidth: 96,
+  };
+
+  const toggleCellStyle: React.CSSProperties = {
+    textAlign: "center" as const,
+    padding: "0.6rem 0.5rem",
+    verticalAlign: "middle",
+    minWidth: 96,
+  };
+
   return (
     <div>
-      <h2>Notifications</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Choose which events trigger email notifications.
-      </p>
-      <ul
+      <header
         style={{
-          listStyle: "none",
-          padding: 0,
           display: "grid",
-          gap: "0.75rem",
-          maxWidth: 480,
+          gap: "1rem",
+          marginBottom: "1.5rem",
         }}
       >
-        {[
-          "Attestation completed",
-          "Attestation failed",
-          "New revenue source connected",
-          "Billing invoice generated",
-        ].map((item) => (
-          <li
-            key={item}
-            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+        <div>
+          <h2 style={{ margin: 0 }}>Notifications</h2>
+          <p
+            style={{
+              color: "var(--muted)",
+              margin: "0.35rem 0 0",
+              lineHeight: 1.6,
+            }}
           >
-            <input
-              id={`notif-${item}`}
-              type="checkbox"
-              defaultChecked
-              style={{ width: 16, height: 16 }}
-            />
-            <label htmlFor={`notif-${item}`} style={{ fontSize: "0.95rem" }}>
-              {item}
+            Choose how Veritasor delivers event alerts. Configure Email, In-app,
+            and Webhook channels per category below.
+          </p>
+        </div>
+
+        <div
+          role="region"
+          aria-label="Master notification controls"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+            flexWrap: "wrap",
+            padding: "1rem 1.1rem",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--border)",
+            background: "var(--surface-strong)",
+          }}
+        >
+          <div style={{ display: "grid", gap: "0.25rem" }}>
+            <div style={{ fontWeight: 700 }}>
+              {muteAll
+                ? "All channels muted"
+                : `Active deliveries: ${countEnabled}`}
+            </div>
+            <div style={{ color: "var(--muted)", fontSize: "0.88rem" }}>
+              {muteAll
+                ? "No Email, In-app, or Webhook notifications will be sent."
+                : "Per-category toggles below override defaults for each channel."}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <label
+              htmlFor="mute-all-master"
+              style={{
+                fontSize: "0.92rem",
+                fontWeight: 600,
+                color: muteAll ? "var(--danger)" : "var(--text)",
+              }}
+            >
+              Mute all
             </label>
-          </li>
-        ))}
-      </ul>
+            <button
+              id="mute-all-master"
+              type="button"
+              role="switch"
+              aria-checked={muteAll}
+              aria-label="Mute all notification channels"
+              onClick={() => handleMuteAllToggle(!muteAll)}
+              style={{
+                position: "relative",
+                width: 48,
+                height: 28,
+                borderRadius: 999,
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                flexShrink: 0,
+                minWidth: 48,
+                transition: "background-color 140ms ease",
+                background: muteAll
+                  ? "linear-gradient(135deg, var(--danger), #f43f5e)"
+                  : "rgba(148, 163, 184, 0.28)",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  left: muteAll ? 23 : 3,
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                  transition: "left 140ms ease",
+                }}
+              />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section
+        aria-labelledby="notif-matrix-heading"
+        style={{
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          background: "var(--surface)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          role="region"
+          aria-label="Notification channels matrix"
+          style={{ overflowX: "auto" }}
+        >
+          <table
+            aria-describedby="notif-matrix-help"
+            style={{
+              width: "100%",
+              minWidth: 640,
+              borderCollapse: "separate",
+              borderSpacing: 0,
+            }}
+          >
+            <caption className="sr-only">
+              Notification preferences per category and delivery channel.
+            </caption>
+            <thead>
+              <tr style={{ background: "var(--surface-strong)" }}>
+                <th
+                  scope="col"
+                  style={{
+                    ...channelHeaderStyle,
+                    textAlign: "left",
+                    minWidth: 280,
+                    padding: "0.75rem 1rem",
+                  }}
+                >
+                  Event category
+                </th>
+                {(Object.keys(CHANNEL_META) as NotificationChannel[]).map(
+                  (ch) => (
+                    <th
+                      key={ch}
+                      scope="col"
+                      style={channelHeaderStyle}
+                      aria-label={`${CHANNEL_META[ch].label} channel — ${CHANNEL_META[ch].help}`}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.35rem",
+                        }}
+                      >
+                        <span aria-hidden="true">{CHANNEL_META[ch].icon}</span>
+                        {CHANNEL_META[ch].label}
+                      </span>
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {NOTIFICATION_CATEGORIES.map((cat, idx) => {
+                const rowPaused = muteAll;
+                return (
+                  <tr
+                    key={cat.id}
+                    style={{
+                      borderTop: idx === 0 ? "none" : "1px solid var(--border)",
+                      background: rowPaused
+                        ? "rgba(148, 163, 184, 0.05)"
+                        : "transparent",
+                      opacity: rowPaused ? 0.55 : 1,
+                    }}
+                  >
+                    <th
+                      scope="row"
+                      style={{
+                        textAlign: "left",
+                        padding: "1rem",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: "0.3rem",
+                        }}
+                      >
+                        <label
+                          htmlFor={`notif-${cat.id}-email`}
+                          style={{
+                            fontWeight: 600,
+                            fontSize: "0.95rem",
+                            cursor: "pointer",
+                            color: "var(--text)",
+                          }}
+                        >
+                          {cat.title}
+                        </label>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--muted)",
+                            fontSize: "0.88rem",
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          {cat.description}
+                        </p>
+                      </div>
+                    </th>
+                    {(Object.keys(CHANNEL_META) as NotificationChannel[]).map(
+                      (ch) => {
+                        const checked = !rowPaused && !!prefs[cat.id]?.[ch];
+                        const inputId = `notif-${cat.id}-${ch}`;
+                        return (
+                          <td key={ch} style={toggleCellStyle}>
+                            <label htmlFor={inputId} className="sr-only">
+                              {cat.title} — {CHANNEL_META[ch].label}
+                            </label>
+                            <button
+                              id={inputId}
+                              type="button"
+                              role="switch"
+                              aria-checked={checked}
+                              aria-label={`${cat.title} — ${CHANNEL_META[ch].label}`}
+                              disabled={rowPaused}
+                              onClick={() => toggleChannel(cat.id, ch)}
+                              style={{
+                                position: "relative",
+                                width: 42,
+                                height: 24,
+                                borderRadius: 999,
+                                border: "none",
+                                cursor: rowPaused ? "not-allowed" : "pointer",
+                                padding: 0,
+                                opacity: rowPaused ? 0.5 : 1,
+                                transition: "background-color 120ms ease",
+                                background: checked
+                                  ? "linear-gradient(135deg, var(--accent), #60a5fa)"
+                                  : "rgba(148, 163, 184, 0.28)",
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  position: "absolute",
+                                  top: 2,
+                                  left: checked ? 20 : 2,
+                                  width: 20,
+                                  height: 20,
+                                  borderRadius: "50%",
+                                  background: "#fff",
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
+                                  transition: "left 120ms ease",
+                                }}
+                              />
+                            </button>
+                          </td>
+                        );
+                      },
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p id="notif-matrix-help" className="sr-only">
+          Use the switches to enable or disable Email, In-app, and Webhook
+          delivery for each event category. Use the Mute all master toggle to
+          pause all deliveries.
+        </p>
+      </section>
+
+      <ConfirmDialog
+        open={showMuteDialog}
+        title="Mute all notifications?"
+        description="You will stop receiving Email, In-app, and Webhook alerts for every category. Team members will still see in-app items if they have their own preferences enabled. You can resume anytime by toggling Mute all off."
+        confirmText="Mute everything"
+        cancelText="Keep notifications"
+        tone="danger"
+        onConfirm={confirmMuteAll}
+        onClose={cancelMuteAll}
+      />
     </div>
   );
 }
@@ -1582,11 +1900,6 @@ function SecurityPanel() {
           borderTop: "1px solid var(--border)",
           margin: "1.5rem 0",
         }}
-      />
-      {mfaSection[mfaState]()}
-
-      <hr
-        style={{ margin: "2rem 0", borderColor: "var(--border)", opacity: 0.5 }}
       />
 
       <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
