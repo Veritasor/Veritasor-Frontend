@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Breadcrumb from '../components/Breadcrumb'
+import ProofShareModal from '../components/ProofShareModal'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -208,6 +209,7 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
 export default function AttestationDetail() {
   const { id } = useParams<{ id: string }>()
   const attestation = id ? MOCK[id] : undefined
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
   // ── Loading / not-found states ──────────────────────────────────────────
   if (!id) {
@@ -262,24 +264,53 @@ export default function AttestationDetail() {
           marginBottom: '2rem',
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 'clamp(1.4rem, 3vw, 2rem)' }}>
-          Attestation Proof
-        </h1>
-        <span
-          role="status"
-          aria-label={`Verification status: ${status.label}`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+          <h1 style={{ margin: 0, fontSize: 'clamp(1.4rem, 3vw, 2rem)' }}>
+            Attestation Proof
+          </h1>
+          <span
+            role="status"
+            aria-label={`Verification status: ${status.label}`}
+            style={{
+              padding: '0.3rem 0.85rem',
+              borderRadius: '999px',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              background: status.bg,
+              color: status.color,
+              letterSpacing: '0.04em',
+            }}
+          >
+            {status.label}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsShareModalOpen(true)}
           style={{
-            padding: '0.3rem 0.85rem',
-            borderRadius: '999px',
-            fontSize: '0.82rem',
-            fontWeight: 700,
-            background: status.bg,
-            color: status.color,
-            letterSpacing: '0.04em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: 'var(--primary)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '0.375rem',
+            padding: '0.5rem 1rem',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'opacity 0.2s',
           }}
+          onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
+          onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
         >
-          {status.label}
-        </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+            <polyline points="16 6 12 2 8 6" />
+            <line x1="12" y1="2" x2="12" y2="15" />
+          </svg>
+          Share Proof
+        </button>
       </header>
 
       {/* ── Failure Banner ─────────────────────────────────────────────── */}
@@ -444,6 +475,14 @@ export default function AttestationDetail() {
           </MetaRow>
         </dl>
       </section>
+
+      {isShareModalOpen && (
+        <ProofShareModal 
+          isOpen={isShareModalOpen} 
+          onClose={() => setIsShareModalOpen(false)} 
+          attestationId={attestation.id} 
+        />
+      )}
     </div>
   )
 }
