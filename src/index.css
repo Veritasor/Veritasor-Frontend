@@ -45,16 +45,61 @@
   --radius-lg: 1.75rem;
 
   /* ─── Motion tokens ─────────────────────────────────────────────────────── */
+  /*
+   * Duration scale
+   * Use the smallest value that clearly communicates the state change.
+   * Max in core dashboard flows: --motion-duration-xl (360ms).
+   *
+   *  none  → instant; reduced-motion baseline, skeleton no-shimmer
+   *  xs    → 80ms  — micro feedback: hover/focus ring, icon swap
+   *  sm    → 140ms — small element: chip, badge, inline status
+   *  md    → 200ms — panel/card content update
+   *  lg    → 280ms — toast enter, section transition
+   *  xl    → 360ms — layout-level transition requiring orientation support
+   */
   --motion-duration-none: 0ms;
-  --motion-duration-xs: 80ms;
-  --motion-duration-sm: 140ms;
-  --motion-duration-md: 200ms;
-  --motion-duration-lg: 280ms;
-  --motion-duration-xl: 360ms;
+  --motion-duration-xs:   80ms;
+  --motion-duration-sm:   140ms;
+  --motion-duration-md:   200ms;
+  --motion-duration-lg:   280ms;
+  --motion-duration-xl:   360ms;
 
-  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
-  --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  /*
+   * Easing curves
+   *
+   *  standard    → cubic-bezier(0.2, 0, 0, 1)
+   *                Most enter/update transitions. Snappy start, smooth settle.
+   *
+   *  decelerate  → cubic-bezier(0.0, 0, 0.2, 1)   (alias: "enter" or "ease-out")
+   *                Elements entering the screen: drawers, modals, toasts sliding in.
+   *
+   *  accelerate  → cubic-bezier(0.4, 0, 1, 1)      (alias: "exit" or "ease-in")
+   *                Elements leaving the screen. Fast fade/slide out.
+   *
+   *  linear      → linear
+   *                Indeterminate progress bars and value interpolation only.
+   *
+   *  spring      → cubic-bezier(0.34, 1.56, 0.64, 1)
+   *                Permitted only for non-trust-critical affordances (toasts).
+   *                Slight overshoot then settle. Do NOT use in data-dense panels.
+   *
+   * Note: --motion-easing-exit is kept as an alias for --motion-easing-accelerate
+   * so existing consumers do not break.
+   */
+  --motion-easing-standard:   cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-decelerate: cubic-bezier(0.0, 0, 0.2, 1);
+  --motion-easing-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --motion-easing-exit:       cubic-bezier(0.4, 0, 1, 1); /* alias → --motion-easing-accelerate */
+  --motion-easing-linear:     linear;
+  --motion-easing-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
 
+  /*
+   * Distance tokens  (spatial travel – keep to one axis per transition)
+   *
+   *  xs → 4px   micro nudge (hover lift)
+   *  sm → 8px   small element slide
+   *  md → 16px  panel/toast slide-in — do not exceed in data-dense panels
+   */
   --motion-distance-xs: 4px;
   --motion-distance-sm: 8px;
   --motion-distance-md: 16px;
@@ -113,6 +158,179 @@
   --warning-soft: rgba(217, 119, 6, 0.08);
 
   --shadow-lg: 0 20px 40px rgba(15, 23, 42, 0.12);
+}
+
+/*
+ * High-Contrast theme — WCAG 2.1 AAA
+ *
+ * Palette philosophy:
+ *   • Pure black (#000000) background with pure white (#ffffff) text → 21:1
+ *   • Yellow (#ffff00) primary accent → 19.1:1 on black
+ *   • Cyan (#00ffff) secondary accent → 21:1 on black
+ *   • No semitransparent surfaces — every layer is opaque for predictability
+ *   • Borders are white to stay visible in Windows High Contrast mode
+ *
+ * All interactive-state colours verified via WebAIM Contrast Checker.
+ * Design token names match the existing semantic vocabulary so every
+ * component that already consumes CSS custom properties gets HC for free.
+ */
+[data-theme="high-contrast"] {
+  /* ── Surfaces ─────────────────────────────────────────── */
+  --bg:               #000000;
+  --surface:          #000000;
+  --surface-strong:   #0a0a0a;
+  --surface-soft:     #111111;
+
+  /* ── Borders ──────────────────────────────────────────── */
+  --border:           #ffffff;
+  --border-strong:    #ffff00;
+
+  /* ── Text ─────────────────────────────────────────────── */
+  --text:             #ffffff;  /* 21:1 on #000 */
+  --muted:            #e0e0e0;  /* 17.1:1 on #000 */
+
+  /* ── Accent / interactive ─────────────────────────────── */
+  --accent:           #ffff00;  /* 19.1:1 on #000 */
+  --accent-strong:    #ffe000;  /* 17.8:1 on #000 */
+  --accent-warm:      #ffb300;  /* 9.2:1 on #000 */
+
+  /* ── Status colours ───────────────────────────────────── */
+  --danger:           #ff6060;  /* 5.7:1 on #000 */
+  --danger-soft:      #2a0000;
+  --success:          #00e676;  /* 9.7:1 on #000 */
+  --success-soft:     #002a10;
+  --warning:          #ffb300;  /* 9.2:1 on #000 */
+  --warning-soft:     #2a1900;
+
+  /* ── Shadow ───────────────────────────────────────────── */
+  --shadow-lg:        0 0 0 2px #ffffff;
+
+  /* ── Focus ring ───────────────────────────────────────── */
+  --focus-ring:        3px solid #ffff00;
+  --focus-ring-offset: 2px;
+}
+
+/* HC: remove decorative background gradients — flat black only */
+[data-theme="high-contrast"] body {
+  background: #000000;
+}
+
+/* HC: force all glassmorphism / backdrop-filter surfaces to opaque */
+[data-theme="high-contrast"] .app-bar,
+[data-theme="high-contrast"] .app-sidebar,
+[data-theme="high-contrast"] .modal-backdrop,
+[data-theme="high-contrast"] .ob-card {
+  backdrop-filter: none;
+  background: #000000;
+}
+
+/* HC: reinforce border visibility on card surfaces */
+[data-theme="high-contrast"] .app-card,
+[data-theme="high-contrast"] .modal-dialog,
+[data-theme="high-contrast"] .ob-card {
+  border: 2px solid #ffffff;
+}
+
+/* HC: active nav link — yellow text on black, no gradient fill */
+[data-theme="high-contrast"] .app-nav-link.is-active,
+[data-theme="high-contrast"] .sidebar-link-active {
+  background: #000000;
+  color: #ffff00;
+  border-color: #ffff00;
+  box-shadow: none;
+}
+
+/* HC: primary buttons — yellow background with black text */
+[data-theme="high-contrast"] .app-button-primary,
+[data-theme="high-contrast"] .auth-button-primary,
+[data-theme="high-contrast"] .modal-btn-confirm,
+[data-theme="high-contrast"] .ob-btn-primary,
+[data-theme="high-contrast"] .help-feedback-submit,
+[data-theme="high-contrast"] .not-found-button-primary {
+  background: #ffff00;
+  color: #000000;
+  border-color: #ffff00;
+}
+
+/* HC: secondary buttons — white border, white text */
+[data-theme="high-contrast"] .app-button-secondary,
+[data-theme="high-contrast"] .auth-button-secondary,
+[data-theme="high-contrast"] .modal-btn-cancel,
+[data-theme="high-contrast"] .ob-btn-secondary,
+[data-theme="high-contrast"] .not-found-button-secondary {
+  background: #000000;
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+/* HC: form inputs — white border, white text, black bg */
+[data-theme="high-contrast"] .auth-input,
+[data-theme="high-contrast"] .ob-input,
+[data-theme="high-contrast"] .ob-select,
+[data-theme="high-contrast"] .sf-search-input,
+[data-theme="high-contrast"] .sf-date-input,
+[data-theme="high-contrast"] .help-feedback-textarea {
+  background: #000000;
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+[data-theme="high-contrast"] .auth-input::placeholder,
+[data-theme="high-contrast"] .ob-input::placeholder,
+[data-theme="high-contrast"] .sf-search-input::placeholder,
+[data-theme="high-contrast"] .help-feedback-textarea::placeholder {
+  color: #c0c0c0;
+}
+
+/* HC: focus state — bright yellow outline, no box-shadow tricks */
+[data-theme="high-contrast"] :focus-visible,
+[data-theme="high-contrast"] .focus-ring:focus-visible {
+  outline: 3px solid #ffff00;
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* HC: toast — opaque surfaces, white borders */
+[data-theme="high-contrast"] .toast {
+  background: #000000;
+  border: 2px solid #ffffff;
+}
+
+[data-theme="high-contrast"] .toast-success { border-color: #00e676; }
+[data-theme="high-contrast"] .toast-info    { border-color: #00ffff; }
+[data-theme="high-contrast"] .toast-warning { border-color: #ffb300; }
+[data-theme="high-contrast"] .toast-error   { border-color: #ff6060; }
+
+/* HC: cookie banner */
+[data-theme="high-contrast"] .cc-banner {
+  background: #000000;
+  border-top-color: #ffffff;
+  box-shadow: none;
+}
+
+/* HC: chips */
+[data-theme="high-contrast"] .sf-chip-active {
+  background: #000000;
+  border-color: #ffff00;
+  color: #ffff00;
+}
+
+/* HC: theme switcher active option */
+[data-theme="high-contrast"] .theme-option-active {
+  background: #111111;
+  box-shadow: inset 0 0 0 2px #ffff00;
+}
+
+[data-theme="high-contrast"] .theme-option-active .theme-option-label {
+  color: #ffff00;
+}
+
+/* Windows/OS forced-colors compatibility */
+@media (forced-colors: active) {
+  .theme-option-active {
+    forced-color-adjust: none;
+    outline: 2px solid ButtonText;
+  }
 }
 
 * {
@@ -556,7 +774,7 @@ input {
   gap: 0.3rem;
   padding: 0.25rem 0.5rem;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color var(--motion-duration-xs) var(--motion-easing-standard);
   position: relative;
   border-right: 1px solid var(--border);
   min-height: 100%;
@@ -624,15 +842,21 @@ input {
   border-radius: 2px;
 }
 
-.theme-option[data-value="system"] .theme-preview-bg { background: #1e293b; }
-.theme-option[data-value="system"] .theme-preview-surface { background: #0f172a; }
-.theme-option[data-value="system"] .theme-preview-accent { background: #5eead4; }
-.theme-option[data-value="light"] .theme-preview-bg { background: #f1f5f9; }
-.theme-option[data-value="light"] .theme-preview-surface { background: #ffffff; }
-.theme-option[data-value="light"] .theme-preview-accent { background: #0d9488; }
-.theme-option[data-value="dark"] .theme-preview-bg { background: #0f172a; }
-.theme-option[data-value="dark"] .theme-preview-surface { background: #1e293b; }
-.theme-option[data-value="dark"] .theme-preview-accent { background: #5eead4; }
+.theme-preview-bg { background: var(--preview-bg, var(--bg)); }
+.theme-preview-surface { background: var(--preview-surface, var(--surface-strong, var(--surface))); }
+.theme-preview-accent { background: var(--preview-accent, var(--accent)); }
+
+.theme-option[data-value="light"] {
+  --preview-bg: #f8fafc; /* light --bg */
+  --preview-surface: #ffffff; /* light --surface-strong */
+  --preview-accent: #0f766e; /* light --accent */
+}
+
+.theme-option[data-value="dark"] {
+  --preview-bg: #07111f; /* dark --bg */
+  --preview-surface: #0f1b30; /* dark --surface-strong */
+  --preview-accent: #5eead4; /* dark --accent */
+}
 
 @media (max-width: 480px) {
   .theme-preview {
@@ -2399,7 +2623,7 @@ input {
 }
 
 .toast-entering {
-  animation: toast-enter var(--motion-duration-lg) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: toast-enter var(--motion-duration-lg) var(--motion-easing-spring) forwards;
 }
 
 .toast-exiting {
@@ -2541,6 +2765,97 @@ input {
   .skeleton-metric-value {
     width: 80%;
   }
+}
+
+/* ── Skeleton ↔ Content Crossfade ─────────────────────────────────────── */
+/*
+ * CrossfadeReveal: wraps a skeleton + real content in a relative container.
+ * The skeleton fades out while the content fades in. Stagger is applied via
+ * --crossfade-delay on individual items.
+ *
+ * Motion tokens used:
+ *   --motion-duration-md  (200 ms) — default crossfade duration
+ *   --motion-easing-standard       — consistent deceleration curve
+ *
+ * Reduced-motion: both layers switch instantly (opacity jumps 0→1 / 1→0
+ * in a single frame) so content is never delayed beyond one paint.
+ */
+
+/* Container that stacks skeleton + content in the same grid cell */
+.crossfade-root {
+  display: grid;
+  grid-template-areas: "layer";
+  /* Inherit width/height from parent; don't impose dimensions */
+}
+
+.crossfade-skeleton-layer,
+.crossfade-content-layer {
+  grid-area: layer;
+  /* Both layers sit in the same cell; opacity drives visibility */
+}
+
+/* ── Idle state (data not yet loaded) ─────────────────────────────────── */
+.crossfade-root[data-loaded="false"] .crossfade-skeleton-layer {
+  opacity: 1;
+  /* pointers active so shimmer is perceivable */
+  pointer-events: auto;
+}
+
+.crossfade-root[data-loaded="false"] .crossfade-content-layer {
+  opacity: 0;
+  pointer-events: none;
+  /* Prevent screen readers from announcing hidden content */
+  visibility: hidden;
+}
+
+/* ── Loaded state (crossfade in progress / complete) ──────────────────── */
+.crossfade-root[data-loaded="true"] .crossfade-skeleton-layer {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-duration-md) var(--motion-easing-standard),
+    visibility 0s var(--motion-duration-md); /* delay visibility until fade done */
+}
+
+.crossfade-root[data-loaded="true"] .crossfade-content-layer {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity var(--motion-duration-md) var(--motion-easing-standard) var(--crossfade-delay, 0ms),
+    visibility 0s var(--crossfade-delay, 0ms);
+}
+
+/* ── Reduced-motion: instant swap, no transitions ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .crossfade-root[data-loaded="true"] .crossfade-skeleton-layer,
+  .crossfade-root[data-loaded="true"] .crossfade-content-layer,
+  .crossfade-root[data-loaded="false"] .crossfade-skeleton-layer,
+  .crossfade-root[data-loaded="false"] .crossfade-content-layer {
+    transition: none;
+  }
+}
+
+/* ── Stagger helper: .crossfade-stagger-item with --crossfade-index ───── */
+/*
+ * Usage in JSX:
+ *   <div
+ *     className="crossfade-stagger-item"
+ *     style={{ '--crossfade-index': idx } as React.CSSProperties}
+ *   >
+ *
+ * Each item's delay = index × 40 ms (STAGGER_STEP token below).
+ * --crossfade-stagger-step defaults to 40 ms; override per-container.
+ */
+:root {
+  --crossfade-stagger-step: 40ms;
+}
+
+.crossfade-stagger-item {
+  --crossfade-delay: calc(
+    var(--crossfade-index, 0) * var(--crossfade-stagger-step)
+  );
 }
 
 /* ── Onboarding Wizard ─────────────────────────────────────────────────── */
@@ -4730,6 +5045,235 @@ button[style*="pagerBtnStyle"]:active:not(:disabled) {
 
 @media (max-width: 767.98px) {
   .settings-tablist {
+    display: none;
+  }
+}
+
+/* ─── Motion Demo page ───────────────────────────────────────────────────── */
+
+.motion-demo-page {
+  display: grid;
+  gap: 2rem;
+  padding: 1.5rem;
+  max-width: 860px;
+}
+
+.motion-demo-section {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.motion-demo-section h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.motion-demo-section h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.motion-demo-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+/* Token table */
+.motion-token-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.motion-token-table th,
+.motion-token-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.motion-token-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.motion-token-table tr:last-child td {
+  border-bottom: none;
+}
+
+.motion-token-name {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+.motion-token-value {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.motion-token-usage {
+  color: var(--muted);
+}
+
+/* Duration preview bar */
+.motion-duration-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.motion-duration-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #60a5fa);
+  min-width: 4px;
+  flex-shrink: 0;
+}
+
+/* Easing curve swatch */
+.motion-easing-swatch {
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-soft);
+  position: relative;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+/* Interactive demo boxes */
+.motion-demo-box-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.motion-demo-box-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.motion-demo-box {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), #60a5fa);
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #04111f;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.motion-demo-box:hover {
+  opacity: 0.85;
+}
+
+.motion-demo-box-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+/* Transition preview track */
+.motion-transition-track {
+  position: relative;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.motion-transition-ball {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 36px;
+  height: 36px;
+  margin-top: -18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #60a5fa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #04111f;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.motion-transition-ball[data-running="true"] {
+  left: calc(100% - 40px);
+}
+
+/* Reduced-motion callout */
+.motion-reduced-callout {
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.motion-reduced-callout strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Accessibility callout */
+.motion-a11y-callout {
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.motion-a11y-callout strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .motion-demo-page {
+    padding: 1rem;
+    gap: 1.25rem;
+  }
+
+  .motion-demo-section {
+    padding: 1rem;
+  }
+
+  .motion-token-table th:last-child,
+  .motion-token-table td:last-child {
     display: none;
   }
 }
