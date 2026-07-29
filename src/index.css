@@ -4041,6 +4041,29 @@ input {
   }
 }
 
+/* ── KYC Pending Screen (kp-*) ─────────────────────────────────────────── */
+
+@keyframes kpRingRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes kpRingPulse {
+  from { opacity: 0.4; }
+  to { opacity: 0.9; }
+}
+
+@keyframes kpFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kp-animate-in {
+    animation: none !important;
+  }
+}
+
 /* ── Search Filter (sf-*) ─────────────────────────────────────────────────
  * Reusable search-and-filter pattern for Attestations, Sources, and any
  * future list page.  Consumes existing design-system tokens so light/dark
