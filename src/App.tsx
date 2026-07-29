@@ -6,7 +6,14 @@ import ApiKeys from './pages/ApiKeys'
 import HelpArticle from './pages/HelpArticle'
 import RevenueSources from './pages/RevenueSources'
 import Settings from './pages/Settings'
-import MotionDemo from './pages/MotionDemo'
+import {
+  ConnectSourceWizard,
+  SelectSourceProviderStep,
+  AuthorizeSourceStep,
+  ConfigureSourceScopeStep,
+  MapCurrenciesStep,
+  ConfirmSourceStep,
+} from './pages/connect-source/ConnectSourceWizard'
 
 const Dashboard = () => <div className="p-6 text-zinc-900 dark:text-white font-semibold">Dashboard Content View</div>
 const Attestations = () => <div className="p-6 text-zinc-900 dark:text-white font-semibold">Attestation Registry View</div>
@@ -24,7 +31,13 @@ export default function App() {
             <Route path="settings" element={<Settings />} />
             <Route path="api-keys" element={<ApiKeys />} />
             <Route path="help" element={<HelpArticle />} />
-            <Route path="motion-tokens" element={<MotionDemo />} />
+            <Route path="connect-source" element={<ConnectSourceWizard />}>
+              <Route path="provider" element={<SelectSourceProviderStep />} />
+              <Route path="authorize" element={<AuthorizeSourceStep />} />
+              <Route path="scope" element={<ConfigureSourceScopeStep />} />
+              <Route path="mapping" element={<MapCurrenciesStep />} />
+              <Route path="confirm" element={<ConfirmSourceStep />} />
+            </Route>
           </Route>
         </Routes>
       </BrowserRouter>

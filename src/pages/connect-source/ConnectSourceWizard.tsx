@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   Link,
   Outlet,
@@ -11,6 +11,22 @@ import WizardProgress from '../../components/WizardProgress'
 type ProviderId = 'stripe' | 'shopify' | 'razorpay'
 type AuthorizationStatus = 'idle' | 'pending' | 'authorized' | 'denied'
 type SyncWindowId = 'trailing-12-months' | 'current-fiscal-year' | 'all-history'
+
+// ---------------------------------------------------------------------------
+// Mapping step types (#223)
+// ---------------------------------------------------------------------------
+
+type InternalCategory = 'recurring' | 'one-time' | 'refund' | 'fee' | 'other'
+type LedgerAccount = 'revenue' | 'deferred' | 'contra' | 'expense' | 'unassigned'
+
+interface CurrencyRow {
+  /** ISO 4217 code as reported by the source */
+  currency: string
+  /** User-assigned internal category */
+  category: InternalCategory | null
+  /** User-assigned ledger account */
+  ledgerAccount: LedgerAccount | null
+}
 
 type ProviderDefinition = {
   id: ProviderId
@@ -38,9 +54,11 @@ type WizardData = {
   authorizationStatus: AuthorizationStatus
   syncWindow: SyncWindowId | null
   optionalScopes: string[]
+  /** Currency/ledger mapping rows (#223) */
+  currencyMappings: CurrencyRow[]
   confirmLeastPrivilege: boolean
   scopeValidationAttempted: boolean
-  testConnectionStatus: 'idle' | 'running' | 'success' | 'failure'
+  mappingValidationAttempted: boolean
 }
 
 type WizardContext = {
@@ -52,6 +70,7 @@ type WizardContext = {
   setAuthorizationDenied: () => void
   setSyncWindow: (windowId: SyncWindowId) => void
   toggleOptionalScope: (scopeId: string) => void
+  setCurrencyMapping: (currency: string, field: 'category' | 'ledgerAccount', value: string) => void
   setConfirmLeastPrivilege: (checked: boolean) => void
   runTestConnection: () => void
   resetTestConnection: () => void
@@ -138,10 +157,10 @@ const wizardSteps: WizardStep[] = [
     detail: 'Decide how much history and supporting context to sync.',
   },
   {
-    id: 'test-connection',
-    path: '/connect-source/test-connection',
-    label: 'Test connection',
-    detail: 'Verify live read access before completing the setup.',
+    id: 'mapping',
+    path: '/connect-source/mapping',
+    label: 'Map currencies',
+    detail: 'Assign internal categories and ledger accounts to source currencies.',
   },
   {
     id: 'confirm',
@@ -151,14 +170,39 @@ const wizardSteps: WizardStep[] = [
   },
 ]
 
+// Default currency rows — in production these would come from the provider's account info
+const DEFAULT_CURRENCY_ROWS: CurrencyRow[] = [
+  { currency: 'USD', category: 'recurring', ledgerAccount: 'revenue' },
+  { currency: 'EUR', category: null, ledgerAccount: null },
+  { currency: 'GBP', category: null, ledgerAccount: null },
+  { currency: 'INR', category: null, ledgerAccount: null },
+]
+
+const CATEGORY_OPTIONS: { value: InternalCategory; label: string }[] = [
+  { value: 'recurring', label: 'Recurring' },
+  { value: 'one-time', label: 'One-time' },
+  { value: 'refund', label: 'Refund' },
+  { value: 'fee', label: 'Fee' },
+  { value: 'other', label: 'Other' },
+]
+
+const LEDGER_OPTIONS: { value: LedgerAccount; label: string }[] = [
+  { value: 'revenue', label: 'Revenue' },
+  { value: 'deferred', label: 'Deferred revenue' },
+  { value: 'contra', label: 'Contra revenue' },
+  { value: 'expense', label: 'Expense' },
+  { value: 'unassigned', label: 'Unassigned' },
+]
+
 const initialWizardData: WizardData = {
   provider: null,
   authorizationStatus: 'idle',
   syncWindow: null,
   optionalScopes: [],
+  currencyMappings: DEFAULT_CURRENCY_ROWS,
   confirmLeastPrivilege: false,
   scopeValidationAttempted: false,
-  testConnectionStatus: 'idle',
+  mappingValidationAttempted: false,
 }
 
 function getProviderName(provider: ProviderId | null) {
@@ -181,27 +225,18 @@ function isScopeComplete(data: WizardData) {
   return isAuthorizeComplete(data) && data.syncWindow !== null
 }
 
-function isTestConnectionComplete(data: WizardData) {
-  return isScopeComplete(data) && data.testConnectionStatus === 'success'
+function isMappingComplete(data: WizardData) {
+  return (
+    isScopeComplete(data) &&
+    data.currencyMappings.every((row) => row.category !== null && row.ledgerAccount !== null)
+  )
 }
 
 function getFirstIncompleteStepIndex(data: WizardData) {
-  if (!isProviderComplete(data)) {
-    return 0
-  }
-
-  if (!isAuthorizeComplete(data)) {
-    return 1
-  }
-
-  if (!isScopeComplete(data)) {
-    return 2
-  }
-
-  if (!isTestConnectionComplete(data)) {
-    return 3
-  }
-
+  if (!isProviderComplete(data)) return 0
+  if (!isAuthorizeComplete(data)) return 1
+  if (!isScopeComplete(data)) return 2
+  if (!isMappingComplete(data)) return 3
   return 4
 }
 
@@ -304,6 +339,19 @@ export function ConnectSourceWizard() {
       return
     }
 
+    if (activeStep.id === 'mapping') {
+      const hasUnmapped = data.currencyMappings.some(
+        (row) => row.category === null || row.ledgerAccount === null,
+      )
+      if (hasUnmapped) {
+        setData((currentData) => ({
+          ...currentData,
+          mappingValidationAttempted: true,
+        }))
+        return
+      }
+    }
+
     if (isLastStep) {
       navigate('/')
       return
@@ -322,9 +370,10 @@ export function ConnectSourceWizard() {
         authorizationStatus: 'idle',
         syncWindow: null,
         optionalScopes: [],
+        currencyMappings: DEFAULT_CURRENCY_ROWS,
         confirmLeastPrivilege: false,
         scopeValidationAttempted: false,
-        testConnectionStatus: 'idle',
+        mappingValidationAttempted: false,
       }),
     startAuthorization: () =>
       setData((currentData) => ({
@@ -351,6 +400,16 @@ export function ConnectSourceWizard() {
           ? currentData.optionalScopes.filter((currentScope) => currentScope !== scopeId)
           : [...currentData.optionalScopes, scopeId],
         confirmLeastPrivilege: false,
+      })),
+    setCurrencyMapping: (currency, field, value) =>
+      setData((currentData) => ({
+        ...currentData,
+        mappingValidationAttempted: false,
+        currencyMappings: currentData.currencyMappings.map((row) =>
+          row.currency === currency
+            ? { ...row, [field]: value === '' ? null : value }
+            : row,
+        ),
       })),
     setConfirmLeastPrivilege: (checked) =>
       setData((currentData) => ({
@@ -642,6 +701,10 @@ export function ConfirmSourceStep() {
   const syncWindowLabel =
     syncWindows.find((windowOption) => windowOption.id === data.syncWindow)?.label ?? 'Not set'
 
+  const unmappedCount = data.currencyMappings.filter(
+    (r) => r.category === null || r.ledgerAccount === null,
+  ).length
+
   return (
     <div className="wizard-step-body">
       <section className="app-card wizard-inline-card">
@@ -672,6 +735,14 @@ export function ConfirmSourceStep() {
                 : 'None added'}
             </dd>
           </div>
+          <div>
+            <dt>Currency mapping</dt>
+            <dd>
+              {unmappedCount === 0
+                ? `${data.currencyMappings.length} currencies mapped`
+                : `${unmappedCount} of ${data.currencyMappings.length} unmapped`}
+            </dd>
+          </div>
         </dl>
       </section>
 
@@ -694,291 +765,265 @@ export function ConfirmSourceStep() {
 }
 
 // ---------------------------------------------------------------------------
-// #224 — TestConnectionStep
+// MapCurrenciesStep — #223
 // ---------------------------------------------------------------------------
 
-function buildDiagnosticBundle(provider: string, syncWindow: string, optionalScopes: string[]): string {
-  return JSON.stringify(
-    {
-      timestamp: new Date().toISOString(),
-      provider,
-      syncWindow,
-      optionalScopes,
-      userAgent: navigator.userAgent,
-      error: {
-        code: 'ERR_CONNECTION_TIMEOUT',
-        message: 'The test connection did not receive a response within the allowed window.',
-        hint: 'Check that the provider OAuth token has not been revoked and that the required scopes are still permitted.',
-      },
-    },
-    null,
-    2,
-  )
-}
+export function MapCurrenciesStep() {
+  const { data, setCurrencyMapping } = useWizardContext()
+  const [search, setSearch] = useState('')
+  const searchId = useId()
+  const alertId = useId()
 
-export function TestConnectionStep() {
-  const { data, providerName, runTestConnection, resetTestConnection, setData: _setData } =
-    useWizardContext() as WizardContext & { setData?: never }
+  const { currencyMappings, mappingValidationAttempted } = data
 
-  const syncWindowLabel =
-    syncWindows.find((w) => w.id === data.syncWindow)?.label ?? 'Not set'
-
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
-
-  const diagnosticBundle = buildDiagnosticBundle(
-    providerName,
-    syncWindowLabel,
-    data.optionalScopes,
+  const hasUnmapped = currencyMappings.some(
+    (row) => row.category === null || row.ledgerAccount === null,
   )
 
-  async function handleCopyDiagnostics() {
-    try {
-      await navigator.clipboard.writeText(diagnosticBundle)
-      setCopyState('copied')
-      setTimeout(() => setCopyState('idle'), 2500)
-    } catch {
-      setCopyState('error')
-      setTimeout(() => setCopyState('idle'), 2500)
-    }
-  }
-
-  const status = data.testConnectionStatus
+  const filtered = currencyMappings.filter((row) =>
+    row.currency.toLowerCase().includes(search.toLowerCase()),
+  )
 
   return (
     <div className="wizard-step-body">
-      <div className="wizard-two-column">
-        {/* Left panel — action */}
-        <section className="app-card wizard-inline-card">
-          <h3>Verify live read access to {providerName}</h3>
-          <p className="wizard-supporting-copy">
-            Before finishing setup, we make a lightweight read-only call to confirm the
-            OAuth token works and the permitted scopes are correct. No data is stored
-            during the test.
-          </p>
+      {/* Context callout */}
+      <div className="wizard-callout">
+        <h3>Why this step matters</h3>
+        <p className="wizard-supporting-copy">
+          Each currency the source reports must be mapped to an internal revenue category and a
+          ledger account. Unmapped currencies will be excluded from attestation evidence until
+          they are assigned. Defaults are pre-filled where Veritasor can infer a safe choice.
+        </p>
+      </div>
 
-          <dl className="wizard-summary-grid" style={{ marginBottom: '1rem' }}>
-            <div><dt>Provider</dt><dd>{providerName}</dd></div>
-            <div><dt>Sync window</dt><dd>{syncWindowLabel}</dd></div>
-            <div>
-              <dt>Scopes tested</dt>
-              <dd>{data.optionalScopes.length > 0 ? `Required + ${data.optionalScopes.length} optional` : 'Required only'}</dd>
-            </div>
-          </dl>
+      {/* Validation alert — shown inline when user tries to advance with unmapped rows */}
+      {mappingValidationAttempted && hasUnmapped && (
+        <div id={alertId} className="wizard-inline-alert" role="alert">
+          All currencies must have a category and ledger account assigned before continuing.
+          Rows flagged below are missing one or both values.
+        </div>
+      )}
 
-          <div className="wizard-inline-actions">
-            <button
-              type="button"
-              className="app-button app-button-primary"
-              disabled={status === 'running'}
-              onClick={runTestConnection}
-              aria-describedby="test-conn-status-msg"
+      <section className="app-card wizard-inline-card">
+        <h3>Currency and ledger mapping</h3>
+
+        {/* Search */}
+        <div style={{ marginBottom: '0.75rem' }}>
+          <label htmlFor={searchId} className="sr-only">
+            Search currencies
+          </label>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: '0.875rem',
+                color: 'var(--muted)',
+                fontSize: '1rem',
+                pointerEvents: 'none',
+              }}
             >
-              {status === 'running'
-                ? 'Testing connection…'
-                : status === 'failure'
-                  ? 'Retry test'
-                  : 'Run connection test'}
-            </button>
-
-            {(status === 'failure' || status === 'success') && (
-              <button
-                type="button"
-                className="app-button app-button-secondary"
-                onClick={resetTestConnection}
-              >
-                Reset
-              </button>
-            )}
+              🔍
+            </span>
+            <input
+              id={searchId}
+              type="search"
+              placeholder="Search by currency code…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search currencies"
+              style={{
+                width: '100%',
+                minHeight: '2.75rem',
+                padding: '0.6rem 0.875rem 0.6rem 2.5rem',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(15,23,42,0.82)',
+                color: 'var(--text)',
+                font: 'inherit',
+              }}
+            />
           </div>
-        </section>
+        </div>
 
-        {/* Right panel — status */}
-        <aside className="app-card wizard-status-card">
-          <h3>Test status</h3>
+        {/* Two-column mapping table */}
+        <div
+          role="table"
+          aria-label="Currency mapping"
+          aria-describedby={mappingValidationAttempted && hasUnmapped ? alertId : undefined}
+          style={{ display: 'grid', gap: '0.5rem' }}
+        >
+          {/* Header row */}
+          <div
+            role="row"
+            aria-hidden="true"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '5rem 1fr 1fr auto',
+              gap: '0.75rem',
+              padding: '0.4rem 0.875rem',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.07em',
+              color: 'var(--muted)',
+            }}
+          >
+            <span>Currency</span>
+            <span>Category</span>
+            <span>Ledger account</span>
+            <span style={{ width: '1.25rem' }} />
+          </div>
 
-          {status === 'idle' && (
-            <p
-              id="test-conn-status-msg"
-              className="wizard-status-message"
-              role="status"
-            >
-              Click "Run connection test" to verify the live read access before finishing
-              setup.
+          {filtered.length === 0 ? (
+            <p style={{ margin: '0.5rem 0', color: 'var(--muted)', fontSize: '0.9rem', textAlign: 'center' }}>
+              No currencies match "{search}".
             </p>
-          )}
+          ) : (
+            filtered.map((row) => {
+              const isUnmapped =
+                mappingValidationAttempted &&
+                (row.category === null || row.ledgerAccount === null)
+              const categorySelectId = `cat-${row.currency}`
+              const ledgerSelectId = `ledger-${row.currency}`
 
-          {status === 'running' && (
-            <div role="status" aria-live="polite" aria-atomic="true">
-              <p className="wizard-status-message wizard-status-message-info" id="test-conn-status-msg">
-                Contacting {providerName} and verifying read-only scopes…
-              </p>
-              {/* Animated loading bar */}
-              <div
-                aria-hidden="true"
-                style={{
-                  marginTop: '0.75rem',
-                  height: 6,
-                  borderRadius: 999,
-                  background: 'rgba(148, 163, 184, 0.18)',
-                  overflow: 'hidden',
-                }}
-              >
+              return (
                 <div
+                  key={row.currency}
+                  role="row"
                   style={{
-                    width: '40%',
-                    height: '100%',
-                    borderRadius: 999,
-                    background: 'linear-gradient(90deg, var(--accent), #60a5fa)',
-                    animation: 'test-conn-loading 1.4s ease-in-out infinite',
-                  }}
-                />
-              </div>
-              <style>{`
-                @keyframes test-conn-loading {
-                  0%   { transform: translateX(-100%); }
-                  100% { transform: translateX(300%); }
-                }
-              `}</style>
-            </div>
-          )}
-
-          {status === 'success' && (
-            <div role="status" aria-live="polite" aria-atomic="true">
-              <p
-                className="wizard-status-message wizard-status-message-success"
-                id="test-conn-status-msg"
-              >
-                ✓ Read-only access confirmed. All required scopes responded correctly.
-                You can now proceed to the final confirmation step.
-              </p>
-              <ul
-                style={{
-                  marginTop: '0.75rem',
-                  padding: '0 0 0 1.25rem',
-                  color: 'var(--muted)',
-                  fontSize: '0.88rem',
-                  lineHeight: 1.6,
-                }}
-              >
-                <li>Payout and settlement totals — readable</li>
-                <li>Charge and refund metadata — readable</li>
-                <li>Account configuration — readable</li>
-              </ul>
-            </div>
-          )}
-
-          {status === 'failure' && (
-            <div role="alert" aria-live="assertive" aria-atomic="true">
-              <p
-                className="wizard-status-message wizard-status-message-error"
-                id="test-conn-status-msg"
-              >
-                ✕ Connection failed. The test request did not succeed. Check the
-                diagnostic details below and retry.
-              </p>
-
-              {/* Actionable hints */}
-              <ul
-                style={{
-                  marginTop: '0.75rem',
-                  padding: '0 0 0 1.25rem',
-                  color: 'var(--muted)',
-                  fontSize: '0.88rem',
-                  lineHeight: 1.7,
-                }}
-              >
-                <li>Confirm the OAuth token has not been revoked in your {providerName} dashboard.</li>
-                <li>Ensure the required read-only scopes are still enabled.</li>
-                <li>Check whether a firewall or IP allowlist is blocking outbound requests.</li>
-                <li>Re-authorize the connection from the previous step if the token expired.</li>
-              </ul>
-
-              {/* Diagnostic bundle copy */}
-              <div
-                style={{
-                  marginTop: '1rem',
-                  padding: '0.75rem',
-                  borderRadius: 10,
-                  border: '1px solid rgba(251, 113, 133, 0.3)',
-                  background: 'rgba(251, 113, 133, 0.06)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
+                    display: 'grid',
+                    gridTemplateColumns: '5rem 1fr 1fr auto',
+                    gap: '0.75rem',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.5rem',
-                    marginBottom: '0.5rem',
+                    padding: '0.6rem 0.875rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: isUnmapped
+                      ? '1px solid rgba(251,113,133,0.45)'
+                      : '1px solid var(--border)',
+                    background: isUnmapped
+                      ? 'rgba(251,113,133,0.06)'
+                      : 'rgba(148,163,184,0.04)',
                   }}
                 >
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--muted)' }}>
-                    Diagnostic bundle
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={
-                      copyState === 'copied'
-                        ? 'Diagnostic bundle copied'
-                        : 'Copy diagnostic bundle to clipboard'
-                    }
-                    onClick={handleCopyDiagnostics}
+                  {/* Currency code */}
+                  <span
+                    role="cell"
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.3rem 0.7rem',
-                      borderRadius: 8,
-                      border: '1px solid var(--border)',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      color: copyState === 'copied' ? 'var(--success)' : 'var(--text)',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      transition: 'color 0.15s',
+                      fontWeight: 700,
+                      fontFamily: '"SF Mono","Fira Code",monospace',
+                      fontSize: '0.9rem',
+                      color: 'var(--text)',
                     }}
                   >
-                    {copyState === 'copied' ? (
-                      <>
-                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                        Copied
-                      </>
-                    ) : copyState === 'error' ? (
-                      'Copy failed'
-                    ) : (
-                      <>
-                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                        Copy
-                      </>
-                    )}
-                  </button>
+                    {row.currency}
+                  </span>
+
+                  {/* Category select */}
+                  <div role="cell">
+                    <label htmlFor={categorySelectId} className="sr-only">
+                      {row.currency} internal category
+                    </label>
+                    <select
+                      id={categorySelectId}
+                      value={row.category ?? ''}
+                      onChange={(e) => setCurrencyMapping(row.currency, 'category', e.target.value)}
+                      aria-invalid={isUnmapped && row.category === null}
+                      style={{
+                        width: '100%',
+                        minHeight: '2.5rem',
+                        padding: '0.4rem 2rem 0.4rem 0.75rem',
+                        border: `1px solid ${isUnmapped && row.category === null ? 'var(--danger)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(15,23,42,0.82)',
+                        color: row.category === null ? 'rgba(173,192,217,0.55)' : 'var(--text)',
+                        font: 'inherit',
+                        fontSize: '0.88rem',
+                        appearance: 'none',
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23adc0d9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 0.625rem center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">— Select category —</option>
+                      {CATEGORY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Ledger account select */}
+                  <div role="cell">
+                    <label htmlFor={ledgerSelectId} className="sr-only">
+                      {row.currency} ledger account
+                    </label>
+                    <select
+                      id={ledgerSelectId}
+                      value={row.ledgerAccount ?? ''}
+                      onChange={(e) =>
+                        setCurrencyMapping(row.currency, 'ledgerAccount', e.target.value)
+                      }
+                      aria-invalid={isUnmapped && row.ledgerAccount === null}
+                      style={{
+                        width: '100%',
+                        minHeight: '2.5rem',
+                        padding: '0.4rem 2rem 0.4rem 0.75rem',
+                        border: `1px solid ${isUnmapped && row.ledgerAccount === null ? 'var(--danger)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(15,23,42,0.82)',
+                        color: row.ledgerAccount === null ? 'rgba(173,192,217,0.55)' : 'var(--text)',
+                        font: 'inherit',
+                        fontSize: '0.88rem',
+                        appearance: 'none',
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23adc0d9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 0.625rem center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">— Select ledger —</option>
+                      {LEDGER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Unmapped flag indicator */}
+                  <span
+                    role="cell"
+                    aria-label={isUnmapped ? `${row.currency} has unmapped fields` : undefined}
+                    style={{
+                      width: '1.25rem',
+                      textAlign: 'center',
+                      color: isUnmapped ? 'var(--danger)' : 'var(--success)',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    {isUnmapped ? '✗' : row.category !== null && row.ledgerAccount !== null ? '✓' : ''}
+                  </span>
                 </div>
-                <pre
-                  aria-label="Diagnostic bundle JSON"
-                  tabIndex={0}
-                  style={{
-                    margin: 0,
-                    fontSize: '0.76rem',
-                    lineHeight: 1.55,
-                    color: 'var(--muted)',
-                    overflowX: 'auto',
-                    maxHeight: 180,
-                    overflowY: 'auto',
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    fontFamily: 'ui-monospace, "Cascadia Code", monospace',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {diagnosticBundle}
-                </pre>
-              </div>
-            </div>
+              )
+            })
           )}
-        </aside>
-      </div>
+        </div>
+
+        {/* Summary footer */}
+        <p
+          role="status"
+          aria-live="polite"
+          style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}
+        >
+          {currencyMappings.filter((r) => r.category !== null && r.ledgerAccount !== null).length}
+          {' '}of {currencyMappings.length} currencies fully mapped
+        </p>
+      </section>
     </div>
   )
 }
