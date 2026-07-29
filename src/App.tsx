@@ -10,6 +10,7 @@ import {
   ConnectSourceWizard,
   SelectSourceProviderStep,
   AuthorizeSourceStep,
+  OAuthCallbackLandingStep,
   ConfigureSourceScopeStep,
   MapCurrenciesStep,
   ConfirmSourceStep,
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="connect-source" element={<ConnectSourceWizard />}>
               <Route path="provider" element={<SelectSourceProviderStep />} />
               <Route path="authorize" element={<AuthorizeSourceStep />} />
+              <Route path="callback" element={<OAuthCallbackLandingStep />} />
               <Route path="scope" element={<ConfigureSourceScopeStep />} />
               <Route path="mapping" element={<MapCurrenciesStep />} />
               <Route path="confirm" element={<ConfirmSourceStep />} />
