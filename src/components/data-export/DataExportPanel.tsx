@@ -19,6 +19,30 @@ import {
 const FORMATS: ExportFormat[] = ['csv', 'json', 'parquet', 'pdf']
 const SCOPES: ExportScope[] = ['all', 'current-filter', 'last-30-days']
 
+// CSV column definitions — #235
+const CSV_COLUMNS: { id: string; label: string; group: string; required?: boolean }[] = [
+  // Identity
+  { id: 'id',              label: 'Record ID',           group: 'Identity', required: true },
+  { id: 'created_at',      label: 'Created at',          group: 'Identity', required: true },
+  // Revenue
+  { id: 'provider',        label: 'Provider',            group: 'Revenue' },
+  { id: 'gross_amount',    label: 'Gross amount',        group: 'Revenue' },
+  { id: 'net_amount',      label: 'Net amount',          group: 'Revenue' },
+  { id: 'currency',        label: 'Currency',            group: 'Revenue' },
+  { id: 'fee',             label: 'Processing fee',      group: 'Revenue' },
+  // Attestation
+  { id: 'attestation_id',  label: 'Attestation ID',      group: 'Attestation' },
+  { id: 'merkle_root',     label: 'Merkle root',         group: 'Attestation' },
+  { id: 'published_at',    label: 'Published at',        group: 'Attestation' },
+  { id: 'status',          label: 'Status',              group: 'Attestation' },
+  // Metadata
+  { id: 'workspace_id',    label: 'Workspace ID',        group: 'Metadata' },
+  { id: 'actor',           label: 'Actor',               group: 'Metadata' },
+  { id: 'source_ref',      label: 'Source reference',    group: 'Metadata' },
+]
+
+const CSV_COLUMN_GROUPS = Array.from(new Set(CSV_COLUMNS.map((c) => c.group)))
+
 const STATUS_META: Record<
   ExportJobStatus,
   { label: string; color: string; bg: string; border: string }
@@ -657,6 +681,10 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
   const [now, setNow] = useState(() => Date.now())
   const [notifyEmail, setNotifyEmail] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showColumnSelector, setShowColumnSelector] = useState(false)
+  const [csvColumns, setCsvColumns] = useState<string[]>(CSV_COLUMNS.map((c) => c.id))
+  const [csvDateFrom, setCsvDateFrom] = useState('')
+  const [csvDateTo, setCsvDateTo] = useState('')
 
   const timers = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const generateBtnRef = useRef<HTMLButtonElement>(null)
@@ -846,11 +874,45 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
         </span>
       </div>
 
-      <div style={{ marginTop: 'var(--density-gap)' }}>
-        <button type="button" style={primaryButton} onClick={handleStartClick}>
+      <div style={{ marginTop: 'var(--density-gap)', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" style={primaryButton} onClick={handleStartClick} ref={generateBtnRef}>
           Generate export
         </button>
+        {format === 'csv' && (
+          <button
+            type="button"
+            style={ghostButton}
+            onClick={() => setShowColumnSelector(true)}
+            aria-label="Choose CSV columns and date range"
+          >
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.4rem' }}>
+              <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+              <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+            </svg>
+            Columns &amp; date range
+          </button>
+        )}
       </div>
+
+      {/* CSV column selector modal */}
+      {showColumnSelector && (
+        <CsvColumnSelectorModal
+          scope={scope}
+          selectedColumns={csvColumns}
+          dateFrom={csvDateFrom}
+          dateTo={csvDateTo}
+          onColumnsChange={setCsvColumns}
+          onDateFromChange={setCsvDateFrom}
+          onDateToChange={setCsvDateTo}
+          onClose={() => setShowColumnSelector(false)}
+          onApply={(cols, from, to) => {
+            setCsvColumns(cols)
+            setCsvDateFrom(from)
+            setCsvDateTo(to)
+            setShowColumnSelector(false)
+          }}
+        />
+      )}
 
       {/* Confirmation dialog for large exports */}
       {showConfirm ? (
@@ -875,5 +937,360 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
         onFocusGenerate={handleFocusGenerate}
       />
     </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// #235 — CsvColumnSelectorModal
+// Compact modal for selecting audit-log CSV columns and date range.
+// Shows a live preview count of matching rows before export.
+// ---------------------------------------------------------------------------
+
+// Row counts per scope (mock data consistent with SCOPE_RECORD_COUNT)
+const SCOPE_ROW_COUNTS: Record<ExportScope, number> = {
+  'all': 50_000,
+  'current-filter': 200,
+  'last-30-days': 4_500,
+}
+
+// Estimate how many rows fall in a given date range (rough linear model)
+function estimateRowsInRange(scope: ExportScope, from: string, to: string): number {
+  const base = SCOPE_ROW_COUNTS[scope]
+  if (!from || !to) return base
+  const fromMs = new Date(from).getTime()
+  const toMs = new Date(to).getTime()
+  if (isNaN(fromMs) || isNaN(toMs) || toMs < fromMs) return base
+  // Assume uniform distribution over a rolling-12-month window (~365 days)
+  const windowDays = 365
+  const selectedDays = Math.max(1, (toMs - fromMs) / 86_400_000)
+  return Math.round(base * Math.min(1, selectedDays / windowDays))
+}
+
+interface CsvColumnSelectorModalProps {
+  scope: ExportScope
+  selectedColumns: string[]
+  dateFrom: string
+  dateTo: string
+  onColumnsChange: (cols: string[]) => void
+  onDateFromChange: (v: string) => void
+  onDateToChange: (v: string) => void
+  onClose: () => void
+  onApply: (cols: string[], from: string, to: string) => void
+}
+
+export function CsvColumnSelectorModal({
+  scope,
+  selectedColumns,
+  dateFrom,
+  dateTo,
+  onColumnsChange,
+  onDateFromChange,
+  onDateToChange,
+  onClose,
+  onApply,
+}: CsvColumnSelectorModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [localCols, setLocalCols] = useState<string[]>(selectedColumns)
+  const [localFrom, setLocalFrom] = useState(dateFrom)
+  const [localTo, setLocalTo] = useState(dateTo)
+
+  // Focus trap on mount
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null
+    dialogRef.current?.focus()
+    return () => prev?.focus()
+  }, [])
+
+  // Close on Escape
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  function toggleColumn(id: string) {
+    const col = CSV_COLUMNS.find((c) => c.id === id)
+    if (col?.required) return // required columns cannot be deselected
+    setLocalCols((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    )
+  }
+
+  function toggleGroup(group: string) {
+    const groupIds = CSV_COLUMNS
+      .filter((c) => c.group === group && !c.required)
+      .map((c) => c.id)
+    const allSelected = groupIds.every((id) => localCols.includes(id))
+    if (allSelected) {
+      setLocalCols((prev) => prev.filter((id) => !groupIds.includes(id)))
+    } else {
+      setLocalCols((prev) => Array.from(new Set([...prev, ...groupIds])))
+    }
+  }
+
+  function selectAll() {
+    setLocalCols(CSV_COLUMNS.map((c) => c.id))
+  }
+
+  function selectRequired() {
+    setLocalCols(CSV_COLUMNS.filter((c) => c.required).map((c) => c.id))
+  }
+
+  const previewCount = estimateRowsInRange(scope, localFrom, localTo)
+  const previewFormatted = previewCount.toLocaleString()
+
+  // Date range validation
+  const dateRangeError =
+    localFrom && localTo && new Date(localTo) < new Date(localFrom)
+      ? '"To" date must be on or after the "From" date.'
+      : ''
+
+  const canApply = localCols.length > 0 && !dateRangeError
+
+  return (
+    /* Backdrop */
+    <div
+      aria-hidden="true"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'rgba(2, 6, 23, 0.72)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem',
+      }}
+    >
+      {/* Dialog */}
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="csv-col-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 560,
+          maxHeight: '90dvh', overflowY: 'auto',
+          background: 'var(--surface-strong)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-lg)',
+          display: 'grid',
+          outline: 'none',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '1.1rem 1.25rem 0.75rem',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <h2 id="csv-col-modal-title" style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 700 }}>
+            CSV columns &amp; date range
+          </h2>
+          <button
+            type="button"
+            aria-label="Close column selector"
+            onClick={onClose}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 32, height: 32, borderRadius: 8,
+              border: '1px solid var(--border)', background: 'transparent',
+              cursor: 'pointer', color: 'var(--muted)',
+            }}
+          >
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '1rem 1.25rem', display: 'grid', gap: '1.25rem' }}>
+
+          {/* Date range */}
+          <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+            <legend style={{ fontWeight: 700, marginBottom: '0.6rem', fontSize: '0.9rem' }}>
+              Date range <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(optional)</span>
+            </legend>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gap: '0.3rem' }}>
+                <label htmlFor="csv-date-from" style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>From</label>
+                <input
+                  id="csv-date-from"
+                  type="date"
+                  value={localFrom}
+                  max={localTo || undefined}
+                  onChange={(e) => setLocalFrom(e.target.value)}
+                  style={{
+                    minHeight: 'var(--density-touch-min)', padding: '0.5rem 0.7rem',
+                    borderRadius: 10, border: '1px solid var(--border)',
+                    background: 'var(--surface)', color: 'var(--text)',
+                    fontSize: '0.9rem', colorScheme: 'dark',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'grid', gap: '0.3rem' }}>
+                <label htmlFor="csv-date-to" style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>To</label>
+                <input
+                  id="csv-date-to"
+                  type="date"
+                  value={localTo}
+                  min={localFrom || undefined}
+                  onChange={(e) => setLocalTo(e.target.value)}
+                  aria-describedby={dateRangeError ? 'csv-date-error' : undefined}
+                  style={{
+                    minHeight: 'var(--density-touch-min)', padding: '0.5rem 0.7rem',
+                    borderRadius: 10,
+                    border: `1px solid ${dateRangeError ? 'var(--danger)' : 'var(--border)'}`,
+                    background: 'var(--surface)', color: 'var(--text)',
+                    fontSize: '0.9rem', colorScheme: 'dark',
+                  }}
+                />
+              </div>
+            </div>
+            {dateRangeError && (
+              <p id="csv-date-error" role="alert" style={{ margin: '0.4rem 0 0', fontSize: '0.82rem', color: 'var(--danger)' }}>
+                {dateRangeError}
+              </p>
+            )}
+          </fieldset>
+
+          {/* Column selector */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Columns</span>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button
+                  type="button"
+                  onClick={selectAll}
+                  style={{ ...ghostButton, padding: '0.25rem 0.65rem', fontSize: '0.78rem', minHeight: 'unset', borderRadius: 8 }}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={selectRequired}
+                  style={{ ...ghostButton, padding: '0.25rem 0.65rem', fontSize: '0.78rem', minHeight: 'unset', borderRadius: 8 }}
+                >
+                  Required only
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gap: '0.85rem' }}>
+              {CSV_COLUMN_GROUPS.map((group) => {
+                const groupCols = CSV_COLUMNS.filter((c) => c.group === group)
+                const optionalGroupCols = groupCols.filter((c) => !c.required)
+                const allGroupSelected = optionalGroupCols.every((c) => localCols.includes(c.id))
+                const someGroupSelected = optionalGroupCols.some((c) => localCols.includes(c.id))
+
+                return (
+                  <div key={group}>
+                    {/* Group header with select-all toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                      {optionalGroupCols.length > 0 && (
+                        <input
+                          type="checkbox"
+                          id={`csv-group-${group}`}
+                          checked={allGroupSelected}
+                          ref={(el) => { if (el) el.indeterminate = someGroupSelected && !allGroupSelected }}
+                          onChange={() => toggleGroup(group)}
+                          aria-label={`Toggle all ${group} columns`}
+                          style={{ width: 16, height: 16 }}
+                        />
+                      )}
+                      <label
+                        htmlFor={optionalGroupCols.length > 0 ? `csv-group-${group}` : undefined}
+                        style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                      >
+                        {group}
+                      </label>
+                    </div>
+
+                    {/* Column checkboxes */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.3rem 0.5rem', paddingLeft: optionalGroupCols.length > 0 ? '1.5rem' : '0' }}>
+                      {groupCols.map((col) => (
+                        <label
+                          key={col.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            cursor: col.required ? 'default' : 'pointer',
+                            fontSize: '0.88rem',
+                            color: col.required ? 'var(--muted)' : 'var(--text)',
+                            padding: '0.2rem 0',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={localCols.includes(col.id)}
+                            disabled={col.required}
+                            onChange={() => toggleColumn(col.id)}
+                            aria-label={col.required ? `${col.label} (required)` : col.label}
+                            style={{ width: 15, height: 15 }}
+                          />
+                          {col.label}
+                          {col.required && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--muted)', marginLeft: '0.15rem' }}>req.</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer — preview count + actions */}
+        <div
+          style={{
+            padding: '0.9rem 1.25rem',
+            borderTop: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: '0.75rem',
+          }}
+        >
+          {/* Preview count */}
+          <div
+            aria-live="polite"
+            aria-atomic="true"
+            style={{ fontSize: '0.88rem', color: 'var(--muted)' }}
+          >
+            <span style={{ color: 'var(--text)', fontWeight: 700 }}>{previewFormatted}</span>
+            {' '}matching row{previewCount !== 1 ? 's' : ''} ·{' '}
+            <span style={{ color: 'var(--text)', fontWeight: 700 }}>{localCols.length}</span>
+            {' '}column{localCols.length !== 1 ? 's' : ''}
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            <button type="button" style={ghostButton} onClick={onClose}
+              style={{ ...ghostButton, padding: '0.55rem 1rem', fontSize: '0.88rem' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!canApply}
+              onClick={() => onApply(localCols, localFrom, localTo)}
+              style={{
+                ...primaryButton,
+                padding: '0.55rem 1rem',
+                fontSize: '0.88rem',
+                opacity: canApply ? 1 : 0.5,
+                cursor: canApply ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Apply &amp; close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
