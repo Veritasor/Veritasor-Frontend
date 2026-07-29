@@ -23,3 +23,38 @@ if (typeof ResizeObserver === 'undefined') {
 if (typeof Element.prototype.scrollIntoView === 'undefined') {
   Element.prototype.scrollIntoView = () => {}
 }
+
+// ─── matchMedia polyfill for JSDOM ─────────────────────────────────────────
+if (typeof window.matchMedia !== 'function') {
+  window.matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }) as MediaQueryList
+}
+
+// ─── IntersectionObserver polyfill for JSDOM ────────────────────────────────
+if (typeof IntersectionObserver === 'undefined') {
+  globalThis.IntersectionObserver = class IntersectionObserver {
+    private callback: IntersectionObserverCallback
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback
+    }
+    observe() {
+      this.callback([], this)
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return []
+    }
+    root: Element | Document | null = null
+    rootMargin: string = ''
+    thresholds: ReadonlyArray<number> = []
+  }
+}

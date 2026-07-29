@@ -3,6 +3,8 @@ import { useDensityMode, type DensityMode } from "../hooks/useDensityMode";
 
 export interface DensityToggleProps {
   workspace: string;
+  /** Optional callback for persistence errors (e.g., to wire up toast) */
+  onPersistError?: (message: string) => void;
 }
 
 const DENSITY_CONFIG: {
@@ -45,20 +47,20 @@ function DensityPreview({ mode, selected }: { mode: DensityMode; selected: boole
       style={{ display: "block" }}
     >
       {/* Row 1 */}
-      <rect x="0" y={0} width="72" height={h} rx={br} fill={box.background} />
-      <rect x={78} y={0} width="42" height={h} rx={br} fill={box.background} opacity={0.5} />
+      <rect x="0" y={0} width="72" height={h} rx={br} fill={box.background as string} />
+      <rect x={78} y={0} width="42" height={h} rx={br} fill={box.background as string} opacity={0.5} />
       {/* Row 2 */}
-      <rect x="0" y={h + gap} width="52" height={h} rx={br} fill={box.background} />
-      <rect x={58} y={h + gap} width="62" height={h} rx={br} fill={box.background} opacity={0.5} />
+      <rect x="0" y={h + gap} width="52" height={h} rx={br} fill={box.background as string} />
+      <rect x={58} y={h + gap} width="62" height={h} rx={br} fill={box.background as string} opacity={0.5} />
       {/* Row 3 */}
-      <rect x="0" y={2 * (h + gap)} width="90" height={h} rx={br} fill={box.background} />
-      <rect x={96} y={2 * (h + gap)} width="24" height={h} rx={br} fill={box.background} opacity={0.5} />
+      <rect x="0" y={2 * (h + gap)} width="90" height={h} rx={br} fill={box.background as string} />
+      <rect x={96} y={2 * (h + gap)} width="24" height={h} rx={br} fill={box.background as string} opacity={0.5} />
     </svg>
   );
 }
 
-export default function DensityToggle({ workspace }: DensityToggleProps) {
-  const { density, setDensity } = useDensityMode(workspace);
+export default function DensityToggle({ workspace, onPersistError }: DensityToggleProps) {
+  const { density, setDensity } = useDensityMode(workspace, { onPersistError });
 
   return (
     <div

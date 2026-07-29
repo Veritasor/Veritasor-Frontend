@@ -2,13 +2,16 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import Breadcrumb from '../components/Breadcrumb'
+import { LocaleProvider } from '../i18n/provider'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function renderBreadcrumb(props: React.ComponentProps<typeof Breadcrumb>) {
   return render(
     <MemoryRouter>
-      <Breadcrumb {...props} />
+      <LocaleProvider>
+        <Breadcrumb {...props} />
+      </LocaleProvider>
     </MemoryRouter>
   )
 }

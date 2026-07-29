@@ -213,7 +213,7 @@ describe('Motion CSS — prefers-reduced-motion override', () => {
     const reducedSection = rawCss.slice(rawCss.indexOf('@media (prefers-reduced-motion: reduce)'))
     // Extract the @keyframes toast-enter block inside — use a non-greedy match
     // so we get the first occurrence (the one inside the media query)
-    const kfMatch = reducedSection.match(/@keyframes toast-enter\s*\{([^}]+\}[^}]*)\}/)
+    const kfMatch = reducedSection.match(/^\s+@keyframes toast-enter\s*\{((?:[^}]*}\s*[^}]*)+)\}/m)
     expect(kfMatch, 'No toast-enter keyframe in reduced-motion block').not.toBeNull()
     // The keyframe body contains all the stop rules (0% { ... } 100% { ... })
     // We validate the entire match text

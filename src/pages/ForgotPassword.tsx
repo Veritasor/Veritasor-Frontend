@@ -1,4 +1,4 @@
-import React, { useState, useId } from "react";
+import React, { useState, useId, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import AuthShell from "../components/AuthShell";
 import { useToast } from "../components/ToastContext";

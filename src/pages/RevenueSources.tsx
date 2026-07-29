@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useRef, type CSSProperties } from 'react'
-import { useToast } from '../components/ToastContext'
 import { useDragReorder } from '../hooks/useDragReorder'
-import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
+import { useToast } from '../components/ToastContext'
 
 // ---------------------------------------------------------------------------
 // Types

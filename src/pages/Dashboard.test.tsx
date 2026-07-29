@@ -41,9 +41,9 @@ describe('Dashboard Page', () => {
     expect(container.querySelector('.dashboard-grid')).toBeInTheDocument()
   })
 
-  it('renders two dashboard-section cards', () => {
+  it('renders three dashboard-section cards', () => {
     const { container } = renderPage()
-    expect(container.querySelectorAll('.dashboard-section').length).toBe(2)
+    expect(container.querySelectorAll('.dashboard-section').length).toBe(3)
   })
 
   it('renders dashboard-metrics-grid', () => {

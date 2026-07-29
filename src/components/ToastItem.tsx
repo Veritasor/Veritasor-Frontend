@@ -15,7 +15,7 @@ interface ToastItemProps {
 }
 
 export default function ToastItem({ toast, onRemove, disableMotion = false }: ToastItemProps) {
-  const { id, type, message, duration, onUndo, undoLabel = 'Undo' } = toast
+  const { id, type, message, duration, onUndo, undoLabel = 'Undo', count } = toast
 
   // Auto-dismiss duration: success/info default to 5000ms, warning/error persist
   // (0) unless explicitly overridden. ToastItem.tsx consults `toastRules` so the
