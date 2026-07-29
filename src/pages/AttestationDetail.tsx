@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
 import Breadcrumb from '../components/Breadcrumb'
-import ProofShareModal from '../components/ProofShareModal'
+import './AttestationCertificate.print.css'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +86,18 @@ function formatDate(iso: string) {
   })
 }
 
+// Grayscale-safe label/icon for the formal printed certificate. Each status
+// combines an icon glyph (shape channel) with a text label and a styled border
+// so the document remains informative when printed in black & white.
+const PRINT_STATUS: Record<
+  VerificationStatus,
+  { label: string; glyph: string; ariaLabel: string }
+> = {
+  verified: { label: 'VERIFIED', glyph: '✓', ariaLabel: 'Status: verified' },
+  pending: { label: 'PENDING ON-CHAIN CONFIRMATION', glyph: '◷', ariaLabel: 'Status: pending on-chain confirmation' },
+  failed: { label: 'NOT ATTESTED — VALIDATION FAILED', glyph: '✕', ariaLabel: 'Status: validation failed' },
+}
+
 // ---------------------------------------------------------------------------
 // CopyButton
 // ---------------------------------------------------------------------------
@@ -122,6 +135,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
         onClick={handleCopy}
         aria-label={isCopied ? `${label} copied` : isFailed ? `Failed to copy ${label}` : `Copy ${label}`}
         title={isCopied ? 'Copied!' : isFailed ? 'Copy failed' : 'Copy to clipboard'}
+        className="no-print"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -173,6 +187,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div
+      className="certificate-data-row"
       style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -183,6 +198,7 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
       }}
     >
       <dt
+        className="certificate-data-label"
         style={{
           width: '10rem',
           flexShrink: 0,
@@ -195,10 +211,95 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
       >
         {label}
       </dt>
-      <dd style={{ margin: 0, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <dd style={{ margin: 0, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }} className="certificate-data-value">
         {children}
       </dd>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Certificate Seal (print-only SVG)
+// ---------------------------------------------------------------------------
+
+function CertificateSeal({ status, attestationId }: { status: VerificationStatus; attestationId: string }) {
+  const sealLabel =
+    status === 'verified'
+      ? 'Attested On-Chain'
+      : status === 'pending'
+        ? 'Awaiting On-Chain'
+        : 'Not Attested'
+
+  return (
+    <aside className="certificate-seal print-only" aria-label={`Issuance seal: ${sealLabel}`}>
+      <svg
+        viewBox="0 0 120 120"
+        role="img"
+        aria-label={`Round seal reading Veritasor Protocol on top arc, ${sealLabel} on bottom arc, with attestation ${attestationId} in the center`}
+      >
+        <defs>
+          <path
+            id="seal-arc-top"
+            d="M60 60 m -45 0 a 45 45 0 1 1 90 0"
+          />
+          <path
+            id="seal-arc-bottom"
+            d="M60 60 m 45 0 a 45 45 0 1 1 -90 0"
+          />
+        </defs>
+        {/* Outer ring */}
+        <circle cx="60" cy="60" r="56" fill="none" stroke="currentColor" strokeWidth="1.2" />
+        {/* Inner ring */}
+        <circle cx="60" cy="60" r="48" fill="none" stroke="currentColor" strokeWidth="0.6" />
+        {/* Top arc text */}
+        <text fontSize="6.6" fontWeight="700" letterSpacing="2.4" fill="currentColor">
+          <textPath href="#seal-arc-top" startOffset="50%" textAnchor="middle">
+            VERITASOR PROTOCOL
+          </textPath>
+        </text>
+        {/* Bottom arc text */}
+        <text fontSize="5.4" letterSpacing="1.6" fill="currentColor">
+          <textPath href="#seal-arc-bottom" startOffset="50%" textAnchor="middle">
+            {sealLabel.toUpperCase()}
+          </textPath>
+        </text>
+        {/* Center monogram */}
+        <g transform="translate(60 60)">
+          <circle r="14" fill="none" stroke="currentColor" strokeWidth="0.8" />
+          <text textAnchor="middle" dy="4" fontSize="14" fontWeight="700" fill="currentColor">
+            V
+          </text>
+        </g>
+      </svg>
+      <span className="certificate-seal-caption">Stellar On-Chain Proof Seal</span>
+    </aside>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// BackLink
+// ---------------------------------------------------------------------------
+
+function BackLink({ className = '' }: { className?: string }) {
+  return (
+    <Link
+      to="/attestations"
+      aria-label="Back to attestations list"
+      className={`back-link ${className}`.trim()}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+        fontSize: '0.9rem',
+        color: 'var(--muted)',
+      }}
+    >
+      {/* left arrow */}
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M9 2 4 7l5 5" />
+      </svg>
+      Attestations
+    </Link>
   )
 }
 
@@ -209,7 +310,23 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
 export default function AttestationDetail() {
   const { id } = useParams<{ id: string }>()
   const attestation = id ? MOCK[id] : undefined
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [printedOn, setPrintedOn] = useState<string | null>(null)
+  const [now] = useState(() => new Date())
+
+  // Reset printed-on timestamp whenever the attestation changes so the footer
+  // reflects the most-recent print of the current record.
+  useEffect(() => {
+    setPrintedOn(null)
+  }, [id])
+
+  const handlePrint = useCallback(() => {
+    // Flush the printed-on timestamp synchronously into the DOM so the footer
+    // captures the new "Printed …" line before the browser snapshots the page.
+    flushSync(() => {
+      setPrintedOn(new Date().toISOString())
+    })
+    window.print()
+  }, [])
 
   // ── Loading / not-found states ──────────────────────────────────────────
   if (!id) {
@@ -243,18 +360,29 @@ export default function AttestationDetail() {
   }
 
   const status = STATUS_STYLES[attestation.status]
+  const printStatus = PRINT_STATUS[attestation.status]
+  const issuedOn = formatDate(attestation.timestamp)
+  const formattedTotal = `${attestation.totalRevenue} ${attestation.currency}`
 
   return (
-    <div style={{ maxWidth: '52rem' }}>
-      <Breadcrumb
-        items={[
-          { label: 'Attestations', href: '/attestations' },
-          { label: `Attestation ${attestation.id}` },
-        ]}
-      />
+    <article
+      className="certificate"
+      aria-label={`Certificate of revenue attestation: ${attestation.id}`}
+      data-cert-id={attestation.id}
+    >
+      {/* ── Screen-only breadcrumb ──────────────────────────────────────── */}
+      <div className="no-print" style={{ width: '100%' }}>
+        <Breadcrumb
+          items={[
+            { label: 'Attestations', href: '/attestations' },
+            { label: `Attestation ${attestation.id}` },
+          ]}
+        />
+      </div>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* ── Screen-only header ─────────────────────────────────────────── */}
       <header
+        className="screen-only"
         style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -264,29 +392,13 @@ export default function AttestationDetail() {
           marginBottom: '2rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: 'clamp(1.4rem, 3vw, 2rem)' }}>
-            Attestation Proof
-          </h1>
-          <span
-            role="status"
-            aria-label={`Verification status: ${status.label}`}
-            style={{
-              padding: '0.3rem 0.85rem',
-              borderRadius: '999px',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              background: status.bg,
-              color: status.color,
-              letterSpacing: '0.04em',
-            }}
-          >
-            {status.label}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setIsShareModalOpen(true)}
+        <h1 style={{ margin: 0, fontSize: 'clamp(1.4rem, 3vw, 2rem)' }}>
+          Attestation Proof
+        </h1>
+        <span
+          role="status"
+          aria-label={printStatus.ariaLabel}
+          className="no-print"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -304,19 +416,99 @@ export default function AttestationDetail() {
           onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
           onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-            <polyline points="16 6 12 2 8 6" />
-            <line x1="12" y1="2" x2="12" y2="15" />
+          {status.label}
+        </span>
+        <button
+          type="button"
+          onClick={handlePrint}
+          aria-label="Print certificate"
+          title="Print this attestation as a formal certificate"
+          className="no-print"
+          style={{
+            marginLeft: 'auto',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.5rem 0.85rem',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            border: '1px solid var(--border)',
+            borderRadius: '0.5rem',
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            cursor: 'pointer',
+            transition: 'border-color 160ms, background 160ms',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 4 V1 H11 V4" />
+            <rect x="2" y="4" width="10" height="6" rx="1" />
+            <rect x="4" y="8" width="6" height="4" />
+            <circle cx="11" cy="6.5" r="0.6" fill="currentColor" />
           </svg>
-          Share Proof
+          Print Certificate
         </button>
       </header>
 
-      {/* ── Failure Banner ─────────────────────────────────────────────── */}
+      {/* ── Print-only formal header ───────────────────────────────────── */}
+      <header className="certificate-header print-only">
+        <div className="certificate-brand">
+          <svg viewBox="0 0 40 40" aria-hidden="true" className="certificate-brand-mark">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="1.4" />
+            <circle cx="20" cy="20" r="11" fill="none" stroke="currentColor" strokeWidth="1" />
+            <text
+              x="20"
+              y="25"
+              textAnchor="middle"
+              fontSize="14"
+              fontWeight="700"
+              fill="currentColor"
+            >
+              V
+            </text>
+          </svg>
+          <span>
+            <span className="certificate-brand-name">Veritasor</span>
+            <span className="certificate-brand-tagline">Revenue Attestation Protocol</span>
+          </span>
+        </div>
+        <div className="certificate-header-meta">
+          <div>
+            <strong>Document ID</strong>
+          </div>
+          <div style={{ fontFamily: '"Courier New", monospace' }}>{attestation.id}</div>
+          <div style={{ marginTop: 4 }}>
+            <strong>Issued</strong> {issuedOn}
+          </div>
+        </div>
+      </header>
+
+      {/* ── Print-only title block ────────────────────────────────────── */}
+      <section className="certificate-title-block print-only">
+        <p className="certificate-eyebrow">On-Chain Revenue Attestation</p>
+        <h2 className="certificate-title">Certificate of Revenue Attestation</h2>
+        <p className="certificate-subtitle">
+          Formally attested on the Stellar public network.
+        </p>
+      </section>
+
+      {/* ── Print-only issuer statement ────────────────────────────────── */}
+      <section className="certificate-statement print-only" aria-label="Issuance statement">
+        <p>
+          This document certifies that the <strong>{attestation.recordCount.toLocaleString()}</strong>{' '}
+          revenue entries summarised below, totalling{' '}
+          <strong>{formattedTotal}</strong>, were cryptographically committed to the
+          Stellar public ledger under the Merkle root{' '}
+          <strong>{attestation.merkleRoot}</strong>, and were anchored on-chain at{' '}
+          <strong>{issuedOn}</strong>.
+        </p>
+      </section>
+
+      {/* ── Failure Banner (screen-only) ───────────────────────────────── */}
       {attestation.status === 'failed' && (
         <section
           aria-labelledby="failure-banner-title"
+          className="no-print"
           style={{
             background: 'var(--danger-soft)',
             border: '1px solid var(--danger)',
@@ -359,6 +551,7 @@ export default function AttestationDetail() {
                   alert('Retry initiated.')
                 }
               }}
+              className="no-print"
               style={{
                 background: 'var(--danger)',
                 color: '#fff',
@@ -379,7 +572,9 @@ export default function AttestationDetail() {
         </section>
       )}
 
-      {/* ── Metadata card ──────────────────────────────────────────────── */}
+      {/* ── Certificate body: metadata + seal are direct grid children in print ─ */}
+      <div className="certificate-body">
+      {/* ── Metadata card (visible in both screen and print) ───────────── */}
       <section
         aria-label="Attestation metadata"
         style={{
@@ -387,6 +582,7 @@ export default function AttestationDetail() {
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-sm)',
           padding: '0 1.25rem',
+          boxShadow: 'var(--shadow-lg)',
         }}
       >
         <dl style={{ margin: 0 }}>
@@ -406,7 +602,7 @@ export default function AttestationDetail() {
             <CopyButton value={attestation.merkleRoot} label="Merkle root" />
           </MetaRow>
 
-          {/* Stellar TX */}
+          {/* Stellar TX — show truncated on screen, full hash in print via CSS */}
           <MetaRow label="Stellar TX">
             <code
               aria-label="Stellar transaction hash"
@@ -417,7 +613,12 @@ export default function AttestationDetail() {
                 fontFamily: 'monospace',
               }}
             >
-              {truncate(attestation.stellarTxHash, 10)}
+              <span className="hash-truncated" aria-hidden="false">
+                {truncate(attestation.stellarTxHash, 10)}
+              </span>
+              <span className="hash-full" aria-hidden="false">
+                {attestation.stellarTxHash}
+              </span>
             </code>
             <CopyButton value={attestation.stellarTxHash} label="Stellar transaction hash" />
             <a
@@ -473,38 +674,96 @@ export default function AttestationDetail() {
             </code>
             <CopyButton value={attestation.id} label="Attestation ID" />
           </MetaRow>
+
+          {/* Status (grayscale-safe pill — visible in print and screen) */}
+          <MetaRow label="Verification Status">
+            <span
+              className={`certificate-status certificate-status-${attestation.status}`}
+              aria-label={printStatus.ariaLabel}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.3rem 0.85rem',
+                border: '2px solid var(--text)',
+                borderRadius: '999px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                background: 'var(--surface-soft)',
+                color: 'var(--text)',
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1rem', lineHeight: 1 }}>
+                {printStatus.glyph}
+              </span>
+              {printStatus.label}
+            </span>
+          </MetaRow>
         </dl>
       </section>
 
-      {isShareModalOpen && (
-        <ProofShareModal 
-          isOpen={isShareModalOpen} 
-          onClose={() => setIsShareModalOpen(false)} 
-          attestationId={attestation.id} 
-        />
-      )}
-    </div>
-  )
-}
+      {/* ── Print-only certificate body (seal + statement + footer) ────── */}
+      <div className="print-only" aria-hidden="true" />
 
-function BackLink() {
-  return (
-    <Link
-      to="/attestations"
-      aria-label="Back to attestations list"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.4rem',
-        fontSize: '0.9rem',
-        color: 'var(--muted)',
-      }}
-    >
-      {/* left arrow */}
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M9 2 4 7l5 5" />
-      </svg>
-      Attestations
-    </Link>
+      {/* ── Print-only seal (sits to the right of metadata on print) ────── */}
+      <CertificateSeal status={attestation.status} attestationId={attestation.id} />
+
+      {/* ── Print-only failure notice ──────────────────────────────────── */}
+      {attestation.status === 'failed' && (
+        <section className="certificate-failure-notice print-only" aria-label="Validation failure notice">
+          <h2>Validation Not Completed</h2>
+          <p>
+            <strong>Reason:</strong> {attestation.failureReason || 'Unknown error occurred.'}
+          </p>
+          {attestation.remediation && (
+            <p>
+              <strong>Suggested Remediation:</strong> {attestation.remediation}
+            </p>
+          )}
+          <p>This certificate reflects an attempted attestation that did not publish to the Stellar public network.</p>
+        </section>
+      )}
+      </div>
+
+      {/* ── Print-only formal footer ───────────────────────────────────── */}
+      <footer
+        className="certificate-footer print-only"
+        role="contentinfo"
+        aria-label="Certificate footer"
+      >
+        <div className="certificate-signature">
+          <div>Signed on behalf of the issuing authority:</div>
+          <div className="certificate-signature-name">Veritasor Protocol</div>
+          <div className="certificate-signature-title">Issuing Authority</div>
+        </div>
+        <div className="certificate-meta-stack">
+          <div>
+            <strong>Document</strong> {attestation.id}
+          </div>
+          <div>
+            <strong>Printed</strong>{' '}
+            <time dateTime={printedOn ?? now.toISOString()}>
+              {printedOn
+                ? formatDate(printedOn)
+                : `${formatDate(now.toISOString())} (preview)`}
+            </time>
+          </div>
+          <div>veritasor.app / attestations / {attestation.id}</div>
+        </div>
+      </footer>
+
+      {/* ── Print-only authenticity line ───────────────────────────────── */}
+      <p className="certificate-authenticity print-only" aria-label="Authentication reference">
+        Authenticated against Stellar transaction hash{' '}
+        <code>{attestation.stellarTxHash}</code>. Verify at stellar.expert.
+      </p>
+
+      {/* ── Screen-only back link ──────────────────────────────────────── */}
+      <div className="screen-only" style={{ marginTop: '2rem' }}>
+        <BackLink />
+      </div>
+    </article>
   )
 }

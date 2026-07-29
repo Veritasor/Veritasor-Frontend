@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useToast } from './ToastContext'
+
+type PaletteScope = 'global' | 'page'
+
+const SCOPE_STORAGE_KEY = 'veritasor-palette-scope'
 
 export interface Command {
   id: string
@@ -8,6 +12,22 @@ export interface Command {
   description?: string
   shortcut?: string[]
   category: 'Navigation' | 'Actions' | 'Settings'
+  /** Routes this command is relevant on — empty means always relevant */
+  pageRoutes?: string[]
+}
+
+function loadScope(): PaletteScope {
+  try {
+    const stored = sessionStorage.getItem(SCOPE_STORAGE_KEY)
+    if (stored === 'global' || stored === 'page') return stored
+  } catch { /* ignore */ }
+  return 'global'
+}
+
+function persistScope(scope: PaletteScope) {
+  try {
+    sessionStorage.setItem(SCOPE_STORAGE_KEY, scope)
+  } catch { /* ignore */ }
 }
 
 export const COMMANDS: Command[] = [
@@ -17,6 +37,7 @@ export const COMMANDS: Command[] = [
     description: 'Navigate to the business dashboard analytics overview',
     shortcut: ['G', 'D'],
     category: 'Navigation',
+    pageRoutes: ['/attestations', '/sources', '/settings', '/revenue-sources'],
   },
   {
     id: 'nav-attestations',
@@ -24,6 +45,7 @@ export const COMMANDS: Command[] = [
     description: 'View and manage revenue proof attestations',
     shortcut: ['G', 'A'],
     category: 'Navigation',
+    pageRoutes: ['/', '/sources', '/settings', '/revenue-sources'],
   },
   {
     id: 'nav-sources',
@@ -31,6 +53,7 @@ export const COMMANDS: Command[] = [
     description: 'View connected integrations and revenue flow',
     shortcut: ['G', 'S'],
     category: 'Navigation',
+    pageRoutes: ['/', '/attestations', '/settings', '/revenue-sources'],
   },
   {
     id: 'action-workspace-jump',
@@ -45,6 +68,7 @@ export const COMMANDS: Command[] = [
     description: 'Integrate Stripe, Shopify, or other platforms',
     shortcut: ['C', 'S'],
     category: 'Actions',
+    pageRoutes: ['/', '/sources', '/revenue-sources'],
   },
   {
     id: 'action-create-attestation',
@@ -52,6 +76,7 @@ export const COMMANDS: Command[] = [
     description: 'Trigger a new revenue proof attestation',
     shortcut: ['N', 'A'],
     category: 'Actions',
+    pageRoutes: ['/', '/attestations'],
   },
   {
     id: 'action-toggle-theme',
@@ -136,13 +161,17 @@ interface CommandPaletteProps {
 
 export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: CommandPaletteProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { addToast } = useToast()
 
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [recents, setRecents] = useState<string[]>([])
+  const [scope, setScope] = useState<PaletteScope>(loadScope)
+  const [scopeFocused, setScopeFocused] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const scopeRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   // Load recents on mount and when palette opens
@@ -158,10 +187,17 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
       }
       setQuery('')
       setActiveIndex(0)
+      setScope(loadScope)
       // Small timeout to ensure input is mounted
       setTimeout(() => inputRef.current?.focus(), 10)
     }
   }, [isOpen])
+
+  const handleScopeChange = useCallback((newScope: PaletteScope) => {
+    setScope(newScope)
+    persistScope(newScope)
+    setActiveIndex(0)
+  }, [])
 
   // Save a command as recent
   const saveToRecents = (id: string) => {
@@ -170,23 +206,36 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
     localStorage.setItem('veritasor-recent-commands', JSON.stringify(nextRecents))
   }
 
+  // Resolve the base path (strip trailing slash)
+  const currentPath = location.pathname.replace(/\/$/, '') || '/'
+
+  // Determine which commands are relevant for the current scope
+  const scopeFiltered = useMemo(() => {
+    if (scope === 'global') return COMMANDS
+    return COMMANDS.filter((cmd) => {
+      // Commands without pageRoutes are always relevant (theme toggle, sign out, settings)
+      if (!cmd.pageRoutes || cmd.pageRoutes.length === 0) return true
+      return cmd.pageRoutes.includes(currentPath)
+    })
+  }, [scope, currentPath])
+
   // Filter commands by query
   const filteredCommands = useMemo(() => {
-    if (!query) return COMMANDS
-    return COMMANDS.filter(
+    if (!query) return scopeFiltered
+    return scopeFiltered.filter(
       (cmd) =>
         cmd.title.toLowerCase().includes(query.toLowerCase()) ||
         (cmd.description && cmd.description.toLowerCase().includes(query.toLowerCase())),
     )
-  }, [query])
+  }, [query, scopeFiltered])
 
   // Get recents mapped to command items
   const recentCommands = useMemo(() => {
     if (query) return []
     return recents
-      .map((id) => COMMANDS.find((cmd) => cmd.id === id))
+      .map((id) => scopeFiltered.find((cmd) => cmd.id === id))
       .filter((cmd): cmd is Command => !!cmd)
-  }, [recents, query])
+  }, [recents, query, scopeFiltered])
 
   // Construct a single flat list of visible items to easily manage active index
   const visibleItems = useMemo(() => {
@@ -248,8 +297,13 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
       e.preventDefault()
       onClose()
     } else if (e.key === 'Tab') {
-      // Focus Trap: keep focus on input if user tabs
+      // Tab moves focus between scope switcher and input within the palette
       e.preventDefault()
+      if (document.activeElement === inputRef.current) {
+        scopeRef.current?.focus()
+      } else {
+        inputRef.current?.focus()
+      }
     }
   }
 
@@ -305,6 +359,56 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
         aria-modal="true"
         aria-label="Command palette"
       >
+        {/* Scope segmented control */}
+        <div
+          ref={scopeRef}
+          role="radiogroup"
+          aria-label="Palette scope"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+              e.preventDefault()
+              const next = scope === 'global' ? 'page' : 'global'
+              handleScopeChange(next)
+            }
+          }}
+          onFocus={() => setScopeFocused(true)}
+          onBlur={() => setScopeFocused(false)}
+          style={{
+            display: 'flex',
+            gap: 0,
+            padding: '0.25rem 0.75rem',
+            borderBottom: '1px solid var(--border, rgba(148,163,184,0.25))',
+          }}
+        >
+          {(['global', 'page'] as const).map((s) => {
+            const isActive = scope === s
+            return (
+              <button
+                key={s}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => handleScopeChange(s)}
+                style={{
+                  flex: 1,
+                  padding: '0.35rem 0.75rem',
+                  border: 'none',
+                  borderRadius: 6,
+                  background: isActive ? 'var(--accent, #5eead4)' : 'transparent',
+                  color: isActive ? '#04111f' : 'var(--muted, #94a3b8)',
+                  fontWeight: isActive ? 700 : 400,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  transition: 'background 120ms, color 120ms',
+                }}
+              >
+                {s === 'global' ? '🌐 Global' : '📄 This page'}
+              </button>
+            )
+          })}
+        </div>
         <div className="cmd-search-wrapper">
           <span className="cmd-search-icon" aria-hidden="true">
             🔍
