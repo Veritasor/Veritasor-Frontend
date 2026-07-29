@@ -5832,3 +5832,332 @@ button[style*="pagerBtnStyle"]:active:not(:disabled) {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
 }
+
+/* ─── Consent Preferences Page ───────────────────────────────────────────── */
+
+.cp-container {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: var(--space-6) var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .cp-container {
+    padding: var(--space-8) var(--space-6);
+  }
+}
+
+.cp-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.cp-header {
+  margin-bottom: var(--space-8);
+}
+
+.cp-title {
+  font-size: var(--text-display);
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: var(--space-4);
+  line-height: var(--leading-tight);
+}
+
+.cp-subtitle {
+  font-size: var(--text-lg);
+  color: var(--muted);
+  line-height: var(--leading-relaxed);
+  max-width: 600px;
+}
+
+.cp-main {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-lg);
+}
+
+@media (min-width: 768px) {
+  .cp-main {
+    padding: var(--space-8);
+  }
+}
+
+.cp-section {
+  margin-bottom: var(--space-8);
+}
+
+.cp-section:last-of-type {
+  margin-bottom: 0;
+}
+
+.cp-categories {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.cp-toggle-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--motion-duration-xs) var(--motion-easing-standard);
+}
+
+.cp-toggle-row:hover {
+  border-color: var(--border-strong);
+}
+
+@media (min-width: 640px) {
+  .cp-toggle-row {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+}
+
+.cp-toggle-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-toggle-name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+}
+
+.cp-toggle-locked {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.cp-toggle-desc {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: var(--leading-relaxed);
+  margin: 0;
+}
+
+.cp-toggle-control {
+  flex-shrink: 0;
+  position: relative;
+  width: 48px;
+  height: 28px;
+}
+
+.cp-toggle-input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.cp-toggle-input:disabled {
+  cursor: not-allowed;
+}
+
+.cp-toggle-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--border);
+  border-radius: 14px;
+  transition: background var(--motion-duration-xs) var(--motion-easing-standard);
+}
+
+.cp-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  background: var(--text);
+  border-radius: 50%;
+  transition: transform var(--motion-duration-xs) var(--motion-easing-standard);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.cp-toggle-input:checked + .cp-toggle-track {
+  background: var(--accent);
+}
+
+.cp-toggle-input:checked + .cp-toggle-track .cp-toggle-thumb {
+  transform: translateX(20px);
+  background: var(--bg);
+}
+
+.cp-toggle-input:focus-visible + .cp-toggle-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cp-toggle-input:disabled + .cp-toggle-track {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cp-actions-section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-6);
+}
+
+.cp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.cp-btn {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-base);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: all var(--motion-duration-xs) var(--motion-easing-standard);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.cp-btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.cp-btn-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.cp-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cp-btn-secondary {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.cp-btn-secondary:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.cp-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cp-error {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--danger);
+  line-height: var(--leading-normal);
+}
+
+.cp-footer {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.cp-footer-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+@media (min-width: 640px) {
+  .cp-footer-info {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.cp-last-updated {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin: 0;
+}
+
+.cp-last-updated time {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.cp-policy-link {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin: 0;
+}
+
+.cp-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.cp-link:hover {
+  text-decoration: underline;
+}
+
+/* ─── High contrast mode support ──────────────────────────────────────────── */
+
+@media (prefers-contrast: high) {
+  .cp-toggle-row {
+    border-width: 2px;
+  }
+
+  .cp-btn {
+    border: 2px solid currentColor;
+  }
+
+  .cp-btn-primary {
+    border-color: var(--accent);
+  }
+}
+
+/* ─── Reduced motion support ───────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-toggle-row,
+  .cp-toggle-track,
+  .cp-toggle-thumb,
+  .cp-btn {
+    transition: none;
+  }
+}
+
+/* ─── Focus visible for keyboard navigation ─────────────────────────────────── */
+
+.cp-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cp-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
