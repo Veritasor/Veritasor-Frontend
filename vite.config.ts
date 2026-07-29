@@ -33,6 +33,7 @@ export default defineConfig({
         'src/components/SearchFilter.tsx',
         'src/components/CookieConsentContext.tsx',
         'src/components/CookieBanner.tsx',
+        'src/components/SkeletonLoader.tsx',
         'src/pages/Login.tsx',
         'src/pages/Signup.tsx',
         'src/pages/ForgotPassword.tsx',

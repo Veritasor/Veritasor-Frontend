@@ -1322,18 +1322,195 @@ function BillingPanel() {
   );
 }
 
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function generateRecoveryCodes(): string[] {
   return Array.from({ length: 10 }, () => {
     const seg = () =>
-      Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('')
-    return `${seg()}-${seg()}-${seg()}`
-  })
+      Array.from(
+        { length: 4 },
+        () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)],
+      ).join("");
+    return `${seg()}-${seg()}-${seg()}`;
+  });
+}
+
+interface ActiveSession {
+  id: string
+  device: string
+  browser: string
+  ip: string
+  location: string
+  lastActive: string
+  isCurrent: boolean
+}
+
+const MOCK_SESSIONS: ActiveSession[] = [
+  { id: 's1', device: 'MacBook Pro 14"', browser: 'Chrome 125', ip: '203.0.113.42', location: 'Lagos, NG', lastActive: 'Now', isCurrent: true },
+  { id: 's2', device: 'iPhone 15 Pro', browser: 'Safari 18', ip: '203.0.113.42', location: 'Lagos, NG', lastActive: '2 hours ago', isCurrent: false },
+  { id: 's3', device: 'Windows PC', browser: 'Firefox 128', ip: '198.51.100.77', location: 'Accra, GH', lastActive: '3 days ago', isCurrent: false },
+  { id: 's4', device: 'Android Tablet', browser: 'Chrome 124', ip: '192.0.2.150', location: 'Nairobi, KE', lastActive: '2 weeks ago', isCurrent: false },
+]
+
+function SessionRow({ session, onRevoke }: { session: ActiveSession; onRevoke: (id: string) => void }) {
+  const [revoking, setRevoking] = useState(false)
+
+  const handleRevoke = () => {
+    setRevoking(true)
+    setTimeout(() => {
+      onRevoke(session.id)
+      setRevoking(false)
+    }, 400)
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.75rem',
+        padding: '0.75rem 1rem',
+        borderRadius: 10,
+        border: `1px solid ${session.isCurrent ? 'var(--border-strong)' : 'var(--border)'}`,
+        background: session.isCurrent ? 'rgba(94, 234, 212, 0.06)' : 'transparent',
+      }}
+    >
+      <div style={{ display: 'grid', gap: '0.2rem', minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+          {session.device}
+          {session.isCurrent ? (
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)', border: '1px solid var(--border-strong)', borderRadius: 4, padding: '0.1rem 0.4rem' }}>
+              Current
+            </span>
+          ) : null}
+        </span>
+        <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>
+          {session.browser} · {session.ip} · {session.location}
+        </span>
+        <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
+          Active {session.lastActive}
+        </span>
+      </div>
+      {!session.isCurrent ? (
+        <button
+          type="button"
+          onClick={handleRevoke}
+          disabled={revoking}
+          style={{
+            padding: '0.35rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: revoking ? 'var(--danger)' : 'transparent',
+            color: revoking ? '#fff' : 'var(--danger)',
+            fontWeight: 600,
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'background 0.15s, color 0.15s',
+          }}
+        >
+          {revoking ? 'Revoking…' : 'Revoke'}
+        </button>
+      ) : (
+        <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+          This device
+        </span>
+      )}
+    </div>
+  )
+}
+
+function SignOutAllButton() {
+  const [confirming, setConfirming] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+
+  if (confirming) {
+    return (
+      <div
+        style={{
+          padding: '1rem',
+          borderRadius: 12,
+          border: '1px solid rgba(248, 113, 113, 0.3)',
+          background: 'rgba(248, 113, 113, 0.06)',
+          display: 'grid',
+          gap: '0.75rem',
+        }}
+      >
+        <p style={{ margin: 0, fontWeight: 700, color: 'var(--danger)' }}>
+          Sign out of all other sessions?
+        </p>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+          This will revoke all active sessions except your current device. You will need to
+          sign back in on those devices.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={() => { setSigningOut(true); setTimeout(() => setConfirming(false), 800) }}
+            disabled={signingOut}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: 8,
+              border: 'none',
+              background: signingOut ? 'var(--muted)' : 'var(--danger)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+            }}
+          >
+            {signingOut ? 'Signing out…' : 'Yes, sign out'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={signingOut}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--text)',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      style={{
+        padding: '0.5rem 1rem',
+        borderRadius: 8,
+        border: '1px solid var(--border)',
+        background: 'transparent',
+        color: 'var(--danger)',
+        fontWeight: 700,
+        fontSize: '0.85rem',
+        cursor: 'pointer',
+      }}
+    >
+      Sign out of all other sessions
+    </button>
+  )
 }
 
 function SecurityPanel() {
-  const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null);
+  const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null)
+  const [sessions, setSessions] = useState(MOCK_SESSIONS)
+
+  const handleRevoke = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+  }, [])
 
   return (
     <div>
@@ -1399,7 +1576,13 @@ function SecurityPanel() {
           Update password
         </button>
       </form>
-      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
+      <hr
+        style={{
+          border: "none",
+          borderTop: "1px solid var(--border)",
+          margin: "1.5rem 0",
+        }}
+      />
       {mfaSection[mfaState]()}
 
       <hr
@@ -1407,92 +1590,28 @@ function SecurityPanel() {
       />
 
       <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
-    </div>
-  );
-}
 
-function TokensPanel() {
-  return (
-    <div>
-      <h2>Design tokens</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Export a snapshot of Veritasor design tokens as CSS custom properties.
-        Choose a scope, then copy or download the file.
-      </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 720 }}>
-        <TokensExport />
-      </div>
-    </div>
-  );
-}
-
-function AuditLogPanel() {
-  const mockEntries: AuditLogEntry[] = [
-    {
-      id: "1",
-      timestamp: "2026-07-28T08:12:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "2",
-      timestamp: "2026-07-28T08:14:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "3",
-      timestamp: "2026-07-28T08:15:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-    },
-    {
-      id: "4",
-      timestamp: "2026-07-28T09:00:00Z",
-      event: "Revenue source connected",
-      details: "Provider: Stripe",
-    },
-    {
-      id: "5",
-      timestamp: "2026-07-27T14:30:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "6",
-      timestamp: "2026-07-27T14:31:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "7",
-      timestamp: "2026-07-27T14:32:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "8",
-      timestamp: "2026-07-27T14:33:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-    },
-    {
-      id: "9",
-      timestamp: "2026-07-26T10:00:00Z",
-      event: "API key rotated",
-    },
-  ];
-
-  return (
-    <div>
-      <h2>Audit Log</h2>
-      <p style={{ color: "var(--muted)" }}>
-        Recent activity for this workspace. In compact density mode, identical
-        consecutive events are grouped by day and collapsed into summary badges.
-      </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
-        <AuditLogTimeline entries={mockEntries} />
-      </div>
+      {/* Active sessions */}
+      <hr style={{ margin: '2rem 0', borderColor: 'var(--border)', opacity: 0.5 }} />
+      <section aria-labelledby="active-sessions-title">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <h3 id="active-sessions-title" style={{ margin: 0, fontSize: '1.05rem' }}>Active sessions</h3>
+            <p style={{ margin: '0.15rem 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+              {sessions.length} active session{sessions.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          {sessions.filter((s) => !s.isCurrent).length > 0 ? <SignOutAllButton /> : null}
+        </div>
+        <div style={{ display: 'grid', gap: '0.5rem', maxWidth: 600 }}>
+          {sessions.map((session) => (
+            <SessionRow key={session.id} session={session} onRevoke={handleRevoke} />
+          ))}
+        </div>
+        {sessions.length === 0 ? (
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No active sessions found.</p>
+        ) : null}
+      </section>
     </div>
   );
 }
@@ -1608,6 +1727,7 @@ function WebhooksPanel() {
 
 type TeamRole = "owner" | "admin" | "billing" | "member";
 type MemberStatus = "active" | "pending" | "disabled";
+type InviteStatus = "pending" | "expired";
 
 interface TeamMember {
   id: string;
@@ -1617,6 +1737,17 @@ interface TeamMember {
   status: MemberStatus;
   joinedAt: string;
   avatarInitials: string;
+  extraPermissions?: string[];
+}
+
+interface PendingInvitation {
+  id: string;
+  email: string;
+  role: TeamRole;
+  invitedBy: string;
+  invitedAt: string;
+  expiresAt: string;
+  status: InviteStatus;
 }
 
 const TEAM_ROLE_LABELS: Record<TeamRole, string> = {
@@ -1659,6 +1790,156 @@ const MEMBER_STATUS_META: Record<MemberStatus, { label: string; dot: string }> =
     disabled: { label: "Disabled", dot: "var(--muted)" },
   };
 
+const ROLE_PERMISSIONS: Record<TeamRole, string[]> = {
+  owner: ["*"],
+  admin: [
+    "team.manage",
+    "billing.manage",
+    "sources.read",
+    "sources.write",
+    "attestations.read",
+    "attestations.write",
+    "settings.read",
+    "settings.write",
+    "api_keys.manage",
+  ],
+  billing: [
+    "billing.manage",
+    "billing.read",
+    "invoices.read",
+    "payment_methods.manage",
+  ],
+  member: ["sources.read", "attestations.read", "settings.read"],
+};
+
+const PERMISSION_LABELS: Record<string, string> = {
+  "*": "Full access",
+  "team.manage": "Manage team members",
+  "billing.manage": "Manage billing",
+  "billing.read": "View billing",
+  "sources.read": "View revenue sources",
+  "sources.write": "Edit revenue sources",
+  "attestations.read": "View attestations",
+  "attestations.write": "Create attestations",
+  "settings.read": "View settings",
+  "settings.write": "Edit settings",
+  "api_keys.manage": "Manage API keys",
+  "invoices.read": "View invoices",
+  "payment_methods.manage": "Manage payment methods",
+};
+
+function getRoleConflicts(
+  currentRole: TeamRole,
+  targetRole: TeamRole,
+  extraPermissions: string[] = [],
+): {
+  redundant: string[];
+  supersededBy: string;
+  resolutionPaths: { label: string; action: string }[];
+} | null {
+  const currentPerms = new Set(ROLE_PERMISSIONS[currentRole]);
+  const targetPerms = new Set(ROLE_PERMISSIONS[targetRole]);
+  const extraPerms = new Set(extraPermissions);
+
+  if (currentPerms.has("*")) return null;
+  if (targetPerms.has("*")) {
+    if (
+      currentRole !== "owner" &&
+      (currentPerms.size > 0 || extraPerms.size > 0)
+    ) {
+      return {
+        redundant: Array.from(new Set([...currentPerms, ...extraPerms])).filter(
+          (p) => p !== "*",
+        ),
+        supersededBy: "Owner",
+        resolutionPaths: [
+          {
+            label: `Keep as Owner (supersedes ${TEAM_ROLE_LABELS[currentRole]})`,
+            action: "accept",
+          },
+          {
+            label: `Revert to ${TEAM_ROLE_LABELS[currentRole]}`,
+            action: "revert",
+          },
+        ],
+      };
+    }
+    return null;
+  }
+
+  if (targetRole === "admin" && currentRole === "billing") {
+    return {
+      redundant: [
+        "billing.manage",
+        "billing.read",
+        "invoices.read",
+        "payment_methods.manage",
+      ],
+      supersededBy: "Admin",
+      resolutionPaths: [
+        { label: "Promote to Admin (keeps billing access)", action: "accept" },
+        { label: "Keep as Billing only", action: "revert" },
+        {
+          label: "Promote & remove explicit billing grant",
+          action: "strip_extras",
+        },
+      ],
+    };
+  }
+
+  if (targetRole === "billing" && currentRole === "admin") {
+    return {
+      redundant: [
+        "team.manage",
+        "sources.write",
+        "attestations.write",
+        "settings.write",
+        "api_keys.manage",
+      ],
+      supersededBy: "Billing role downgrade",
+      resolutionPaths: [
+        {
+          label: "Downgrade to Billing (removes admin privileges)",
+          action: "accept",
+        },
+        { label: "Keep as Admin", action: "revert" },
+      ],
+    };
+  }
+
+  if (targetRole === "member") {
+    const extras = Array.from(extraPerms);
+    const roleOverlap = Array.from(currentPerms).filter(
+      (p) => !targetPerms.has(p),
+    );
+    if (extras.length > 0 || roleOverlap.length > 0) {
+      return {
+        redundant: [
+          ...extras,
+          ...roleOverlap.filter((p) => !targetPerms.has(p)),
+        ],
+        supersededBy: "Member role",
+        resolutionPaths: [
+          {
+            label: "Demote to Member (strips extra permissions)",
+            action: "accept",
+          },
+          {
+            label: `Keep as ${TEAM_ROLE_LABELS[currentRole]}`,
+            action: "revert",
+          },
+          {
+            label: "Demote but preserve extra permissions",
+            action: "keep_extras",
+          },
+        ],
+      };
+    }
+  }
+
+  return null;
+}
+
 const MOCK_TEAM: TeamMember[] = [
   {
     id: "u_001",
@@ -1686,6 +1967,7 @@ const MOCK_TEAM: TeamMember[] = [
     status: "active",
     joinedAt: "2025-11-20",
     avatarInitials: "MJ",
+    extraPermissions: ["team.manage"],
   },
   {
     id: "u_004",
@@ -1704,6 +1986,7 @@ const MOCK_TEAM: TeamMember[] = [
     status: "active",
     joinedAt: "2026-01-08",
     avatarInitials: "TR",
+    extraPermissions: ["attestations.write", "sources.write"],
   },
   {
     id: "u_006",
@@ -1722,6 +2005,58 @@ const MOCK_TEAM: TeamMember[] = [
     status: "active",
     joinedAt: "2026-03-14",
     avatarInitials: "DO",
+  },
+];
+
+const now = Date.now();
+const HOUR = 3600 * 1000;
+const DAY = 24 * HOUR;
+
+const MOCK_INVITATIONS: PendingInvitation[] = [
+  {
+    id: "inv_001",
+    email: "alex.wong@example.com",
+    role: "admin",
+    invitedBy: "Joel Agboola",
+    invitedAt: new Date(now - 2 * DAY).toISOString(),
+    expiresAt: new Date(now + 5 * DAY).toISOString(),
+    status: "pending",
+  },
+  {
+    id: "inv_002",
+    email: "emma.davis@example.com",
+    role: "member",
+    invitedBy: "Sarah Chen",
+    invitedAt: new Date(now - 18 * HOUR).toISOString(),
+    expiresAt: new Date(now + 2 * DAY).toISOString(),
+    status: "pending",
+  },
+  {
+    id: "inv_003",
+    email: "james.liu@example.com",
+    role: "billing",
+    invitedBy: "Joel Agboola",
+    invitedAt: new Date(now - 6 * DAY).toISOString(),
+    expiresAt: new Date(now + 18 * HOUR).toISOString(),
+    status: "pending",
+  },
+  {
+    id: "inv_004",
+    email: "sofia.rossi@example.com",
+    role: "member",
+    invitedBy: "Marcus Johnson",
+    invitedAt: new Date(now - 10 * DAY).toISOString(),
+    expiresAt: new Date(now - 2 * HOUR).toISOString(),
+    status: "expired",
+  },
+  {
+    id: "inv_005",
+    email: "daniel.kim@example.com",
+    role: "member",
+    invitedBy: "Sarah Chen",
+    invitedAt: new Date(now - 14 * DAY).toISOString(),
+    expiresAt: new Date(now - 5 * DAY).toISOString(),
+    status: "expired",
   },
 ];
 
@@ -1777,6 +2112,651 @@ function MemberAvatar({ initials }: { initials: string }) {
     >
       {initials}
     </div>
+  );
+}
+
+function PermissionConflictWarning({
+  conflict,
+  memberName,
+  onResolve,
+  onDismiss,
+  conflictId,
+}: {
+  conflict: NonNullable<ReturnType<typeof getRoleConflicts>>;
+  memberName: string;
+  onResolve: (action: string) => void;
+  onDismiss: () => void;
+  conflictId: string;
+}) {
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      id={conflictId}
+      style={{
+        marginTop: "0.75rem",
+        padding: "0.9rem 1rem",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--warning-soft)",
+        border: `1px solid rgba(251, 191, 36, 0.4)`,
+        display: "grid",
+        gap: "0.75rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem" }}>
+        <span
+          aria-hidden="true"
+          style={{
+            fontSize: "1.1rem",
+            flexShrink: 0,
+            marginTop: "0.05rem",
+            color: "var(--warning)",
+          }}
+        >
+          ⚠
+        </span>
+        <div style={{ display: "grid", gap: "0.35rem", minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: "0.92rem",
+              color: "var(--text)",
+            }}
+          >
+            Permission conflict detected for {memberName}
+          </div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.88rem",
+              color: "var(--muted)",
+              lineHeight: 1.55,
+            }}
+          >
+            {conflict.supersededBy} supersedes or overlaps with existing grants.
+            The following permissions become redundant or change scope:
+          </p>
+          <ul
+            style={{
+              margin: "0.15rem 0 0",
+              paddingLeft: "1.1rem",
+              display: "grid",
+              gap: "0.2rem",
+            }}
+            aria-label="Redundant permissions"
+          >
+            {conflict.redundant.slice(0, 5).map((p) => (
+              <li
+                key={p}
+                style={{
+                  fontSize: "0.82rem",
+                  color: "var(--muted)",
+                  listStyle: '"▸ "',
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontSize: "0.78rem",
+                    color: "var(--warning)",
+                    marginRight: "0.3rem",
+                  }}
+                >
+                  {p}
+                </span>
+                {PERMISSION_LABELS[p] ?? p}
+              </li>
+            ))}
+            {conflict.redundant.length > 5 && (
+              <li
+                style={{
+                  fontSize: "0.82rem",
+                  color: "var(--muted)",
+                  listStyle: "none",
+                  paddingLeft: 0,
+                }}
+              >
+                <em>and {conflict.redundant.length - 5} more…</em>
+              </li>
+            )}
+          </ul>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss permission conflict warning"
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--muted)",
+            cursor: "pointer",
+            padding: "0.2rem",
+            borderRadius: 6,
+            fontSize: "0.95rem",
+            flexShrink: 0,
+            minWidth: "1.75rem",
+            minHeight: "1.75rem",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      <div
+        role="radiogroup"
+        aria-label="Resolve permission conflict"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+          marginLeft: "1.7rem",
+        }}
+      >
+        {conflict.resolutionPaths.map((path, i) => (
+          <button
+            key={path.action}
+            type="button"
+            role="radio"
+            aria-checked={false}
+            onClick={() => onResolve(path.action)}
+            style={{
+              minHeight: "2.5rem",
+              padding: "0.45rem 0.9rem",
+              borderRadius: 8,
+              border:
+                i === 0
+                  ? "1px solid transparent"
+                  : "1px solid rgba(251, 191, 36, 0.35)",
+              background:
+                i === 0
+                  ? "linear-gradient(135deg, var(--accent), #60a5fa)"
+                  : "rgba(251, 191, 36, 0.08)",
+              color: i === 0 ? "#04111f" : "var(--text)",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              cursor: "pointer",
+              transition: "transform 120ms ease, box-shadow 120ms ease",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform =
+                "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform = "none";
+            }}
+          >
+            {path.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatExpiryCountdown(
+  expiresAt: string,
+  nowTs: number,
+): {
+  label: string;
+  urgent: boolean;
+  expired: boolean;
+  icon: string;
+} {
+  const diff = new Date(expiresAt).getTime() - nowTs;
+  if (diff <= 0) {
+    const daysAgo = Math.floor(Math.abs(diff) / DAY);
+    const hoursAgo = Math.floor(Math.abs(diff) / HOUR);
+    return {
+      label:
+        daysAgo > 0
+          ? `Expired ${daysAgo} day${daysAgo === 1 ? "" : "s"} ago`
+          : hoursAgo > 0
+            ? `Expired ${hoursAgo} hr${hoursAgo === 1 ? "" : "s"} ago`
+            : "Expired moments ago",
+      urgent: false,
+      expired: true,
+      icon: "⏱",
+    };
+  }
+  const days = Math.floor(diff / DAY);
+  const hours = Math.floor((diff % DAY) / HOUR);
+  if (diff < 24 * HOUR) {
+    return {
+      label: `Expires in ${hours} hr${hours === 1 ? "" : "s"}`,
+      urgent: true,
+      expired: false,
+      icon: "⏰",
+    };
+  }
+  return {
+    label: `Expires in ${days} day${days === 1 ? "" : "s"} ${hours} hr${hours === 1 ? "" : "s"}`,
+    urgent: diff < 3 * DAY,
+    expired: false,
+    icon: "⏳",
+  };
+}
+
+function PendingInvitationsTable() {
+  const [invitations, setInvitations] =
+    useState<PendingInvitation[]>(MOCK_INVITATIONS);
+  const [expiredOnly, setExpiredOnly] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [nowTs, setNowTs] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const visibleInvitations = useMemo(
+    () =>
+      invitations.filter((inv) =>
+        expiredOnly ? inv.status === "expired" : true,
+      ),
+    [invitations, expiredOnly],
+  );
+
+  const pendingCount = invitations.filter((i) => i.status === "pending").length;
+  const expiredCount = invitations.filter((i) => i.status === "expired").length;
+
+  function handleResend(id: string) {
+    setResendingId(id);
+    setTimeout(() => {
+      setInvitations((prev) =>
+        prev.map((inv) =>
+          inv.id === id
+            ? {
+                ...inv,
+                status: "pending",
+                invitedAt: new Date().toISOString(),
+                expiresAt: new Date(Date.now() + 7 * DAY).toISOString(),
+              }
+            : inv,
+        ),
+      );
+      setResendingId(null);
+    }, 1200);
+  }
+
+  function handleRevoke(id: string) {
+    setRevokingId(id);
+    setTimeout(() => {
+      setInvitations((prev) => prev.filter((inv) => inv.id !== id));
+      setRevokingId(null);
+    }, 800);
+  }
+
+  return (
+    <section
+      aria-labelledby="pending-invites-heading"
+      style={{ display: "grid", gap: "1rem" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          gap: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h3
+            id="pending-invites-heading"
+            style={{ margin: 0, fontSize: "1.05rem" }}
+          >
+            Pending invitations
+          </h3>
+          <p
+            style={{
+              margin: "0.25rem 0 0",
+              color: "var(--muted)",
+              fontSize: "0.9rem",
+            }}
+          >
+            Outstanding workspace invitations. Expired invites can be resent.
+          </p>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            aria-live="polite"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              fontSize: "0.82rem",
+              color: "var(--muted)",
+              fontWeight: 600,
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: "1.5rem",
+                height: "1.5rem",
+                padding: "0 0.45rem",
+                borderRadius: 999,
+                background: "rgba(251, 191, 36, 0.14)",
+                color: "var(--warning)",
+                fontWeight: 800,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {pendingCount}
+            </span>
+            pending
+            <span style={{ opacity: 0.4 }}>·</span>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: "1.5rem",
+                height: "1.5rem",
+                padding: "0 0.45rem",
+                borderRadius: 999,
+                background: "var(--danger-soft)",
+                color: "var(--danger)",
+                fontWeight: 800,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {expiredCount}
+            </span>
+            expired
+          </div>
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.45rem 0.8rem",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--surface-strong)",
+              minHeight: "2.5rem",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              color: expiredOnly ? "var(--danger)" : "var(--text)",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={expiredOnly}
+              onChange={(e) => setExpiredOnly(e.target.checked)}
+              aria-label="Filter to show expired invitations only"
+              style={{ width: 16, height: 16 }}
+            />
+            <span aria-hidden="true">◷</span>
+            Expired only
+          </label>
+        </div>
+      </div>
+
+      <div
+        role="region"
+        aria-label="Pending invitations table"
+        style={{ overflowX: "auto" }}
+      >
+        <table
+          style={{
+            width: "100%",
+            minWidth: 640,
+            borderCollapse: "separate",
+            borderSpacing: 0,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            overflow: "hidden",
+            background: "var(--surface)",
+          }}
+        >
+          <thead>
+            <tr style={{ background: "var(--surface-strong)" }}>
+              <th scope="col" style={thStyle}>
+                Recipient
+              </th>
+              <th scope="col" style={thStyle}>
+                Role
+              </th>
+              <th scope="col" style={thStyle}>
+                Invited by
+              </th>
+              <th scope="col" style={thStyle}>
+                Expiry
+              </th>
+              <th scope="col" style={{ ...thStyle, textAlign: "right" }}>
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleInvitations.length === 0 ? (
+              <tr style={{ borderTop: "1px solid var(--border)" }}>
+                <td
+                  colSpan={5}
+                  style={{
+                    ...tdStyle,
+                    padding: "2rem 1.1rem",
+                    textAlign: "center",
+                    color: "var(--muted)",
+                  }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{ fontSize: "1.75rem", marginBottom: "0.4rem" }}
+                  >
+                    📭
+                  </div>
+                  {expiredOnly
+                    ? "No expired invitations."
+                    : "No pending invitations."}
+                </td>
+              </tr>
+            ) : (
+              visibleInvitations.map((inv) => {
+                const countdown = formatExpiryCountdown(inv.expiresAt, nowTs);
+                const isExpired = inv.status === "expired";
+                return (
+                  <tr
+                    key={inv.id}
+                    aria-label={isExpired ? `Expired invitation for ${inv.email}` : `Pending invitation for ${inv.email}`}
+                    style={{
+                      borderTop: "1px solid var(--border)",
+                      background: isExpired
+                        ? "repeating-linear-gradient(\n                              45deg,\n                              transparent,\n                              transparent 10px,\n                              rgba(251, 113, 133, 0.04) 10px,\n                              rgba(251, 113, 133, 0.04) 20px\n                            )"
+                        : undefined,
+                      opacity: isExpired ? 0.88 : 1,
+                      outline: isExpired ? "1px dashed rgba(251, 113, 133, 0.25)" : undefined,
+                      outlineOffset: isExpired ? "-1px" : undefined,
+                    }}
+                  >
+                    <td style={tdStyle}>
+                      <div style={{ display: "grid", gap: "0.15rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{inv.email}</span>
+                          {isExpired && (
+                            <span
+                              aria-label="This invitation has expired"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.25rem",
+                                padding: "0.12rem 0.5rem",
+                                borderRadius: 999,
+                                fontSize: "0.7rem",
+                                fontWeight: 800,
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                                background: "var(--danger-soft)",
+                                border: "1px solid rgba(251, 113, 133, 0.35)",
+                                color: "var(--danger)",
+                              }}
+                            >
+                              {/* Strikethrough icon provides a non-colour cue */}
+                              <span aria-hidden="true">⊘</span>
+                              Expired
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            color: "var(--muted)",
+                            fontSize: "0.82rem",
+                            fontFamily:
+                              "ui-monospace, SFMono-Regular, Menlo, monospace",
+                          }}
+                        >
+                          {inv.id}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <RoleChip role={inv.role} />
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ display: "grid", gap: "0.1rem" }}>
+                        <div style={{ fontSize: "0.92rem" }}>
+                          {inv.invitedBy}
+                        </div>
+                        <div
+                          style={{
+                            color: "var(--muted)",
+                            fontSize: "0.82rem",
+                          }}
+                        >
+                          {new Date(inv.invitedAt).toLocaleDateString(
+                            undefined,
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "2-digit",
+                            },
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <span
+                        role="status"
+                        aria-label={`Invitation status: ${isExpired ? "Expired" : countdown.label}`}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "0.45rem",
+                          fontSize: "0.88rem",
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            marginTop: "0.05rem",
+                            fontSize: "0.95rem",
+                            flexShrink: 0,
+                            color: isExpired
+                              ? "var(--danger)"
+                              : countdown.urgent
+                                ? "var(--warning)"
+                                : "var(--muted)",
+                          }}
+                        >
+                          {isExpired ? "⏱" : countdown.icon}
+                        </span>
+                        <span
+                          style={{
+                            color: isExpired
+                              ? "var(--danger)"
+                              : countdown.urgent
+                                ? "var(--warning)"
+                                : "var(--text)",
+                            fontWeight:
+                              isExpired || countdown.urgent ? 700 : 500,
+                          }}
+                        >
+                          {isExpired ? countdown.label : countdown.label}
+                        </span>
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          gap: "0.4rem",
+                          flexWrap: "wrap",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleResend(inv.id)}
+                          disabled={resendingId === inv.id}
+                          aria-label={`Resend invitation to ${inv.email}`}
+                          aria-busy={resendingId === inv.id}
+                          style={{
+                            ...iconBtnStyle,
+                            minHeight: "2.25rem",
+                            padding: "0.3rem 0.7rem",
+                            fontSize: "0.82rem",
+                            background: isExpired
+                              ? "rgba(251, 191, 36, 0.12)"
+                              : undefined,
+                            borderColor: isExpired
+                              ? "rgba(251, 191, 36, 0.35)"
+                              : undefined,
+                            color: isExpired ? "var(--warning)" : undefined,
+                          }}
+                        >
+                          <span aria-hidden="true">↻</span>
+                          {resendingId === inv.id ? "Sending…" : "Resend"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRevoke(inv.id)}
+                          disabled={revokingId === inv.id}
+                          aria-label={`Revoke invitation to ${inv.email}`}
+                          aria-busy={revokingId === inv.id}
+                          style={{
+                            ...iconBtnStyle,
+                            minHeight: "2.25rem",
+                            padding: "0.3rem 0.7rem",
+                            fontSize: "0.82rem",
+                            color: "var(--danger)",
+                            borderColor: "rgba(251, 113, 133, 0.3)",
+                          }}
+                        >
+                          <span aria-hidden="true">✕</span>
+                          {revokingId === inv.id ? "Revoking…" : "Revoke"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -1923,6 +2903,17 @@ function TeamPanel() {
   const [members, setMembers] = useState<TeamMember[]>(MOCK_TEAM);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<PendingBulkAction | null>(null);
+  const [activeConflicts, setActiveConflicts] =
+    useState <
+    Map<
+      string,
+      NonNullable<ReturnType<typeof getRoleConflicts>> & {
+        _originalRole?: TeamRole;
+      }
+    >(new Map());
+  const [dismissedConflicts, setDismissedConflicts] = useState<Set<string>>(
+    new Set(),
+  );
 
   const allSelected = members.length > 0 && selected.size === members.length;
   const someSelected = selected.size > 0 && !allSelected;
@@ -1943,6 +2934,81 @@ function TeamPanel() {
       else next.add(id);
       return next;
     });
+  }
+
+  function resolveConflict(
+    memberId: string,
+    action: string,
+    targetRole: TeamRole,
+    originalRole: TeamRole,
+  ) {
+    const member = members.find((m) => m.id === memberId);
+    if (!member) return;
+
+    switch (action) {
+      case "accept":
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.id === memberId
+              ? { ...m, role: targetRole, extraPermissions: [] }
+              : m,
+          ),
+        );
+        break;
+      case "revert":
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.id === memberId ? { ...m, role: originalRole } : m,
+          ),
+        );
+        break;
+      case "strip_extras":
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.id === memberId
+              ? { ...m, role: targetRole, extraPermissions: [] }
+              : m,
+          ),
+        );
+        break;
+      case "keep_extras":
+        setMembers((prev) =>
+          prev.map((m) => (m.id === memberId ? { ...m, role: targetRole } : m)),
+        );
+        break;
+    }
+    setActiveConflicts((prev) => {
+      const next = new Map(prev);
+      next.delete(memberId);
+      return next;
+    });
+    setDismissedConflicts((prev) => new Set(prev).add(memberId));
+    setTimeout(() => {
+      setDismissedConflicts((prev) => {
+        const next = new Set(prev);
+        next.delete(memberId);
+        return next;
+      });
+    }, 10000);
+  }
+
+  function dismissConflict(memberId: string, originalRole: TeamRole) {
+    setActiveConflicts((prev) => {
+      const next = new Map(prev);
+      next.delete(memberId);
+      return next;
+    });
+    setMembers((prev) =>
+      prev.map((m) => (m.id === memberId ? { ...m, role: originalRole } : m)),
+    );
+    setDismissedConflicts((prev) => new Set(prev).add(memberId));
+    setTimeout(() => {
+      setDismissedConflicts((prev) => {
+        const next = new Set(prev);
+        next.delete(memberId);
+        return next;
+      });
+    }, 10000);
   }
 
   function applyBulkRole(role: TeamRole) {
@@ -2217,80 +3283,159 @@ function TeamPanel() {
                       day: "2-digit",
                     })}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: "right",
+                      verticalAlign: "top",
+                      paddingTop: "0.85rem",
+                    }}
+                  >
                     <div
                       style={{
-                        display: "inline-flex",
+                        display: "grid",
+                        justifyItems: "end",
                         gap: "0.4rem",
-                        flexWrap: "wrap",
-                        justifyContent: "flex-end",
                       }}
                     >
-                      <select
-                        aria-label={`Change role for ${m.name}`}
-                        value={m.role}
-                        onChange={(e) => {
-                          const role = e.target.value as TeamRole;
-                          setMembers((prev) =>
-                            prev.map((x) =>
-                              x.id === m.id ? { ...x, role } : x,
-                            ),
-                          );
-                        }}
+                      <div
                         style={{
-                          ...pagerBtnStyle,
-                          minHeight: "2.25rem",
-                          padding: "0.25rem 1.75rem 0.25rem 0.6rem",
-                          fontSize: "0.82rem",
-                          appearance: "auto",
+                          display: "inline-flex",
+                          gap: "0.4rem",
+                          flexWrap: "wrap",
+                          justifyContent: "flex-end",
                         }}
                       >
-                        {(
-                          ["owner", "admin", "billing", "member"] as TeamRole[]
-                        ).map((r) => (
-                          <option
-                            key={r}
-                            value={r}
-                            disabled={r === "owner" && m.role !== "owner"}
+                        <select
+                          aria-label={`Change role for ${m.name}`}
+                          aria-describedby={
+                            activeConflicts.has(m.id)
+                              ? `conflict-${m.id}`
+                              : undefined
+                          }
+                          aria-invalid={activeConflicts.has(m.id)}
+                          value={m.role}
+                          onChange={(e) => {
+                            const newRole = e.target.value as TeamRole;
+                            const prevMember = members.find(
+                              (x) => x.id === m.id,
+                            );
+                            const prevRole = prevMember?.role ?? m.role;
+                            if (newRole !== prevRole) {
+                              const conflict = getRoleConflicts(
+                                prevRole,
+                                newRole,
+                                prevMember?.extraPermissions ?? [],
+                              );
+                              if (conflict && !dismissedConflicts.has(m.id)) {
+                                setActiveConflicts((prev) => {
+                                  const next = new Map(prev);
+                                  next.set(m.id, {
+                                    ...conflict,
+                                    _originalRole: prevRole,
+                                  });
+                                  return next;
+                                });
+                              }
+                            }
+                            setMembers((prev) =>
+                              prev.map((x) =>
+                                x.id === m.id ? { ...x, role: newRole } : x,
+                              ),
+                            );
+                          }}
+                          style={{
+                            ...pagerBtnStyle,
+                            minHeight: "2.25rem",
+                            padding: "0.25rem 1.75rem 0.25rem 0.6rem",
+                            fontSize: "0.82rem",
+                            appearance: "auto",
+                            borderColor: activeConflicts.has(m.id)
+                              ? "rgba(251, 191, 36, 0.5)"
+                              : undefined,
+                            boxShadow: activeConflicts.has(m.id)
+                              ? "0 0 0 3px rgba(251, 191, 36, 0.15)"
+                              : undefined,
+                          }}
+                        >
+                          {(
+                            [
+                              "owner",
+                              "admin",
+                              "billing",
+                              "member",
+                            ] as TeamRole[]
+                          ).map((r) => (
+                            <option
+                              key={r}
+                              value={r}
+                              disabled={r === "owner" && m.role !== "owner"}
+                            >
+                              {TEAM_ROLE_LABELS[r]}
+                            </option>
+                          ))}
+                        </select>
+                        {m.status === "pending" && (
+                          <button
+                            type="button"
+                            aria-label={`Resend invitation to ${m.name}`}
+                            style={{
+                              ...iconBtnStyle,
+                              minHeight: "2.25rem",
+                              padding: "0.3rem 0.6rem",
+                              fontSize: "0.82rem",
+                            }}
                           >
-                            {TEAM_ROLE_LABELS[r]}
-                          </option>
-                        ))}
-                      </select>
-                      {m.status === "pending" && (
-                        <button
-                          type="button"
-                          aria-label={`Resend invitation to ${m.name}`}
-                          style={{
-                            ...iconBtnStyle,
-                            minHeight: "2.25rem",
-                            padding: "0.3rem 0.6rem",
-                            fontSize: "0.82rem",
-                          }}
-                        >
-                          Resend
-                        </button>
-                      )}
-                      {m.role !== "owner" && (
-                        <button
-                          type="button"
-                          aria-label={`Remove ${m.name} from workspace`}
-                          onClick={() => {
-                            setSelected(new Set([m.id]));
-                            setTimeout(() => applyBulkRemove(), 0);
-                          }}
-                          style={{
-                            ...iconBtnStyle,
-                            minHeight: "2.25rem",
-                            padding: "0.3rem 0.6rem",
-                            fontSize: "0.82rem",
-                            color: "var(--danger)",
-                            borderColor: "rgba(251, 113, 133, 0.3)",
-                          }}
-                        >
-                          Remove
-                        </button>
-                      )}
+                            Resend
+                          </button>
+                        )}
+                        {m.role !== "owner" && (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${m.name} from workspace`}
+                            onClick={() => {
+                              setSelected(new Set([m.id]));
+                              setTimeout(() => applyBulkRemove(), 0);
+                            }}
+                            style={{
+                              ...iconBtnStyle,
+                              minHeight: "2.25rem",
+                              padding: "0.3rem 0.6rem",
+                              fontSize: "0.82rem",
+                              color: "var(--danger)",
+                              borderColor: "rgba(251, 113, 133, 0.3)",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      {activeConflicts.has(m.id) &&
+                        activeConflicts.get(m.id) && (
+                          <div style={{ width: "100%", maxWidth: 420 }}>
+                            <PermissionConflictWarning
+                              conflict={activeConflicts.get(m.id)!}
+                              memberName={m.name}
+                              conflictId={`conflict-${m.id}`}
+                              onResolve={(action) =>
+                                resolveConflict(
+                                  m.id,
+                                  action,
+                                  m.role,
+                                  (activeConflicts.get(m.id) as any)
+                                    ._originalRole ?? m.role,
+                                )
+                              }
+                              onDismiss={() =>
+                                dismissConflict(
+                                  m.id,
+                                  (activeConflicts.get(m.id) as any)
+                                    ._originalRole ?? m.role,
+                                )
+                              }
+                            />
+                          </div>
+                        )}
                     </div>
                   </td>
                 </tr>
@@ -2300,7 +3445,16 @@ function TeamPanel() {
         </table>
       </div>
 
-      {roleOptions && null}
+      <hr
+        style={{
+          border: "none",
+          borderTop: "1px solid var(--border)",
+          margin: "0.5rem 0",
+          opacity: 0.6,
+        }}
+      />
+
+      <PendingInvitationsTable />
     </div>
   );
 }

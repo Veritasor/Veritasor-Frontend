@@ -6,6 +6,8 @@
  * - Arrow-key navigation (Left / Right / Home / End)
  * - Deep-link URL-hash routing
  * - Responsive select collapse
+ *
+ * Issue #251: Security tab session management.
  */
 
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -36,14 +38,14 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('tablist', { name: /settings tabs/i })).toBeInTheDocument()
   })
 
-  it('renders all 9 tabs', () => {
+  it('renders all 8 tabs', () => {
     renderSettings()
-    expect(screen.getAllByRole('tab')).toHaveLength(9)
+    expect(screen.getAllByRole('tab')).toHaveLength(8)
   })
 
-  it('renders all 9 tab panels (including hidden)', () => {
+  it('renders all 8 tab panels (including hidden)', () => {
     renderSettings()
-    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(9)
+    expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(8)
   })
 
   it('renders a select for mobile collapse', () => {
@@ -51,7 +53,7 @@ describe('Settings — rendering', () => {
     expect(screen.getByRole('combobox', { name: /settings section/i })).toBeInTheDocument()
   })
 
-  it('renders all 9 tab labels', () => {
+  it('renders tab labels: Profile, Notifications, Integrations, API Keys, Tokens, Billing, Security, Audit Log', () => {
     renderSettings()
     expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
@@ -104,6 +106,11 @@ describe('Settings — deep links (URL hash)', () => {
     expect(screen.getByRole('tab', { name: /api keys/i })).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('activates Tokens tab when hash is #tokens', () => {
+    renderSettings('#tokens')
+    expect(screen.getByRole('tab', { name: /tokens/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('activates Billing tab when hash is #billing', () => {
     renderSettings('#billing')
     expect(screen.getByRole('tab', { name: /billing/i })).toHaveAttribute('aria-selected', 'true')
@@ -152,6 +159,12 @@ describe('Settings — click navigation', () => {
     renderSettings()
     fireEvent.click(screen.getByRole('tab', { name: /api keys/i }))
     expect(screen.getByRole('heading', { name: /api keys/i })).toBeInTheDocument()
+  })
+
+  it('clicking Tokens shows the Tokens panel content', () => {
+    renderSettings()
+    fireEvent.click(screen.getByRole('tab', { name: /tokens/i }))
+    expect(screen.getByRole('heading', { name: /design tokens/i })).toBeInTheDocument()
   })
 })
 
@@ -262,11 +275,11 @@ describe('Settings — mobile select', () => {
     expect(select.value).toBe('profile')
   })
 
-  it('select options include all 9 tabs', () => {
+  it('select options include all 8 tabs', () => {
     renderSettings()
     const select = screen.getByRole('combobox', { name: /settings section/i })
     const options = Array.from((select as HTMLSelectElement).options)
-    expect(options).toHaveLength(9)
+    expect(options).toHaveLength(8)
   })
 })
 
@@ -303,6 +316,33 @@ describe('Settings — panel content', () => {
     expect(screen.getByLabelText(/current password/i)).toBeInTheDocument()
   })
 
+  it('Security panel shows active sessions heading', () => {
+    renderSettings('#security')
+    expect(screen.getByRole('heading', { name: /active sessions/i })).toBeInTheDocument()
+  })
+
+  it('Security panel shows session count', () => {
+    renderSettings('#security')
+    expect(screen.getByText(/4 active sessions/i)).toBeInTheDocument()
+  })
+
+  it('Security panel shows current session badge', () => {
+    renderSettings('#security')
+    const badges = screen.getAllByText('Current')
+    expect(badges.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('Security panel shows revoke buttons for non-current sessions', () => {
+    renderSettings('#security')
+    const revokeButtons = screen.getAllByText('Revoke')
+    expect(revokeButtons.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('Security panel shows sign-out-everywhere button', () => {
+    renderSettings('#security')
+    expect(screen.getByText(/sign out of all other sessions/i)).toBeInTheDocument()
+  })
+
   it('Audit Log panel contains a log role element', () => {
     renderSettings('#audit-log')
     expect(screen.getByRole('log', { name: /audit log timeline/i })).toBeInTheDocument()
@@ -310,7 +350,8 @@ describe('Settings — panel content', () => {
 
   it('Audit Log panel shows audit entries', () => {
     renderSettings('#audit-log')
-    expect(screen.getByText('Attestation completed')).toBeInTheDocument()
+    const entries = screen.getAllByText('Attestation completed')
+    expect(entries.length).toBeGreaterThan(0)
   })
 })
 
