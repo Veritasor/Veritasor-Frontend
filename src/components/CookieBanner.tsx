@@ -23,6 +23,12 @@ const CATEGORIES = [
     description: 'Allow personalised content and relevant product updates based on your activity.',
     locked: false,
   },
+  {
+    id: 'productCommunications' as const,
+    label: 'Product Communications',
+    description: 'Receive important updates about your account, security alerts, and feature announcements.',
+    locked: false,
+  },
 ]
 
 // ─── Toggle switch sub-component ─────────────────────────────────────────────
