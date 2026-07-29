@@ -2543,6 +2543,97 @@ input {
   }
 }
 
+/* ── Skeleton ↔ Content Crossfade ─────────────────────────────────────── */
+/*
+ * CrossfadeReveal: wraps a skeleton + real content in a relative container.
+ * The skeleton fades out while the content fades in. Stagger is applied via
+ * --crossfade-delay on individual items.
+ *
+ * Motion tokens used:
+ *   --motion-duration-md  (200 ms) — default crossfade duration
+ *   --motion-easing-standard       — consistent deceleration curve
+ *
+ * Reduced-motion: both layers switch instantly (opacity jumps 0→1 / 1→0
+ * in a single frame) so content is never delayed beyond one paint.
+ */
+
+/* Container that stacks skeleton + content in the same grid cell */
+.crossfade-root {
+  display: grid;
+  grid-template-areas: "layer";
+  /* Inherit width/height from parent; don't impose dimensions */
+}
+
+.crossfade-skeleton-layer,
+.crossfade-content-layer {
+  grid-area: layer;
+  /* Both layers sit in the same cell; opacity drives visibility */
+}
+
+/* ── Idle state (data not yet loaded) ─────────────────────────────────── */
+.crossfade-root[data-loaded="false"] .crossfade-skeleton-layer {
+  opacity: 1;
+  /* pointers active so shimmer is perceivable */
+  pointer-events: auto;
+}
+
+.crossfade-root[data-loaded="false"] .crossfade-content-layer {
+  opacity: 0;
+  pointer-events: none;
+  /* Prevent screen readers from announcing hidden content */
+  visibility: hidden;
+}
+
+/* ── Loaded state (crossfade in progress / complete) ──────────────────── */
+.crossfade-root[data-loaded="true"] .crossfade-skeleton-layer {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-duration-md) var(--motion-easing-standard),
+    visibility 0s var(--motion-duration-md); /* delay visibility until fade done */
+}
+
+.crossfade-root[data-loaded="true"] .crossfade-content-layer {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity var(--motion-duration-md) var(--motion-easing-standard) var(--crossfade-delay, 0ms),
+    visibility 0s var(--crossfade-delay, 0ms);
+}
+
+/* ── Reduced-motion: instant swap, no transitions ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .crossfade-root[data-loaded="true"] .crossfade-skeleton-layer,
+  .crossfade-root[data-loaded="true"] .crossfade-content-layer,
+  .crossfade-root[data-loaded="false"] .crossfade-skeleton-layer,
+  .crossfade-root[data-loaded="false"] .crossfade-content-layer {
+    transition: none;
+  }
+}
+
+/* ── Stagger helper: .crossfade-stagger-item with --crossfade-index ───── */
+/*
+ * Usage in JSX:
+ *   <div
+ *     className="crossfade-stagger-item"
+ *     style={{ '--crossfade-index': idx } as React.CSSProperties}
+ *   >
+ *
+ * Each item's delay = index × 40 ms (STAGGER_STEP token below).
+ * --crossfade-stagger-step defaults to 40 ms; override per-container.
+ */
+:root {
+  --crossfade-stagger-step: 40ms;
+}
+
+.crossfade-stagger-item {
+  --crossfade-delay: calc(
+    var(--crossfade-index, 0) * var(--crossfade-stagger-step)
+  );
+}
+
 /* ── Onboarding Wizard ─────────────────────────────────────────────────── */
 
 .ob-page {
