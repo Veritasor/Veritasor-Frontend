@@ -25,6 +25,11 @@ export type DocumentUpload = {
   proofOfAddress: string[]
 }
 
+export type SelfieCapture = {
+  captured: boolean
+  fileName: string
+}
+
 export type BankDetails = {
   bankName: string
   accountNumber: string
@@ -32,10 +37,16 @@ export type BankDetails = {
   currency: string
 }
 
+export type SelfieCapture = {
+  captured: boolean
+  fileName: string
+}
+
 export type OnboardingDraft = {
   step: number
   business: BusinessDetails
   owner: OwnerDetails
+  selfie: SelfieCapture
   documents: DocumentUpload
   bank: BankDetails
 }
@@ -46,6 +57,7 @@ const INITIAL_DRAFT: OnboardingDraft = {
   step: 1,
   business: { legalName: '', registrationNumber: '', country: '', businessType: '', website: '' },
   owner: { fullName: '', dateOfBirth: '', nationality: '', addressLine1: '', addressLine2: '', city: '', postalCode: '' },
+  selfie: { captured: false, fileName: '' },
   documents: { registrationCert: [], govIdFront: [], govIdBack: [], proofOfAddress: [] },
   bank: { bankName: '', accountNumber: '', ibanSwift: '', currency: '' },
 }

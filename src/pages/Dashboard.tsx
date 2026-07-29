@@ -34,81 +34,47 @@ export default function Dashboard() {
   }
 
   return (
-    <div>
+    <div className="dashboard-page">
       <h1 style={{ marginTop: 0 }}>Dashboard</h1>
       <p style={{ color: 'var(--muted)' }}>
         Connect your revenue sources and manage attestations from here.
       </p>
 
-      <section
-        style={{
-          marginTop: '1.5rem',
-          padding: '1.5rem',
-          background: 'var(--surface)',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-        }}
-      >
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Key metrics</h2>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: '1rem',
-          }}
-        >
-          {METRICS.map((m) => (
-            <div
-              key={m.label}
-              style={{
-                padding: '1rem',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: 'var(--surface-strong)',
-              }}
-            >
-              <span style={{ display: 'block', color: 'var(--muted)', fontSize: '0.85rem' }}>
-                {m.label}
-              </span>
-              <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 700 }}>
-                {m.value}
-              </span>
-              <span style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem' }}>
-                {m.sub}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="dashboard-grid">
+        <section className="dashboard-section">
+          <h2>Key metrics</h2>
+          <div className="dashboard-metrics-grid">
+            {METRICS.map((m) => (
+              <div key={m.label} className="dashboard-metric-card">
+                <span className="dashboard-metric-label">{m.label}</span>
+                <span className="dashboard-metric-value">{m.value}</span>
+                <span className="dashboard-metric-sub">{m.sub}</span>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      <section
-        style={{
-          marginTop: '1.5rem',
-          padding: '1.5rem',
-          background: 'var(--surface)',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-        }}
-      >
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Quick actions</h2>
-        <ul style={{ color: 'var(--muted)', paddingLeft: '1.25rem' }}>
-          <li>
-            <Link to="/connect-source/provider" aria-label="Open connect source wizard">
-              Connect Stripe, Razorpay, or Shopify
-            </Link>
-          </li>
-          <li>
-            <button
-              type="button"
-              className="dashboard-action-btn"
-              onClick={() => setModalOpen(true)}
-            >
-              Trigger monthly revenue report
-            </button>
-          </li>
-          <li>View attestation history</li>
-        </ul>
-      </section>
+        <section className="dashboard-section">
+          <h2>Quick actions</h2>
+          <ul className="dashboard-actions-list">
+            <li>
+              <Link to="/connect-source/provider" aria-label="Open connect source wizard">
+                Connect Stripe, Razorpay, or Shopify
+              </Link>
+            </li>
+            <li>
+              <button
+                type="button"
+                className="dashboard-action-btn"
+                onClick={() => setModalOpen(true)}
+              >
+                Trigger monthly revenue report
+              </button>
+            </li>
+            <li>View attestation history</li>
+          </ul>
+        </section>
+      </div>
 
       <AttestationConfirmModal
         open={modalOpen}

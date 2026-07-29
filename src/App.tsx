@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { LocaleProvider } from './i18n/provider'
+import { ToastProvider } from './components/ToastContext'
 import Layout from './components/Layout'
 import ApiKeys from './pages/ApiKeys'
 import HelpArticle from './pages/HelpArticle'
