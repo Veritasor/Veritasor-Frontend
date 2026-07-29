@@ -5832,3 +5832,16 @@ button[style*="pagerBtnStyle"]:active:not(:disabled) {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
 }
+
+/* ─── Theme Crossfade Transition (Reduced-Motion Safe) ───────────────────── */
+html[data-theme] {
+  transition: background-color var(--motion-duration-md) var(--motion-easing-standard),
+              color var(--motion-duration-md) var(--motion-easing-standard),
+              border-color var(--motion-duration-md) var(--motion-easing-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme] {
+    transition: none !important;
+  }
+}
