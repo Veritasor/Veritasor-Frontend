@@ -2880,61 +2880,66 @@ const MOCK_AUDIT_DETAILS: Record<string, Partial<AuditLogEntryDetail>> = {
       merkleRoot: "0x7f3a2c9b1d8e4f06a5c2b7e3d1f09a4c",
       status: "completed",
       timestamp: "2026-07-28T08:12:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
     },
-  },
-  "4": {
-    actor: "joel@example.com",
-    ip: "203.0.113.42",
-    method: "POST",
-    path: "/api/v1/sources",
-    statusCode: 201,
-    requestPayload: {
-      provider: "stripe",
-      accountId: "acct_1Nxxxx",
+    {
+      id: "2",
+      timestamp: "2026-07-28T08:14:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
     },
-    responsePayload: {
-      id: "src_01j9stripe",
-      provider: "stripe",
-      status: "connected",
+    {
+      id: "3",
+      timestamp: "2026-07-28T08:15:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
     },
-  },
-  "5": {
-    actor: "scheduler@veritasor.internal",
-    ip: "10.0.0.5",
-    method: "POST",
-    path: "/api/v1/attestations",
-    statusCode: 504,
-    requestPayload: {
-      source: "shopify",
-      period: "2026-06",
+    {
+      id: "4",
+      timestamp: "2026-07-28T09:00:00Z",
+      event: "Revenue source connected",
+      details: "Provider: Stripe",
+      severity: "info",
     },
-    responsePayload: {
-      error: "GATEWAY_TIMEOUT",
-      message: "Upstream service did not respond within 30s",
+    {
+      id: "5",
+      timestamp: "2026-07-27T14:30:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
     },
-  },
-  "9": {
-    actor: "joel@example.com",
-    ip: "203.0.113.42",
-    method: "POST",
-    path: "/api/v1/api-keys/rotate",
-    statusCode: 200,
-    requestHeaders: {
-      "content-type": "application/json",
-      "x-request-id": "req_01j7rotate",
+    {
+      id: "6",
+      timestamp: "2026-07-27T14:31:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
     },
-    responsePayload: {
-      keyId: "key_01j7newkey",
-      hint: "••••3f9a",
+    {
+      id: "7",
+      timestamp: "2026-07-27T14:32:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
     },
-  },
-};
-
-function AuditLogPanel() {
-  function handleFetchDetail(id: string): AuditLogEntryDetail {
-    const base = MOCK_AUDIT_ENTRIES.find((e) => e.id === id)!;
-    return { ...base, ...(MOCK_AUDIT_DETAILS[id] ?? {}) };
-  }
+    {
+      id: "8",
+      timestamp: "2026-07-27T14:33:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "9",
+      timestamp: "2026-07-26T10:00:00Z",
+      event: "API key rotated",
+      severity: "warn",
+    },
+  ];
 
   return (
     <div>
