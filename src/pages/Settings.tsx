@@ -5325,6 +5325,86 @@ function TeamPanel() {
   );
 }
 
+function AuditLogPanel() {
+  const mockEntries: AuditLogEntry[] = [
+    {
+      id: "1",
+      timestamp: "2026-07-28T08:12:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
+    },
+    {
+      id: "2",
+      timestamp: "2026-07-28T08:14:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
+    },
+    {
+      id: "3",
+      timestamp: "2026-07-28T08:15:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
+    },
+    {
+      id: "4",
+      timestamp: "2026-07-28T09:00:00Z",
+      event: "Revenue source connected",
+      details: "Provider: Stripe",
+      severity: "info",
+    },
+    {
+      id: "5",
+      timestamp: "2026-07-27T14:30:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "6",
+      timestamp: "2026-07-27T14:31:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "7",
+      timestamp: "2026-07-27T14:32:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "8",
+      timestamp: "2026-07-27T14:33:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "9",
+      timestamp: "2026-07-26T10:00:00Z",
+      event: "API key rotated",
+      severity: "warn",
+    },
+  ];
+
+  return (
+    <div>
+      <h2>Audit Log</h2>
+      <p style={{ color: "var(--muted)" }}>
+        Recent activity for this workspace. In compact density mode, identical
+        consecutive events are grouped by day and collapsed into summary badges.
+      </p>
+      <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
+        <AuditLogTimeline entries={mockEntries} />
+      </div>
+    </div>
+  );
+}
+
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   business: BusinessProfilePanel,
