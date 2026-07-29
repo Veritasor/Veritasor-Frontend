@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Outlet, NavLink, Link, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Outlet, NavLink, Link } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
 import CommandPalette from "./CommandPalette";
@@ -8,6 +8,8 @@ import { ToastProvider, useToast } from "./ToastContext";
 import { useCookieConsent } from "./CookieConsentContext";
 import FailedPaymentBanner from "./FailedPaymentBanner";
 import { BillingProvider, useBilling } from "./BillingContext";
+import ShortcutsOverlay from "./ShortcutsOverlay";
+import ContextualHelpSearch from "./ContextualHelpSearch";
 
 function ToastContainer() {
   const { toasts, removeToast } = useToast();
@@ -89,15 +91,8 @@ const navItems = [
 function LayoutInner() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [cmdOpen, setCmdOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  /**
-   * When true, TopAppBar will open the workspace switcher in search/filter mode.
-   * Reset to false once TopAppBar reports the switcher is open so subsequent
-   * re-renders don't re-trigger it.
-   */
-  const [openWsSwitcherInSearchMode, setOpenWsSwitcherInSearchMode] =
-    useState(false);
+  const [helpSearchOpen, setHelpSearchOpen] = useState(false);
   const { openSettings: openCookieSettings } = useCookieConsent();
 
   /**
@@ -257,6 +252,14 @@ function LayoutInner() {
             >
               Cookie settings
             </button>
+            <button
+              type="button"
+              className="sidebar-help-btn"
+              onClick={() => setHelpSearchOpen(true)}
+              aria-label="Open help search (Ctrl+H)"
+            >
+              Help &amp; support
+            </button>
           </div>
         </aside>
 
@@ -276,22 +279,8 @@ function LayoutInner() {
 
       <BottomTabBar />
       <ToastContainer />
-
-      {/* Command palette — Ctrl+K */}
-      <CommandPalette
-        isOpen={cmdOpen}
-        onClose={() => setCmdOpen(false)}
-        onWorkspaceJump={() => {
-          setCmdOpen(false);
-          setOpenWsSwitcherInSearchMode(true);
-        }}
-      />
-
-      {/* Keyboard shortcuts overlay — Shift+? */}
-      <ShortcutsOverlay
-        open={shortcutsOpen}
-        onClose={() => setShortcutsOpen(false)}
-      />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ContextualHelpSearch open={helpSearchOpen} onClose={() => setHelpSearchOpen(false)} />
     </div>
   );
 }

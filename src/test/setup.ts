@@ -12,10 +12,14 @@ if (typeof ResizeObserver === 'undefined') {
       this.callback = callback
     }
     observe() {
-      // Fire callback once so measurement effects run
       this.callback([], this)
     }
     unobserve() {}
     disconnect() {}
   }
+}
+
+// ─── scrollIntoView polyfill for JSDOM ────────────────────────────────────
+if (typeof Element.prototype.scrollIntoView === 'undefined') {
+  Element.prototype.scrollIntoView = () => {}
 }
