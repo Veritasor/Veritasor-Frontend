@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import LocalePickerField from '../components/LocalePicker/LocalePickerField'
-import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
-import TokensExport from '../components/tokens/TokensExport'
-import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
-import MfaMethodChooser from '../components/MfaMethodChooser'
-import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import LocalePickerField from "../components/LocalePicker/LocalePickerField";
+import AuditLogTimeline, {
+  type AuditLogEntry,
+} from "../components/audit-log/AuditLogTimeline";
+import TokensExport from "../components/tokens/TokensExport";
+import MfaMethodChooser, {
+  type MfaMethod,
+} from "../components/MfaMethodChooser";
+import LogoUpload from "../components/LogoUpload";
+import AddressAutocomplete, {
+  type AddressValue,
+} from "../components/AddressAutocomplete";
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: "profile", label: "Profile" },
+  { id: "business", label: "Business" },
   { id: "notifications", label: "Notifications" },
   { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
@@ -97,6 +104,117 @@ function ProfilePanel() {
           Save changes
         </button>
       </form>
+    </div>
+  );
+}
+
+// ─── Business profile panel (#230 logo upload, #231 address autocomplete) ──────
+
+function BusinessProfilePanel() {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoSaved, setLogoSaved] = useState(false);
+  const [addressValue, setAddressValue] = useState<AddressValue | null>(null);
+  const [addressError, setAddressError] = useState<string | undefined>();
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  function handleLogoSave(file: File) {
+    // In production, POST file to /api/org/logo
+    const url = URL.createObjectURL(file);
+    setLogoUrl(url);
+    setLogoSaved(true);
+    setTimeout(() => setLogoSaved(false), 3000);
+  }
+
+  function handleProfileSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addressValue?.fullAddress) {
+      setAddressError("Business address is required");
+      return;
+    }
+    setAddressError(undefined);
+    // POST to /api/org/profile
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 3000);
+  }
+
+  return (
+    <div style={{ display: "grid", gap: "2rem", maxWidth: 600 }}>
+      <div>
+        <h2>Business profile</h2>
+        <p style={{ color: "var(--muted)" }}>
+          Update your organisation's logo and registered address.
+        </p>
+      </div>
+
+      {/* ── Logo upload ─────────────────────────────────────────────── */}
+      <section aria-labelledby="biz-logo-heading">
+        <h3 id="biz-logo-heading" style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>
+          Organisation logo
+        </h3>
+        <p style={{ margin: "0 0 1rem", color: "var(--muted)", fontSize: "0.9rem" }}>
+          Used in reports, attestation certificates, and partner portals.
+          Square images crop best.
+        </p>
+        <LogoUpload
+          currentLogoUrl={logoUrl}
+          onSave={handleLogoSave}
+        />
+        {logoSaved && (
+          <p
+            role="status"
+            aria-live="polite"
+            style={{ color: "var(--success)", fontSize: "0.9rem", marginTop: "0.5rem" }}
+          >
+            ✓ Logo saved
+          </p>
+        )}
+      </section>
+
+      <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: 0 }} />
+
+      {/* ── Business address ─────────────────────────────────────────── */}
+      <section aria-labelledby="biz-addr-heading">
+        <h3 id="biz-addr-heading" style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>
+          Registered address
+        </h3>
+        <form onSubmit={handleProfileSubmit} noValidate style={{ display: "grid", gap: "1rem" }}>
+          <AddressAutocomplete
+            label="Business address"
+            required
+            value={addressValue}
+            onChange={setAddressValue}
+            onClear={() => setAddressValue(null)}
+            error={addressError}
+          />
+          <div>
+            <button
+              type="submit"
+              style={{
+                padding: "0.6rem 1.25rem",
+                borderRadius: 8,
+                border: "none",
+                background: "var(--accent)",
+                color: "#04111f",
+                fontWeight: 700,
+                cursor: "pointer",
+                fontSize: "0.95rem",
+                minHeight: "2.75rem",
+              }}
+            >
+              Save address
+            </button>
+            {profileSaved && (
+              <span
+                role="status"
+                aria-live="polite"
+                style={{ marginLeft: "1rem", color: "var(--success)", fontSize: "0.9rem", verticalAlign: "middle" }}
+              >
+                ✓ Saved
+              </span>
+            )}
+          </div>
+        </form>
+      </section>
     </div>
   );
 }
@@ -3343,6 +3461,7 @@ function TeamPanel() {
 
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
+  business: BusinessProfilePanel,
   notifications: NotificationsPanel,
   team: TeamPanel,
   integrations: SettingsIntegrationsPanel,
