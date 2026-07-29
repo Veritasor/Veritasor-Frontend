@@ -6,6 +6,7 @@ const OPTIONS: { value: Theme; label: string; icon: string }[] = [
   { value: 'system', label: 'System', icon: '🖥' },
   { value: 'light', label: 'Light', icon: '☀' },
   { value: 'dark', label: 'Dark', icon: '☾' },
+  { value: 'high-contrast', label: 'High Contrast', icon: '◑' },
 ]
 
 export default function ThemeSwitcher() {
