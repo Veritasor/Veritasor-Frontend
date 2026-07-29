@@ -6061,15 +6061,155 @@ button[style*="pagerBtnStyle"]:active:not(:disabled) {
   gap: 1rem;
 }
 
-/* ─── Theme Crossfade Transition (Reduced-Motion Safe) ───────────────────── */
-html[data-theme] {
-  transition: background-color var(--motion-duration-md) var(--motion-easing-standard),
-              color var(--motion-duration-md) var(--motion-easing-standard),
-              border-color var(--motion-duration-md) var(--motion-easing-standard);
+/* ─── OAuth Callback Landing Page CSS (#220) ───────────────────────── */
+
+.oauth-callback-wrapper {
+  display: grid;
+  gap: 1.5rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme] {
-    transition: none !important;
-  }
+.oauth-state-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.375rem;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
 }
+
+.oauth-state-tab {
+  flex: 1 1 auto;
+  min-width: 100px;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: calc(var(--radius-sm) - 0.25rem);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 180ms ease;
+  text-align: center;
+}
+
+.oauth-state-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.oauth-state-tab.is-active {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.provider-logo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.provider-logo-badge.stripe-badge {
+  border-color: rgba(99, 91, 255, 0.4);
+  background: rgba(99, 91, 255, 0.12);
+}
+
+.provider-logo-badge.shopify-badge {
+  border-color: rgba(149, 191, 71, 0.4);
+  background: rgba(149, 191, 71, 0.12);
+}
+
+.provider-logo-badge.razorpay-badge {
+  border-color: rgba(2, 132, 199, 0.4);
+  background: rgba(2, 132, 199, 0.12);
+}
+
+.oauth-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.oauth-status-badge.status-success {
+  background: var(--success-soft);
+  color: var(--success);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.oauth-status-badge.status-denied {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid rgba(251, 113, 133, 0.35);
+}
+
+.oauth-status-badge.status-expired {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.oauth-status-badge.status-unknown {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.oauth-telemetry-box {
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--border);
+  font-size: 0.88rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.oauth-telemetry-box pre {
+  margin: 0;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.oauth-scope-summary {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+}
+
+.oauth-scope-summary h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.oauth-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
