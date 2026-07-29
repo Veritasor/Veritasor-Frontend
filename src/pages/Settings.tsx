@@ -5,6 +5,7 @@ import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/Au
 import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
 import TokensExport from '../components/tokens/TokensExport'
 import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
+import A11yCoverageMatrix from '../components/a11y/A11yCoverageMatrix'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
 import type { MfaMethod } from '../components/MfaMethodChooser'
@@ -5325,6 +5326,16 @@ function TeamPanel() {
   );
 }
 
+// Wraps the a11y audit panel with the coverage matrix below it.
+function A11yPanel() {
+  return (
+    <div style={{ display: 'grid', gap: 'var(--density-gap)' }}>
+      <A11yAuditPanel />
+      <A11yCoverageMatrix />
+    </div>
+  )
+}
+
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   business: BusinessProfilePanel,
@@ -5336,7 +5347,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   "audit-log": AuditLogPanel,
-  "a11y-audit": A11yAuditPanel,
+  "a11y-audit": A11yPanel,
 };
 
 // ─── Unsaved Changes Navigation Guard ─────────────────────────────────────────
