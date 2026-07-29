@@ -80,20 +80,11 @@ function OfflineBanner() {
 }
 
 const navItems = [
-  { path: "/", name: "Dashboard" },
-  { path: "/attestations", name: "Attestations" },
-  { path: "/sources", name: "Revenue Sources" },
-];
-
-function BillingBannerSlot() {
-  const { failedPayment, dismissFailedPayment } = useBilling();
-  return (
-    <FailedPaymentBanner
-      failure={failedPayment}
-      onDismiss={dismissFailedPayment}
-    />
-  );
-}
+  { path: '/', name: 'Dashboard' },
+  { path: '/attestations', name: 'Attestations' },
+  { path: '/sources', name: 'Revenue Sources' },
+  { path: '/motion-tokens', name: 'Motion Tokens' },
+]
 
 function LayoutInner() {
   const location = useLocation();
@@ -251,6 +242,9 @@ function LayoutInner() {
               }
             >
               Revenue Sources
+            </NavLink>
+            <NavLink to="/motion-tokens" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
+              Motion Tokens
             </NavLink>
           </nav>
 
