@@ -1,24 +1,11 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useLocation, useNavigate, useBlocker } from "react-router-dom";
-import LocalePickerField from "../components/LocalePicker/LocalePickerField";
-import AuditLogTimeline, {
-  type AuditLogEntry,
-} from "../components/audit-log/AuditLogTimeline";
-import TokensExport from "../components/tokens/TokensExport";
-import SettingsIntegrationsPanel from "./SettingsIntegrationsPanel";
-import MfaMethodChooser from "../components/MfaMethodChooser";
-import WebhookRetryPanel from "../components/WebhookRetryPanel";
-import ConfirmDialog from "../components/ConfirmDialog";
-import DirtyStateBanner from "../components/DirtyStateBanner";
-import { useDirtyForm, type SaveStatus } from "../hooks/useDirtyForm";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import LocalePickerField from '../components/LocalePicker/LocalePickerField'
+import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
+import TokensExport from '../components/tokens/TokensExport'
+import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
+import MfaMethodChooser from '../components/MfaMethodChooser'
+import WebhookRetryPanel from '../components/WebhookRetryPanel'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -3325,9 +3312,456 @@ function BulkActionToolbar({
   );
 }
 
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// #245 — InviteMemberModal
+// Multi-email chip input with role preselect and invitation email preview.
+// ---------------------------------------------------------------------------
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const INVITE_ROLE_OPTIONS: { value: TeamRole; label: string; description: string }[] = [
+  { value: "admin",   label: "Admin",   description: "Full access except billing and ownership transfer." },
+  { value: "billing", label: "Billing", description: "Can manage payment methods and view invoices." },
+  { value: "member",  label: "Member",  description: "Read access to attestations and revenue sources." },
+];
+
+interface InviteMemberModalProps {
+  onClose: () => void;
+  onInvite: (emails: string[], role: TeamRole) => void;
+}
+
+function InviteMemberModal({ onClose, onInvite }: InviteMemberModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputValue, setInputValue] = useState("");
+  const [chips, setChips] = useState<{ email: string; valid: boolean }[]>([]);
+  const [role, setRole] = useState<TeamRole>("member");
+  const [showPreview, setShowPreview] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Focus trap — move focus into dialog on mount
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => prev?.focus();
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  // Commit the current input value as a chip
+  function commitInput(raw: string) {
+    const trimmed = raw.trim().replace(/,+$/, "");
+    if (!trimmed) return;
+    const email = trimmed.toLowerCase();
+    // Avoid duplicates
+    if (chips.some((c) => c.email === email)) {
+      setInputValue("");
+      return;
+    }
+    setChips((prev) => [...prev, { email, valid: EMAIL_REGEX.test(email) }]);
+    setInputValue("");
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+      e.preventDefault();
+      commitInput(inputValue);
+    } else if (e.key === "Backspace" && inputValue === "" && chips.length > 0) {
+      // Remove last chip on backspace when input is empty
+      setChips((prev) => prev.slice(0, -1));
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    // Auto-commit when user types/pastes a comma
+    if (val.includes(",")) {
+      const parts = val.split(",");
+      parts.slice(0, -1).forEach((part) => commitInput(part));
+      setInputValue(parts[parts.length - 1]);
+    } else {
+      setInputValue(val);
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const text = e.clipboardData.getData("text");
+    if (text.includes(",") || text.includes("\n") || text.includes(" ")) {
+      e.preventDefault();
+      const parts = text.split(/[,\n\s]+/);
+      parts.forEach((part) => commitInput(part));
+    }
+  }
+
+  function removeChip(email: string) {
+    setChips((prev) => prev.filter((c) => c.email !== email));
+    inputRef.current?.focus();
+  }
+
+  function handleSubmit() {
+    // Commit any dangling input
+    if (inputValue.trim()) commitInput(inputValue);
+    setSubmitted(true);
+  }
+
+  // After submit state updates, check if we can send
+  useEffect(() => {
+    if (!submitted) return;
+    const validEmails = chips.filter((c) => c.valid).map((c) => c.email);
+    if (validEmails.length > 0) {
+      onInvite(validEmails, role);
+      onClose();
+    }
+    setSubmitted(false);
+  }, [submitted, chips, role, onInvite, onClose]);
+
+  const validCount = chips.filter((c) => c.valid).length;
+  const invalidCount = chips.filter((c) => !c.valid).length;
+  const hasInvalidChips = invalidCount > 0;
+  const canSend = (validCount > 0 || inputValue.trim().length > 0);
+
+  const selectedRoleMeta = INVITE_ROLE_OPTIONS.find((r) => r.value === role)!;
+
+  // Preview email body
+  const previewEmails = chips.filter((c) => c.valid).map((c) => c.email);
+  const previewRecipient = previewEmails[0] ?? "colleague@example.com";
+
+  const modalOverlay: React.CSSProperties = {
+    position: "fixed", inset: 0, zIndex: 50,
+    background: "rgba(2, 6, 23, 0.72)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    padding: "1rem",
+  };
+
+  const chipBase: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: "0.3rem",
+    padding: "0.2rem 0.4rem 0.2rem 0.65rem",
+    borderRadius: 999, fontSize: "0.83rem", fontWeight: 500,
+    maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <div
+      aria-hidden="true"
+      onClick={onClose}
+      style={modalOverlay}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invite-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 520,
+          maxHeight: "92dvh", overflowY: "auto",
+          background: "var(--surface-strong)",
+          border: "1px solid var(--border-strong)",
+          borderRadius: "var(--radius-md)",
+          boxShadow: "var(--shadow-lg)",
+          display: "grid",
+          outline: "none",
+        }}
+      >
+        {/* ── Header ── */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "1.1rem 1.25rem 0.75rem",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          <h2 id="invite-modal-title" style={{ margin: 0, fontSize: "var(--text-lg)", fontWeight: 700 }}>
+            Invite team members
+          </h2>
+          <button
+            type="button"
+            aria-label="Close invite modal"
+            onClick={onClose}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 32, height: 32, borderRadius: 8,
+              border: "1px solid var(--border)", background: "transparent",
+              cursor: "pointer", color: "var(--muted)",
+            }}
+          >
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        {/* ── Body ── */}
+        <div style={{ padding: "1rem 1.25rem", display: "grid", gap: "1.1rem" }}>
+
+          {/* Email chip input */}
+          <div>
+            <label
+              id="invite-emails-label"
+              style={{ display: "block", fontWeight: 700, marginBottom: "0.4rem", fontSize: "0.9rem" }}
+            >
+              Email addresses
+            </label>
+            <div
+              role="group"
+              aria-labelledby="invite-emails-label"
+              aria-describedby="invite-emails-hint"
+              onClick={() => inputRef.current?.focus()}
+              style={{
+                display: "flex", flexWrap: "wrap", gap: "0.35rem",
+                alignItems: "center",
+                minHeight: "var(--density-touch-min)",
+                padding: "0.4rem 0.6rem",
+                borderRadius: 12,
+                border: `1px solid ${hasInvalidChips ? "var(--danger)" : "var(--border)"}`,
+                background: "var(--surface)",
+                cursor: "text",
+              }}
+            >
+              {chips.map(({ email, valid }) => (
+                <span
+                  key={email}
+                  style={{
+                    ...chipBase,
+                    background: valid ? "rgba(94, 234, 212, 0.12)" : "var(--danger-soft)",
+                    border: `1px solid ${valid ? "rgba(94,234,212,0.35)" : "rgba(251,113,133,0.4)"}`,
+                    color: valid ? "var(--accent)" : "var(--danger)",
+                  }}
+                >
+                  <span
+                    style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    title={email}
+                  >
+                    {email}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${email}`}
+                    onClick={(e) => { e.stopPropagation(); removeChip(email); }}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, width: 16, height: 16, borderRadius: "50%",
+                      border: "none", background: "transparent",
+                      cursor: "pointer", color: "inherit", padding: 0,
+                    }}
+                  >
+                    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+              <input
+                ref={inputRef}
+                type="email"
+                multiple
+                autoComplete="off"
+                value={inputValue}
+                placeholder={chips.length === 0 ? "name@company.com, another@company.com" : ""}
+                aria-label="Add email address"
+                onChange={handleInputChange}
+                onKeyDown={handleInputKeyDown}
+                onPaste={handlePaste}
+                onBlur={() => { if (inputValue.trim()) commitInput(inputValue); }}
+                style={{
+                  flex: "1 1 160px", minWidth: 0,
+                  border: "none", outline: "none",
+                  background: "transparent", color: "var(--text)",
+                  fontSize: "0.9rem", padding: "0.15rem 0",
+                }}
+              />
+            </div>
+            <p id="invite-emails-hint" style={{ margin: "0.3rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
+              Press Enter or comma to add each address. Paste a comma-separated list to add many at once.
+            </p>
+            {hasInvalidChips && (
+              <p role="alert" style={{ margin: "0.3rem 0 0", fontSize: "0.8rem", color: "var(--danger)" }}>
+                {invalidCount} address{invalidCount > 1 ? "es are" : " is"} invalid and will be skipped.
+              </p>
+            )}
+          </div>
+
+          {/* Role preselect */}
+          <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+            <legend style={{ fontWeight: 700, marginBottom: "0.5rem", fontSize: "0.9rem" }}>Role</legend>
+            <div style={{ display: "grid", gap: "0.45rem" }}>
+              {INVITE_ROLE_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: "0.65rem",
+                    padding: "0.65rem 0.85rem",
+                    borderRadius: 10,
+                    border: `1px solid ${role === opt.value ? "var(--border-strong)" : "var(--border)"}`,
+                    background: role === opt.value ? "rgba(94, 234, 212, 0.06)" : "transparent",
+                    cursor: "pointer",
+                    transition: "border-color 0.12s, background 0.12s",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="invite-role"
+                    value={opt.value}
+                    checked={role === opt.value}
+                    onChange={() => setRole(opt.value)}
+                    aria-describedby={`invite-role-desc-${opt.value}`}
+                    style={{ marginTop: "0.15rem", flexShrink: 0 }}
+                  />
+                  <span>
+                    <span style={{ display: "block", fontWeight: 600, fontSize: "0.9rem" }}>{opt.label}</span>
+                    <span id={`invite-role-desc-${opt.value}`} style={{ fontSize: "0.82rem", color: "var(--muted)" }}>
+                      {opt.description}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Email preview toggle */}
+          <div>
+            <button
+              type="button"
+              aria-expanded={showPreview}
+              aria-controls="invite-email-preview"
+              onClick={() => setShowPreview((p) => !p)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: "0.4rem",
+                background: "transparent", border: "none", cursor: "pointer",
+                color: "var(--accent)", fontSize: "0.85rem", fontWeight: 600, padding: 0,
+              }}
+            >
+              <svg
+                aria-hidden="true" width="13" height="13" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2.5"
+                strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: showPreview ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+              {showPreview ? "Hide" : "Preview"} invitation email
+            </button>
+
+            {showPreview && (
+              <div
+                id="invite-email-preview"
+                aria-label="Invitation email preview"
+                style={{
+                  marginTop: "0.75rem",
+                  padding: "0.85rem 1rem",
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  fontSize: "0.85rem",
+                  lineHeight: 1.65,
+                  color: "var(--text)",
+                }}
+              >
+                <p style={{ margin: "0 0 0.5rem", color: "var(--muted)", fontSize: "0.78rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Preview · Not a real send
+                </p>
+                <p style={{ margin: "0 0 0.35rem" }}>
+                  <strong>To:</strong>{" "}
+                  <span style={{ color: "var(--muted)" }}>{previewRecipient}</span>
+                </p>
+                <p style={{ margin: "0 0 0.35rem" }}>
+                  <strong>Subject:</strong> You've been invited to join the Veritasor workspace
+                </p>
+                <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "0.6rem 0" }} />
+                <p style={{ margin: "0 0 0.5rem" }}>Hi there,</p>
+                <p style={{ margin: "0 0 0.5rem" }}>
+                  You've been invited to join the Veritasor workspace as a{" "}
+                  <strong>{selectedRoleMeta.label}</strong>.{" "}
+                  {selectedRoleMeta.description}
+                </p>
+                <p style={{ margin: "0 0 0.75rem" }}>
+                  Click the button below to accept your invitation and set up your account.
+                </p>
+                <span
+                  style={{
+                    display: "inline-block",
+                    padding: "0.5rem 1.1rem",
+                    borderRadius: 8,
+                    background: "var(--accent)",
+                    color: "#04111f",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  Accept invitation
+                </span>
+                <p style={{ margin: "0.75rem 0 0", color: "var(--muted)", fontSize: "0.78rem" }}>
+                  This invitation expires in 7 days. If you did not expect this email, you can safely ignore it.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Footer ── */}
+        <div style={{
+          padding: "0.9rem 1.25rem",
+          borderTop: "1px solid var(--border)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: "0.75rem",
+        }}>
+          <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            {validCount > 0
+              ? <>Sending to <strong style={{ color: "var(--text)" }}>{validCount}</strong> address{validCount !== 1 ? "es" : ""} as <strong style={{ color: "var(--text)" }}>{selectedRoleMeta.label}</strong></>
+              : "Add at least one valid email address"}
+          </span>
+          <div style={{ display: "flex", gap: "0.6rem" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: "0.55rem 1rem", borderRadius: 10,
+                border: "1px solid var(--border)", background: "transparent",
+                cursor: "pointer", color: "var(--text)", fontWeight: 600, fontSize: "0.88rem",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!canSend}
+              onClick={handleSubmit}
+              style={{
+                padding: "0.55rem 1.1rem", borderRadius: 10,
+                border: "1px solid transparent",
+                background: canSend ? "linear-gradient(135deg, var(--accent), #60a5fa)" : "var(--surface-soft)",
+                cursor: canSend ? "pointer" : "not-allowed",
+                color: canSend ? "#04111f" : "var(--muted)",
+                fontWeight: 700, fontSize: "0.88rem",
+                opacity: canSend ? 1 : 0.6,
+              }}
+            >
+              Send {validCount > 1 ? `${validCount} invitations` : "invitation"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TeamPanel() {
   const [members, setMembers] = useState<TeamMember[]>(MOCK_TEAM);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [pending, setPending] = useState<PendingBulkAction | null>(null);
   const [activeConflicts, setActiveConflicts] =
     useState <
@@ -3510,14 +3944,61 @@ function TeamPanel() {
     [],
   );
 
+  function handleInvite(emails: string[], role: TeamRole) {
+    const newMembers: TeamMember[] = emails.map((email, i) => ({
+      id: `u_invite_${Date.now()}_${i}`,
+      name: email.split("@")[0],
+      email,
+      role,
+      status: "pending" as MemberStatus,
+      joinedAt: new Date().toISOString().split("T")[0],
+      avatarInitials: email.slice(0, 2).toUpperCase(),
+    }));
+    setMembers((prev) => [...prev, ...newMembers]);
+    setPending({
+      type: "resend",
+      count: newMembers.length,
+      snapshot: newMembers,
+      message: `Invitation${newMembers.length === 1 ? "" : "s"} sent to ${newMembers.length} ${newMembers.length === 1 ? "address" : "addresses"}.`,
+    });
+    scheduleUndoClear();
+  }
+
   return (
     <div style={{ display: "grid", gap: "1rem" }}>
-      <div>
-        <h2>Team</h2>
-        <p style={{ color: "var(--muted)" }}>
-          Manage workspace members, roles, and pending invitations.
-        </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
+        <div>
+          <h2>Team</h2>
+          <p style={{ color: "var(--muted)" }}>
+            Manage workspace members, roles, and pending invitations.
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="Invite new team members"
+          onClick={() => setShowInviteModal(true)}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "0.4rem",
+            padding: "0.6rem 1.1rem", borderRadius: 10,
+            border: "1px solid transparent",
+            background: "linear-gradient(135deg, var(--accent), #60a5fa)",
+            color: "#04111f", fontWeight: 700, fontSize: "0.9rem",
+            cursor: "pointer",
+          }}
+        >
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Invite members
+        </button>
       </div>
+
+      {showInviteModal && (
+        <InviteMemberModal
+          onClose={() => setShowInviteModal(false)}
+          onInvite={handleInvite}
+        />
+      )}
 
       {selectedCount > 0 && (
         <BulkActionToolbar

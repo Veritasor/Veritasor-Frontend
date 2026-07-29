@@ -40,6 +40,7 @@ type WizardData = {
   optionalScopes: string[]
   confirmLeastPrivilege: boolean
   scopeValidationAttempted: boolean
+  testConnectionStatus: 'idle' | 'running' | 'success' | 'failure'
 }
 
 type WizardContext = {
@@ -52,6 +53,8 @@ type WizardContext = {
   setSyncWindow: (windowId: SyncWindowId) => void
   toggleOptionalScope: (scopeId: string) => void
   setConfirmLeastPrivilege: (checked: boolean) => void
+  runTestConnection: () => void
+  resetTestConnection: () => void
 }
 
 const providerOptions: ProviderDefinition[] = [
@@ -135,6 +138,12 @@ const wizardSteps: WizardStep[] = [
     detail: 'Decide how much history and supporting context to sync.',
   },
   {
+    id: 'test-connection',
+    path: '/connect-source/test-connection',
+    label: 'Test connection',
+    detail: 'Verify live read access before completing the setup.',
+  },
+  {
     id: 'confirm',
     path: '/connect-source/confirm',
     label: 'Confirm',
@@ -149,6 +158,7 @@ const initialWizardData: WizardData = {
   optionalScopes: [],
   confirmLeastPrivilege: false,
   scopeValidationAttempted: false,
+  testConnectionStatus: 'idle',
 }
 
 function getProviderName(provider: ProviderId | null) {
@@ -171,6 +181,10 @@ function isScopeComplete(data: WizardData) {
   return isAuthorizeComplete(data) && data.syncWindow !== null
 }
 
+function isTestConnectionComplete(data: WizardData) {
+  return isScopeComplete(data) && data.testConnectionStatus === 'success'
+}
+
 function getFirstIncompleteStepIndex(data: WizardData) {
   if (!isProviderComplete(data)) {
     return 0
@@ -184,7 +198,11 @@ function getFirstIncompleteStepIndex(data: WizardData) {
     return 2
   }
 
-  return 3
+  if (!isTestConnectionComplete(data)) {
+    return 3
+  }
+
+  return 4
 }
 
 function useWizardContext() {
@@ -227,6 +245,24 @@ export function ConnectSourceWizard() {
   }, [data.authorizationStatus])
 
   useEffect(() => {
+    if (data.testConnectionStatus !== 'running') {
+      return
+    }
+
+    // Simulate a test connection that takes ~1.6 s and can randomly fail
+    const timeoutId = window.setTimeout(() => {
+      // Use a deterministic heuristic for demo: Razorpay always fails first try
+      const willFail = data.provider === 'razorpay'
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: willFail ? 'failure' : 'success',
+      }))
+    }, 1600)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [data.testConnectionStatus, data.provider])
+
+  useEffect(() => {
     const activeStep = wizardSteps[currentStepIndex]
 
     if (!activeStep) {
@@ -251,7 +287,9 @@ export function ConnectSourceWizard() {
         ? data.authorizationStatus !== 'authorized'
         : activeStep.id === 'confirm'
           ? !data.confirmLeastPrivilege
-          : false
+          : activeStep.id === 'test-connection'
+            ? data.testConnectionStatus !== 'success'
+            : false
 
   function goToStep(index: number) {
     navigate(wizardSteps[index].path)
@@ -286,6 +324,7 @@ export function ConnectSourceWizard() {
         optionalScopes: [],
         confirmLeastPrivilege: false,
         scopeValidationAttempted: false,
+        testConnectionStatus: 'idle',
       }),
     startAuthorization: () =>
       setData((currentData) => ({
@@ -303,6 +342,7 @@ export function ConnectSourceWizard() {
         syncWindow: windowId,
         scopeValidationAttempted: false,
         confirmLeastPrivilege: false,
+        testConnectionStatus: 'idle',
       })),
     toggleOptionalScope: (scopeId) =>
       setData((currentData) => ({
@@ -316,6 +356,16 @@ export function ConnectSourceWizard() {
       setData((currentData) => ({
         ...currentData,
         confirmLeastPrivilege: checked,
+      })),
+    runTestConnection: () =>
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: 'running',
+      })),
+    resetTestConnection: () =>
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: 'idle',
       })),
   }
 
@@ -639,6 +689,296 @@ export function ConfirmSourceStep() {
           </span>
         </span>
       </label>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// #224 — TestConnectionStep
+// ---------------------------------------------------------------------------
+
+function buildDiagnosticBundle(provider: string, syncWindow: string, optionalScopes: string[]): string {
+  return JSON.stringify(
+    {
+      timestamp: new Date().toISOString(),
+      provider,
+      syncWindow,
+      optionalScopes,
+      userAgent: navigator.userAgent,
+      error: {
+        code: 'ERR_CONNECTION_TIMEOUT',
+        message: 'The test connection did not receive a response within the allowed window.',
+        hint: 'Check that the provider OAuth token has not been revoked and that the required scopes are still permitted.',
+      },
+    },
+    null,
+    2,
+  )
+}
+
+export function TestConnectionStep() {
+  const { data, providerName, runTestConnection, resetTestConnection, setData: _setData } =
+    useWizardContext() as WizardContext & { setData?: never }
+
+  const syncWindowLabel =
+    syncWindows.find((w) => w.id === data.syncWindow)?.label ?? 'Not set'
+
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  const diagnosticBundle = buildDiagnosticBundle(
+    providerName,
+    syncWindowLabel,
+    data.optionalScopes,
+  )
+
+  async function handleCopyDiagnostics() {
+    try {
+      await navigator.clipboard.writeText(diagnosticBundle)
+      setCopyState('copied')
+      setTimeout(() => setCopyState('idle'), 2500)
+    } catch {
+      setCopyState('error')
+      setTimeout(() => setCopyState('idle'), 2500)
+    }
+  }
+
+  const status = data.testConnectionStatus
+
+  return (
+    <div className="wizard-step-body">
+      <div className="wizard-two-column">
+        {/* Left panel — action */}
+        <section className="app-card wizard-inline-card">
+          <h3>Verify live read access to {providerName}</h3>
+          <p className="wizard-supporting-copy">
+            Before finishing setup, we make a lightweight read-only call to confirm the
+            OAuth token works and the permitted scopes are correct. No data is stored
+            during the test.
+          </p>
+
+          <dl className="wizard-summary-grid" style={{ marginBottom: '1rem' }}>
+            <div><dt>Provider</dt><dd>{providerName}</dd></div>
+            <div><dt>Sync window</dt><dd>{syncWindowLabel}</dd></div>
+            <div>
+              <dt>Scopes tested</dt>
+              <dd>{data.optionalScopes.length > 0 ? `Required + ${data.optionalScopes.length} optional` : 'Required only'}</dd>
+            </div>
+          </dl>
+
+          <div className="wizard-inline-actions">
+            <button
+              type="button"
+              className="app-button app-button-primary"
+              disabled={status === 'running'}
+              onClick={runTestConnection}
+              aria-describedby="test-conn-status-msg"
+            >
+              {status === 'running'
+                ? 'Testing connection…'
+                : status === 'failure'
+                  ? 'Retry test'
+                  : 'Run connection test'}
+            </button>
+
+            {(status === 'failure' || status === 'success') && (
+              <button
+                type="button"
+                className="app-button app-button-secondary"
+                onClick={resetTestConnection}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* Right panel — status */}
+        <aside className="app-card wizard-status-card">
+          <h3>Test status</h3>
+
+          {status === 'idle' && (
+            <p
+              id="test-conn-status-msg"
+              className="wizard-status-message"
+              role="status"
+            >
+              Click "Run connection test" to verify the live read access before finishing
+              setup.
+            </p>
+          )}
+
+          {status === 'running' && (
+            <div role="status" aria-live="polite" aria-atomic="true">
+              <p className="wizard-status-message wizard-status-message-info" id="test-conn-status-msg">
+                Contacting {providerName} and verifying read-only scopes…
+              </p>
+              {/* Animated loading bar */}
+              <div
+                aria-hidden="true"
+                style={{
+                  marginTop: '0.75rem',
+                  height: 6,
+                  borderRadius: 999,
+                  background: 'rgba(148, 163, 184, 0.18)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: '40%',
+                    height: '100%',
+                    borderRadius: 999,
+                    background: 'linear-gradient(90deg, var(--accent), #60a5fa)',
+                    animation: 'test-conn-loading 1.4s ease-in-out infinite',
+                  }}
+                />
+              </div>
+              <style>{`
+                @keyframes test-conn-loading {
+                  0%   { transform: translateX(-100%); }
+                  100% { transform: translateX(300%); }
+                }
+              `}</style>
+            </div>
+          )}
+
+          {status === 'success' && (
+            <div role="status" aria-live="polite" aria-atomic="true">
+              <p
+                className="wizard-status-message wizard-status-message-success"
+                id="test-conn-status-msg"
+              >
+                ✓ Read-only access confirmed. All required scopes responded correctly.
+                You can now proceed to the final confirmation step.
+              </p>
+              <ul
+                style={{
+                  marginTop: '0.75rem',
+                  padding: '0 0 0 1.25rem',
+                  color: 'var(--muted)',
+                  fontSize: '0.88rem',
+                  lineHeight: 1.6,
+                }}
+              >
+                <li>Payout and settlement totals — readable</li>
+                <li>Charge and refund metadata — readable</li>
+                <li>Account configuration — readable</li>
+              </ul>
+            </div>
+          )}
+
+          {status === 'failure' && (
+            <div role="alert" aria-live="assertive" aria-atomic="true">
+              <p
+                className="wizard-status-message wizard-status-message-error"
+                id="test-conn-status-msg"
+              >
+                ✕ Connection failed. The test request did not succeed. Check the
+                diagnostic details below and retry.
+              </p>
+
+              {/* Actionable hints */}
+              <ul
+                style={{
+                  marginTop: '0.75rem',
+                  padding: '0 0 0 1.25rem',
+                  color: 'var(--muted)',
+                  fontSize: '0.88rem',
+                  lineHeight: 1.7,
+                }}
+              >
+                <li>Confirm the OAuth token has not been revoked in your {providerName} dashboard.</li>
+                <li>Ensure the required read-only scopes are still enabled.</li>
+                <li>Check whether a firewall or IP allowlist is blocking outbound requests.</li>
+                <li>Re-authorize the connection from the previous step if the token expired.</li>
+              </ul>
+
+              {/* Diagnostic bundle copy */}
+              <div
+                style={{
+                  marginTop: '1rem',
+                  padding: '0.75rem',
+                  borderRadius: 10,
+                  border: '1px solid rgba(251, 113, 133, 0.3)',
+                  background: 'rgba(251, 113, 133, 0.06)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--muted)' }}>
+                    Diagnostic bundle
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={
+                      copyState === 'copied'
+                        ? 'Diagnostic bundle copied'
+                        : 'Copy diagnostic bundle to clipboard'
+                    }
+                    onClick={handleCopyDiagnostics}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.3rem 0.7rem',
+                      borderRadius: 8,
+                      border: '1px solid var(--border)',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      color: copyState === 'copied' ? 'var(--success)' : 'var(--text)',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    {copyState === 'copied' ? (
+                      <>
+                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        Copied
+                      </>
+                    ) : copyState === 'error' ? (
+                      'Copy failed'
+                    ) : (
+                      <>
+                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre
+                  aria-label="Diagnostic bundle JSON"
+                  tabIndex={0}
+                  style={{
+                    margin: 0,
+                    fontSize: '0.76rem',
+                    lineHeight: 1.55,
+                    color: 'var(--muted)',
+                    overflowX: 'auto',
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    fontFamily: 'ui-monospace, "Cascadia Code", monospace',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {diagnosticBundle}
+                </pre>
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
     </div>
   )
 }
