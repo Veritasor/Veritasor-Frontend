@@ -1,37 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { useIntl } from 'react-intl'
+import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import TokensExport from '../components/tokens/TokensExport'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
-import WebhookRetryPanel from '../components/WebhookRetryPanel'
-import SaveFilterModal from '../components/audit-log/SaveFilterModal'
-import SavedFiltersDropdown from '../components/audit-log/SavedFiltersDropdown'
-import { useSavedFilters } from '../hooks/useSavedFilters'
-import {
-  isFilterEmpty,
-  parseFilterUrl,
-  serializeFilterState,
-  type FilterState,
-} from '../utils/auditLogFilters'
+import type { MfaMethod } from '../components/MfaMethodChooser'
+import WebhookRetryPanel, { type WebhookDelivery } from '../components/WebhookRetryPanel'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
-  { id: "profile", label: "Profile" },
-  { id: "business", label: "Business" },
-  { id: "notifications", label: "Notifications" },
-  { id: "team", label: "Team" },
-  { id: "integrations", label: "Integrations" },
-  { id: "api-keys", label: "API Keys" },
-  { id: "tokens", label: "Tokens" },
-  { id: "billing", label: "Billing" },
-  { id: "security", label: "Security" },
-  { id: "audit-log", label: "Audit Log" },
-] as const;
+  { id: 'profile', label: 'Profile' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'team', label: 'Team' },
+  { id: 'integrations', label: 'Integrations' },
+  { id: 'api-keys', label: 'API Keys' },
+  { id: 'tokens', label: 'Tokens' },
+  { id: 'billing', label: 'Billing' },
+  { id: 'security', label: 'Security' },
+  { id: 'audit-log', label: 'Audit Log' },
+  { id: 'webhooks', label: 'Webhooks' },
+] as const
 
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof TABS)[number]['id']
 
 function getTabFromHash(hash: string): TabId {
   const id = hash.replace("#", "") as TabId;
@@ -2621,115 +2612,9 @@ function SecurityPanel() {
           style={{ display: "grid", gap: "1rem", maxWidth: 480 }}
           onSubmit={handlePwSubmit}
         >
-          <div style={{ display: "grid", gap: "0.4rem" }}>
-            <label
-              htmlFor="settings-current-password"
-              style={{ fontSize: "0.9rem", fontWeight: 600 }}
-            >
-              Current password
-            </label>
-            <input
-              id="settings-current-password"
-              type="password"
-              value={pwForm.values.currentPassword}
-              onChange={(e) =>
-                pwForm.setField("currentPassword", e.target.value)
-              }
-              autoComplete="current-password"
-              style={{
-                padding: "0.6rem 0.8rem",
-                borderRadius: 8,
-                border: `1px solid ${pwForm.isDirty ? "var(--border-strong)" : "var(--border)"}`,
-                background: "var(--surface-strong)",
-                color: "var(--text)",
-                fontSize: "0.95rem",
-              }}
-            />
-          </div>
-          <div style={{ display: "grid", gap: "0.4rem" }}>
-            <label
-              htmlFor="settings-new-password"
-              style={{ fontSize: "0.9rem", fontWeight: 600 }}
-            >
-              New password
-            </label>
-            <input
-              id="settings-new-password"
-              type="password"
-              value={pwForm.values.newPassword}
-              onChange={(e) => pwForm.setField("newPassword", e.target.value)}
-              autoComplete="new-password"
-              style={{
-                padding: "0.6rem 0.8rem",
-                borderRadius: 8,
-                border: `1px solid ${pwForm.isDirty ? "var(--border-strong)" : "var(--border)"}`,
-                background: "var(--surface-strong)",
-                color: "var(--text)",
-                fontSize: "0.95rem",
-              }}
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              type="submit"
-              disabled={!pwForm.isDirty || pwForm.saveStatus === "saving"}
-              aria-busy={pwForm.saveStatus === "saving"}
-              style={{
-                alignSelf: "start",
-                padding: "0.6rem 1.25rem",
-                borderRadius: 8,
-                border: "none",
-                background: "var(--accent)",
-                color: "#04111f",
-                fontWeight: 700,
-                cursor:
-                  !pwForm.isDirty || pwForm.saveStatus === "saving"
-                    ? "default"
-                    : "pointer",
-                fontSize: "0.95rem",
-                opacity:
-                  !pwForm.isDirty || pwForm.saveStatus === "saving" ? 0.6 : 1,
-                minHeight: "2.75rem",
-              }}
-            >
-              {pwForm.saveStatus === "saving" ? "Updating…" : "Update password"}
-            </button>
-            {pwForm.isDirty && (
-              <button
-                type="button"
-                onClick={pwForm.reset}
-                style={{
-                  padding: "0.6rem 1rem",
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  color: "var(--text)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
-                  minHeight: "2.75rem",
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
-      <hr
-        style={{
-          border: "none",
-          borderTop: "1px solid var(--border)",
-          margin: 0,
-        }}
-      />
-      {mfaSection[mfaState]()}
+          Update password
+        </button>
+      </form>
 
       <hr style={{ margin: 0, borderColor: "var(--border)", opacity: 0.5 }} />
 
@@ -5615,6 +5500,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   "audit-log": AuditLogPanel,
+  webhooks: WebhooksPanel,
 };
 
 // ─── Unsaved Changes Navigation Guard ─────────────────────────────────────────
@@ -5635,50 +5521,9 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabId>(() =>
     getTabFromHash(location.hash),
   );
+  const [sheetOpen, setSheetOpen] = useState(false);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  // ── Dirty-registry provider ────────────────────────────────────────────
-
-  const [registryTick, setRegistryTick] = useState(0);
-  const entriesRef = useRef<Map<TabId, DirtyTabEntry>>(new Map());
-
-  const registry = useMemo<DirtyRegistryCtx>(() => {
-    void registryTick;
-    return {
-      entries: entriesRef.current,
-      register: (tab: TabId, entry: DirtyTabEntry) => {
-        const prev = entriesRef.current.get(tab);
-        const changed =
-          !prev ||
-          prev.isDirty !== entry.isDirty ||
-          prev.saveStatus !== entry.saveStatus ||
-          (prev.lastSavedAt?.getTime() ?? 0) !==
-            (entry.lastSavedAt?.getTime() ?? 0);
-        entriesRef.current.set(tab, entry);
-        if (changed) setRegistryTick((t) => t + 1);
-      },
-      unregister: (tab: TabId) => {
-        if (entriesRef.current.has(tab)) {
-          entriesRef.current.delete(tab);
-          setRegistryTick((t) => t + 1);
-        }
-      },
-    };
-  }, [registryTick]);
-
-  const pageState = usePageDirtyState(registry);
-
-  // ── Pending navigation guard ──────────────────────────────────────────
-
-  const [pendingLeave, setPendingLeave] = useState<LeaveAction | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const srAnnounceRef = useRef<HTMLDivElement | null>(null);
-  const prevFocusRef = useRef<HTMLElement | null>(null);
-
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      pageState.anyDirty && currentLocation.pathname !== nextLocation.pathname,
-  );
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (blocker.state === "blocked") {
@@ -5761,6 +5606,18 @@ export default function Settings() {
     }
   }, [location.hash, activeTab, pageState.anyDirty]);
 
+  useEffect(() => {
+    if (!sheetOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSheetOpen(false)
+        document.getElementById('settings-sheet-trigger')?.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [sheetOpen])
+
   const selectTab = useCallback(
     (id: TabId) => {
       if (id === activeTab) return;
@@ -5802,17 +5659,8 @@ export default function Settings() {
     [selectTab],
   );
 
-  const Panel = PANELS[activeTab];
-  const dirtyTabLabels = pageState.dirtyTabs
-    .map((id) => TABS.find((t) => t.id === id)?.label)
-    .filter(Boolean) as string[];
-
-  const draftLabelText =
-    dirtyTabLabels.length === 1
-      ? ` in ${dirtyTabLabels[0]}`
-      : dirtyTabLabels.length > 1
-        ? ` in: ${dirtyTabLabels.join(", ")}`
-        : "";
+  const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? 'Settings'
+  const Panel = PANELS[activeTab]
 
   return (
     <DirtyRegistryContext.Provider value={registry}>
@@ -5827,21 +5675,132 @@ export default function Settings() {
         />
         <h1 style={{ marginTop: 0 }}>Settings</h1>
 
-        {pageState.anyDirty && (
+      {/* Mobile: bottom-sheet trigger */}
+      <button
+        id="settings-sheet-trigger"
+        type="button"
+        className="settings-tab-select"
+        aria-haspopup="listbox"
+        aria-expanded={sheetOpen}
+        onClick={() => setSheetOpen(true)}
+        style={{
+          width: "100%",
+          padding: "0.6rem 0.8rem",
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--surface-strong)',
+          color: 'var(--text)',
+          fontSize: '0.95rem',
+          marginBottom: '1.5rem',
+          textAlign: 'left',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span>{activeLabel}</span>
+        <span aria-hidden="true" style={{ fontSize: '0.8rem' }}>▼</span>
+      </button>
+
+      {/* Bottom sheet */}
+      {sheetOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Settings sections"
+          ref={sheetRef}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+          }}
+        >
           <div
-            role="region"
-            aria-label="Unsaved changes across settings"
+            aria-hidden="true"
+            onClick={() => setSheetOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
+          />
+          <div
             style={{
-              display: "grid",
-              gap: "0.6rem",
-              padding: "0.85rem 1rem",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--warning-soft)",
-              border: "1px solid rgba(251, 191, 36, 0.35)",
-              marginBottom: "1rem",
+              position: 'relative',
+              background: 'var(--surface)',
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              padding: '1rem 0 2rem',
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              animation: 'slideUp 0.2s ease-out',
             }}
           >
             <div
+              style={{
+                width: 40,
+                height: 4,
+                background: 'var(--border)',
+                borderRadius: 2,
+                margin: '0 auto 1rem',
+              }}
+            />
+            <ul role="listbox" aria-label="Settings sections" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {TABS.map((tab) => (
+                <li key={tab.id} role="option" aria-selected={tab.id === activeTab}>
+                  <button
+                    type="button"
+                    onClick={() => { selectTab(tab.id); setSheetOpen(false) }}
+                    style={{
+                      width: '100%',
+                      padding: '0.8rem 1.2rem',
+                      border: 'none',
+                      background: tab.id === activeTab ? 'var(--surface-strong)' : 'transparent',
+                      color: tab.id === activeTab ? 'var(--accent)' : 'var(--text)',
+                      fontSize: '1rem',
+                      fontWeight: tab.id === activeTab ? 600 : 400,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop: tablist */}
+      <div
+        role="tablist"
+        aria-label="Settings tabs"
+        className="settings-tablist"
+        style={{
+          display: "flex",
+          gap: "0",
+          borderBottom: "2px solid var(--border)",
+          marginBottom: "1.5rem",
+          overflowX: "auto",
+        }}
+      >
+        {TABS.map((tab, index) => {
+          const isActive = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              ref={(el) => {
+                tabRefs.current[index] = el;
+              }}
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-controls={`panel-${tab.id}`}
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              type="button"
+              onClick={() => selectTab(tab.id)}
+              onKeyDown={(e) => handleKeyDown(e, index)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -6224,8 +6183,8 @@ export default function Settings() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-    </DirtyRegistryContext.Provider>
-  );
+        );
+      })}
+    </div>
+  )
 }
