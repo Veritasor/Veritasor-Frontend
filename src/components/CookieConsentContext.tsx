@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useState } from 'react'
 export type ConsentState = {
   analytics: boolean
   marketing: boolean
+  productCommunications: boolean
 }
 
 type CookieConsentContextValue = {
@@ -22,7 +23,7 @@ type CookieConsentContextValue = {
 
 export const STORAGE_KEY = 'veritasor_cookie_consent'
 
-const DEFAULT_CONSENT: ConsentState = { analytics: false, marketing: false }
+const DEFAULT_CONSENT: ConsentState = { analytics: false, marketing: false, productCommunications: false }
 
 function readStorage(): { hasDecided: boolean; consent: ConsentState } {
   try {
@@ -62,8 +63,8 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
     setBannerVisible(false)
   }, [])
 
-  const acceptAll = useCallback(() => decide({ analytics: true, marketing: true }), [decide])
-  const rejectAll = useCallback(() => decide({ analytics: false, marketing: false }), [decide])
+  const acceptAll = useCallback(() => decide({ analytics: true, marketing: true, productCommunications: true }), [decide])
+  const rejectAll = useCallback(() => decide({ analytics: false, marketing: false, productCommunications: false }), [decide])
   const savePreferences = useCallback((next: ConsentState) => decide(next), [decide])
   const openSettings = useCallback(() => setBannerVisible(true), [])
   const closeBanner = useCallback(() => {
