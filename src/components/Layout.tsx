@@ -1,47 +1,14 @@
-import { useState } from "react";
-import { Outlet, NavLink, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Outlet, NavLink } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
-import { ToastProvider, useToast } from "./ToastContext";
+import { ToastProvider } from "./ToastContext";
 import { useCookieConsent } from "./CookieConsentContext";
+import OfflineBanner from "./OfflineBanner";
 import FailedPaymentBanner from "./FailedPaymentBanner";
 import { BillingProvider, useBilling } from "./BillingContext";
-
-function ToastContainer() {
-  const { toasts, removeToast } = useToast();
-  if (toasts.length === 0) return null;
-  return (
-    <div aria-live="polite" aria-atomic="false" className="toast-container">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          role={
-            toast.type === "error" || toast.type === "warning"
-              ? "alert"
-              : "status"
-          }
-          className={`toast toast-${toast.type}`}
-        >
-          <span>{toast.message}</span>
-          <button
-            type="button"
-            aria-label="Close notification"
-            onClick={() => removeToast(toast.id)}
-            className="toast-close"
-          >
-            ×
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const navItems = [
-  { path: "/", name: "Dashboard" },
-  { path: "/attestations", name: "Attestations" },
-  { path: "/sources", name: "Revenue Sources" },
-];
+import ToastContainer from "./ToastContainer";
+import ShortcutsOverlay from "./ShortcutsOverlay";
 
 function BillingBannerSlot() {
   const { failedPayment, dismissFailedPayment } = useBilling();
@@ -55,6 +22,7 @@ function BillingBannerSlot() {
 
 function LayoutInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { openSettings: openCookieSettings } = useCookieConsent();
 
   // Register Shift+? globally to open the shortcuts overlay
@@ -83,34 +51,6 @@ function LayoutInner() {
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       <OfflineBanner />
-      {/* Sidebar Layout shell */}
-      <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-6">
-        <div className="flex items-center space-x-2 px-2">
-          <span className="text-lg font-bold tracking-wider uppercase text-zinc-900 dark:text-white">
-            Veritasor
-          </span>
-        </div>
-
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`block rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                  isActive
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 shadow-xs"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                }`}
-              >
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-
       <TopAppBar onSidebarToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
 
       <div className="app-body">
