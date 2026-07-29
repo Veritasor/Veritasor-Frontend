@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, type CSSProperties } from 'react'
 import { useDragReorder } from '../hooks/useDragReorder'
+import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -726,7 +727,8 @@ export default function RevenueSources() {
             borderRadius: 'var(--radius-sm)',
           }}
         >
-          <p style={{ margin: 0, color: 'var(--muted)' }}>
+          <EmptyStateIllustration type="revenue-sources" />
+          <p style={{ margin: '0.5rem 0 0', color: 'var(--muted)' }}>
             No revenue sources connected. Add an integration from the dashboard.
           </p>
         </section>
