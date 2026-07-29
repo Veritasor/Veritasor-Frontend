@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'veritasor-theme'
-export type Theme = 'system' | 'light' | 'dark'
+export type Theme = 'system' | 'light' | 'dark' | 'high-contrast'
 
 function getThemeFromStorage(): Theme {
   let stored: string | null = null
@@ -10,13 +10,20 @@ function getThemeFromStorage(): Theme {
   } catch {
     stored = null
   }
-  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+  if (
+    stored === 'light' ||
+    stored === 'dark' ||
+    stored === 'system' ||
+    stored === 'high-contrast'
+  )
+    return stored
   return 'system'
 }
 
-function getResolvedTheme(theme: Theme): 'light' | 'dark' {
+function getResolvedTheme(theme: Theme): 'light' | 'dark' | 'high-contrast' {
   if (theme === 'light') return 'light'
   if (theme === 'dark') return 'dark'
+  if (theme === 'high-contrast') return 'high-contrast'
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
