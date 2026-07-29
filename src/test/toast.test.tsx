@@ -4,6 +4,7 @@ import { useToast } from '../components/ToastContext'
 import Layout from '../components/Layout'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { CookieConsentProvider } from '../components/CookieConsentContext'
+import { LocaleProvider } from '../i18n/provider'
 
 // Test helper component to trigger toasts
 function TestTrigger() {
@@ -30,15 +31,17 @@ describe('Toast Notification System', () => {
 
   const renderSystem = () => {
     return render(
-      <MemoryRouter initialEntries={['/']}>
-        <CookieConsentProvider>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<TestTrigger />} />
-            </Route>
-          </Routes>
-        </CookieConsentProvider>
-      </MemoryRouter>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <CookieConsentProvider>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<TestTrigger />} />
+              </Route>
+            </Routes>
+          </CookieConsentProvider>
+        </MemoryRouter>
+      </LocaleProvider>
     )
   }
 
@@ -145,13 +148,15 @@ describe('Toast Notification System', () => {
     }
 
     render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<UndoTrigger />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<UndoTrigger />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </LocaleProvider>
     )
 
     // Trigger toast
@@ -258,21 +263,45 @@ describe('Toast Notification System', () => {
     expect(screen.queryByText('Success message')).not.toBeInTheDocument()
   })
 
-  it('dismisses when global Escape key is pressed', () => {
+  it('dismisses only the topmost toast when Escape is pressed on the container', () => {
+    renderSystem()
+
+    // Trigger two toasts (one success, one warning). The success toast will
+    // be appended first, then the warning. With the new scoped handler,
+    // pressing Escape once removes only the most recent (warning), and the
+    // older success toast remains until the next press.
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+      screen.getByRole('button', { name: /trigger warning/i }).click()
+    })
+    expect(screen.getByText('Warning message')).toBeInTheDocument()
+    expect(screen.getByText('Success message')).toBeInTheDocument()
+
+    act(() => {
+      const container = document.querySelector('.toast-container') as HTMLElement
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+
+    expect(screen.queryByText('Warning message')).not.toBeInTheDocument()
+    expect(screen.getByText('Success message')).toBeInTheDocument()
+
+    // A second Escape press removes the remaining toast.
+    act(() => {
+      const container = document.querySelector('.toast-container') as HTMLElement
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(screen.queryByText('Success message')).not.toBeInTheDocument()
+  })
+
+  it('attaches aria-keyshortcuts="Escape" to the close button', () => {
     renderSystem()
 
     act(() => {
       screen.getByRole('button', { name: /trigger success/i }).click()
     })
 
-    expect(screen.getByText('Success message')).toBeInTheDocument()
-
-    // Press Escape key
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-    })
-
-    expect(screen.queryByText('Success message')).not.toBeInTheDocument()
+    const closeBtn = screen.getByRole('button', { name: /close notification/i })
+    expect(closeBtn).toHaveAttribute('aria-keyshortcuts', 'Escape')
   })
 })
 
@@ -287,15 +316,17 @@ describe('Toast Motion', () => {
 
   const renderSystem = () => {
     return render(
-      <MemoryRouter initialEntries={['/']}>
-        <CookieConsentProvider>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<TestTrigger />} />
-            </Route>
-          </Routes>
-        </CookieConsentProvider>
-      </MemoryRouter>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <CookieConsentProvider>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<TestTrigger />} />
+              </Route>
+            </Routes>
+          </CookieConsentProvider>
+        </MemoryRouter>
+      </LocaleProvider>
     )
   }
 
