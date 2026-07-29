@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, type CSSProperties } from 'react'
+import { useState, useCallback, useMemo, useRef, type CSSProperties } from 'react'
 import { useDragReorder } from '../hooks/useDragReorder'
 
 // ---------------------------------------------------------------------------
@@ -55,6 +55,37 @@ function formatRelativeTime(iso: string): string {
   const diffMonths = Math.round(diffDays / 30)
   if (diffMonths === 1) return 'about 1 month ago'
   return `about ${diffMonths} months ago`
+}
+
+// ---------------------------------------------------------------------------
+// Mock impact data — replace with real API
+// ---------------------------------------------------------------------------
+
+interface ImpactPipeline {
+  id: string
+  name: string
+  nextRun: string
+}
+
+function getMockImpact(provider: string): ImpactPipeline[] {
+  const base = new Date()
+  base.setDate(base.getDate() + 1)
+  return [
+    { id: 'pipe-001', name: `${provider} Revenue Verification`, nextRun: base.toISOString() },
+    { id: 'pipe-002', name: 'Monthly Attestation Batch', nextRun: new Date(base.getTime() + 86400000 * 2).toISOString() },
+    { id: 'pipe-003', name: 'Compliance Report Sync', nextRun: new Date(base.getTime() + 86400000 * 7).toISOString() },
+  ]
+}
+
+function formatNextRun(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = d.getTime() - now.getTime()
+  if (diff < 0) return 'Overdue'
+  if (diff < 86400000) return 'Tomorrow'
+  if (diff < 86400000 * 2) return 'In 2 days'
+  if (diff < 86400000 * 7) return `In ${Math.round(diff / 86400000)} days`
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +231,37 @@ function ExpiredTokenBanner({ sources, onReconnect, dismissedIds, onDismiss }: E
 }
 
 // ---------------------------------------------------------------------------
+// Mock impact data — replace with real API
+// ---------------------------------------------------------------------------
+
+interface ImpactPipeline {
+  id: string
+  name: string
+  nextRun: string
+}
+
+function getMockImpact(provider: string): ImpactPipeline[] {
+  const base = new Date()
+  base.setDate(base.getDate() + 1)
+  return [
+    { id: 'pipe-001', name: `${provider} Revenue Verification`, nextRun: base.toISOString() },
+    { id: 'pipe-002', name: 'Monthly Attestation Batch', nextRun: new Date(base.getTime() + 86400000 * 2).toISOString() },
+    { id: 'pipe-003', name: 'Compliance Report Sync', nextRun: new Date(base.getTime() + 86400000 * 7).toISOString() },
+  ]
+}
+
+function formatNextRun(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = d.getTime() - now.getTime()
+  if (diff < 0) return 'Overdue'
+  if (diff < 86400000) return 'Tomorrow'
+  if (diff < 86400000 * 2) return 'In 2 days'
+  if (diff < 86400000 * 7) return `In ${Math.round(diff / 86400000)} days`
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+// ---------------------------------------------------------------------------
 // ConfirmDialog
 // ---------------------------------------------------------------------------
 
@@ -210,6 +272,12 @@ interface ConfirmDialogProps {
 }
 
 function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
+  const [typedName, setTypedName] = useState('')
+  const expectedName = source.provider
+  const isConfirmed = typedName === expectedName
+
+  const impactPipelines = useMemo(() => getMockImpact(source.provider), [source.provider])
+
   return (
     <div
       role="dialog"
@@ -225,7 +293,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
     >
       <div
         style={{
-          width: 'min(420px, 100%)',
+          width: 'min(480px, 100%)',
           background: 'var(--surface-strong, #0f1b30)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-sm)',
@@ -234,16 +302,110 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
           gap: '1.25rem',
         }}
       >
-        <h2 id="confirm-title" style={{ margin: 0, fontSize: '1.1rem' }}>
-          Disconnect {source.provider}?
-        </h2>
-        <p id="confirm-desc" style={{ margin: 0, color: 'var(--muted)', fontSize: '0.95rem', lineHeight: 1.6 }}>
-          <strong style={{ color: 'var(--text)' }}>{source.accountLabel}</strong> will be removed.
-          Future attestations will not include data from this source. This action cannot be undone.
-        </p>
+        {/* Header */}
+        <div>
+          <h2 id="confirm-title" style={{ margin: 0, fontSize: '1.1rem', color: 'var(--danger)' }}>
+            Disconnect {source.provider}?
+          </h2>
+          <p style={{ margin: '0.35rem 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+            <strong style={{ color: 'var(--text)' }}>{source.accountLabel}</strong> will be removed.
+            This action cannot be undone.
+          </p>
+        </div>
+
+        {/* Impact preview */}
+        <div
+          style={{
+            padding: '0.9rem 1rem',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid rgba(251,113,133,0.25)',
+            background: 'rgba(251,113,133,0.06)',
+            display: 'grid',
+            gap: '0.65rem',
+          }}
+        >
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--danger)' }}>
+            ⚠ Affected pipelines
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
+            {impactPipelines.map((p) => (
+              <li
+                key={p.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  fontSize: '0.85rem',
+                  padding: '0.4rem 0.5rem',
+                  borderRadius: 6,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <span style={{ fontWeight: 600, color: 'var(--text)' }}>{p.name}</span>
+                <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
+                  Next: {formatNextRun(p.nextRun)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+            Future attestations will not include data from this source.
+            Scheduled attestations listed above may pause or fail.
+          </p>
+        </div>
+
+        {/* Typed confirmation */}
+        <div style={{ display: 'grid', gap: '0.35rem' }}>
+          <label
+            htmlFor="disconnect-confirm-input"
+            style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)' }}
+          >
+            Type <strong style={{ color: 'var(--danger)' }}>{expectedName}</strong> to confirm
+          </label>
+          <input
+            id="disconnect-confirm-input"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={`Type "${expectedName}" to confirm`}
+            value={typedName}
+            onChange={(e) => setTypedName(e.target.value)}
+            aria-describedby="confirm-desc"
+            style={{
+              padding: '0.6rem 0.8rem',
+              borderRadius: 8,
+              border: `1px solid ${typedName && !isConfirmed ? 'rgba(251,113,133,0.5)' : 'var(--border)'}`,
+              background: 'var(--surface-strong)',
+              color: 'var(--text)',
+              fontSize: '0.95rem',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              outline: 'none',
+            }}
+          />
+          {typedName && !isConfirmed && (
+            <p role="alert" style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--danger)' }}>
+              Name does not match. Please type exactly "{expectedName}".
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
           <button type="button" onClick={onCancel} style={secondaryBtn}>Cancel</button>
-          <button type="button" onClick={onConfirm} style={dangerBtn}>Disconnect</button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!isConfirmed}
+            style={{
+              ...dangerBtn,
+              opacity: isConfirmed ? 1 : 0.4,
+              cursor: isConfirmed ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Disconnect {source.provider}
+          </button>
         </div>
       </div>
     </div>

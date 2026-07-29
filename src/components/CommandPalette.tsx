@@ -76,6 +76,7 @@ export const COMMANDS: Command[] = [
     description: 'Trigger a new revenue proof attestation',
     shortcut: ['N', 'A'],
     category: 'Actions',
+    pageRoutes: ['/', '/attestations'],
   },
   {
     id: 'action-toggle-theme',

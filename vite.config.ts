@@ -39,6 +39,7 @@ export default defineConfig({
         'src/pages/ForgotPassword.tsx',
         'src/pages/Dashboard.tsx',
         'src/pages/Attestations.tsx',
+        'src/components/a11y/A11yAuditPanel.tsx',
       ],
     },
   },
