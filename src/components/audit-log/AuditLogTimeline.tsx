@@ -6,6 +6,8 @@ import type { AuditLogEntryDetail } from './AuditLogDetailDrawer'
 
 export type SeverityLevel = 'info' | 'warn' | 'error' | 'critical'
 
+export type SeverityLevel = 'info' | 'warn' | 'error' | 'critical'
+
 export interface AuditLogEntry {
   id: string
   timestamp: string
@@ -325,37 +327,6 @@ export default function AuditLogTimeline({
   const isCompact = density === 'compact'
   const [legendOpen, setLegendOpen] = useState(false)
 
-  const [activeDetail, setActiveDetail] = useState<AuditLogEntryDetail | null>(null)
-  const triggerRef = useRef<HTMLElement | null>(null)
-
-  async function openDrawer(entry: AuditLogEntry, triggerEl: HTMLElement) {
-    triggerRef.current = triggerEl
-    if (onFetchDetail) {
-      const detail = await Promise.resolve(onFetchDetail(entry.id))
-      setActiveDetail(detail)
-    } else {
-      setActiveDetail(entry)
-    }
-  }
-
-  function closeDrawer() {
-    setActiveDetail(null)
-  }
-
-  // Shared style for entry row button wrapper
-  const rowButtonStyle: CSSProperties = {
-    all: 'unset',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-1) 0',
-    borderBottom: '1px solid var(--border)',
-    width: '100%',
-    cursor: 'pointer',
-    borderRadius: 4,
-    transition: 'background 100ms ease',
-  }
-
   if (entries.length === 0) {
     return (
       <div role="status" aria-live="polite" style={{ padding: 'var(--density-padding)', color: 'var(--muted)' }}>
@@ -458,16 +429,5 @@ export default function AuditLogTimeline({
         ))}
       </ul>
     </div>
-  )
-
-  return (
-    <>
-      {timeline}
-      <AuditLogDetailDrawer
-        entry={activeDetail}
-        onClose={closeDrawer}
-        triggerRef={triggerRef}
-      />
-    </>
   )
 }

@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import SearchFilter, { parseFilterState } from '../components/SearchFilter'
 import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
 import AttestationConfirmModal, { AttestationDetails, FeeInfo } from '../components/AttestationConfirmModal'
+import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
 import type { ChipDef, FilterState } from '../components/SearchFilter'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -181,6 +182,7 @@ function EmptyState() {
         boxShadow: "0 20px 50px rgba(2, 6, 23, 0.22)",
       }}
     >
+      <EmptyStateIllustration type="attestations" />
       <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 720 }}>
         <h2 style={{ margin: 0, fontSize: '1.15rem' }}>No attestations yet</h2>
         <p style={{ margin: 0, color: 'var(--muted)', lineHeight: 1.65 }}>
