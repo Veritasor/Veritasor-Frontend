@@ -31,6 +31,7 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
     shortcuts: [
       { keys: ['Shift', '?'], label: 'Open keyboard shortcuts' },
       { keys: ['Ctrl', 'K'], label: 'Open command palette' },
+      { keys: ['Ctrl', 'K', 'W'], label: 'Quick-jump workspaces (opens switcher in search mode)' },
       { keys: ['Esc'], label: 'Close dialog / overlay' },
     ],
   },
