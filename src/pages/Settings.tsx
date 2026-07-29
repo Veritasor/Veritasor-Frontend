@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
+import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
 import TokensExport from '../components/tokens/TokensExport'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
@@ -2797,9 +2798,7 @@ function TokensPanel() {
   );
 }
 
-const AUDIT_LOG_WORKSPACE_ID = 'default';
-
-const AUDIT_LOG_MOCK_ENTRIES: AuditLogEntry[] = [
+const MOCK_AUDIT_ENTRIES: AuditLogEntry[] = [
   {
     id: "1",
     timestamp: "2026-07-28T08:12:00Z",
@@ -2855,269 +2854,100 @@ const AUDIT_LOG_MOCK_ENTRIES: AuditLogEntry[] = [
   },
 ];
 
-const AUDIT_LOG_CHIPS: { id: AuditLogChipId; label: string }[] = [
-  { id: "completed", label: "Completed" },
-  { id: "failed", label: "Failed" },
-  { id: "connection", label: "Connections" },
-  { id: "security", label: "Security" },
-];
-
-type AuditLogChipId = "completed" | "failed" | "connection" | "security";
-
-const KNOWN_CHIPS: ReadonlySet<AuditLogChipId> = new Set([
-  "completed",
-  "failed",
-  "connection",
-  "security",
-]);
-
-function normalizeChip(raw: string): AuditLogChipId | null {
-  return KNOWN_CHIPS.has(raw as AuditLogChipId) ? (raw as AuditLogChipId) : null;
-}
-
-function matchesChip(event: string, chip: AuditLogChipId): boolean {
-  const ev = event.toLowerCase();
-  if (chip === "completed") return ev.includes("completed");
-  if (chip === "failed") return ev.includes("failed");
-  if (chip === "connection") return ev.includes("connected") || ev.includes("connect");
-  return ev.includes("rotated") || ev.includes("security");
-}
-
-function filterAuditEntries(
-  entries: readonly AuditLogEntry[],
-  filters: FilterState,
-): AuditLogEntry[] {
-  const query = filters.query.trim().toLowerCase();
-  const fromTs = filters.dateFrom
-    ? Date.parse(`${filters.dateFrom}T00:00:00Z`)
-    : null;
-  const toTs = filters.dateTo
-    ? Date.parse(`${filters.dateTo}T23:59:59Z`)
-    : null;
-  return entries.filter((entry) => {
-    if (query) {
-      const haystack = `${entry.event} ${entry.details ?? ""}`.toLowerCase();
-      if (!haystack.includes(query)) return false;
-    }
-    if (filters.activeChips.length > 0) {
-      const ids = filters.activeChips
-        .map(normalizeChip)
-        .filter((id): id is AuditLogChipId => id !== null);
-      if (ids.length === 0) return true;
-      if (!ids.some((chip) => matchesChip(entry.event, chip))) return false;
-    }
-    if (fromTs !== null || toTs !== null) {
-      const entryTs = Date.parse(entry.timestamp);
-      if (Number.isNaN(entryTs)) return false;
-      if (fromTs !== null && entryTs < fromTs) return false;
-      if (toTs !== null && entryTs > toTs) return false;
-    }
-    return true;
-  });
-}
+// Simulated detail data for each audit log entry.
+// In production this would be fetched from the API by entry id.
+const MOCK_AUDIT_DETAILS: Record<string, Partial<AuditLogEntryDetail>> = {
+  "1": {
+    actor: "joel@example.com",
+    ip: "203.0.113.42",
+    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    method: "POST",
+    path: "/api/v1/attestations",
+    statusCode: 200,
+    requestHeaders: {
+      "content-type": "application/json",
+      "authorization": "Bearer vrt_live_••••3f9a",
+      "x-request-id": "req_01j8abc123xyz",
+    },
+    requestPayload: {
+      source: "stripe",
+      period: "2026-06",
+      recordCount: 1247,
+    },
+    responsePayload: {
+      id: "att_01j8xyz",
+      merkleRoot: "0x7f3a2c9b1d8e4f06a5c2b7e3d1f09a4c",
+      status: "completed",
+      timestamp: "2026-07-28T08:12:00Z",
+    },
+  },
+  "4": {
+    actor: "joel@example.com",
+    ip: "203.0.113.42",
+    method: "POST",
+    path: "/api/v1/sources",
+    statusCode: 201,
+    requestPayload: {
+      provider: "stripe",
+      accountId: "acct_1Nxxxx",
+    },
+    responsePayload: {
+      id: "src_01j9stripe",
+      provider: "stripe",
+      status: "connected",
+    },
+  },
+  "5": {
+    actor: "scheduler@veritasor.internal",
+    ip: "10.0.0.5",
+    method: "POST",
+    path: "/api/v1/attestations",
+    statusCode: 504,
+    requestPayload: {
+      source: "shopify",
+      period: "2026-06",
+    },
+    responsePayload: {
+      error: "GATEWAY_TIMEOUT",
+      message: "Upstream service did not respond within 30s",
+    },
+  },
+  "9": {
+    actor: "joel@example.com",
+    ip: "203.0.113.42",
+    method: "POST",
+    path: "/api/v1/api-keys/rotate",
+    statusCode: 200,
+    requestHeaders: {
+      "content-type": "application/json",
+      "x-request-id": "req_01j7rotate",
+    },
+    responsePayload: {
+      keyId: "key_01j7newkey",
+      hint: "••••3f9a",
+    },
+  },
+};
 
 function AuditLogPanel() {
-  const intl = useIntl();
-  const [searchParams, setSearchParams] = useSearchParams();
-  // The URL is the single source of truth — parse directly. The audit
-  // view does not share URL state with other tabs (which use the hash),
-  // so bare `q`/`status`/`from`/`to` keys are unambiguous here.
-  const filters = useMemo(
-    () => parseFilterUrl(searchParams),
-    [searchParams],
-  );
-
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
-  const saved = useSavedFilters(AUDIT_LOG_WORKSPACE_ID);
-
-  const entries = useMemo(
-    () => filterAuditEntries(AUDIT_LOG_MOCK_ENTRIES, filters),
-    [filters],
-  );
-
-  function updateParam(key: string, value: string) {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (value) next.set(key, value);
-        else next.delete(key);
-        return next;
-      },
-      { replace: true },
-    );
+  function handleFetchDetail(id: string): AuditLogEntryDetail {
+    const base = MOCK_AUDIT_ENTRIES.find((e) => e.id === id)!;
+    return { ...base, ...(MOCK_AUDIT_DETAILS[id] ?? {}) };
   }
-
-  function clearAll() {
-    setSearchParams(new URLSearchParams(), { replace: true });
-  }
-
-  function applySavedFilter(searchParamsString: string, filterName: string) {
-    // The stored searchParams string is canonical; treat it as the new
-    // source of truth and rewrite the URL.
-    const incoming = new URLSearchParams(searchParamsString.replace(/^\?/, ""));
-    setSearchParams(incoming, { replace: true });
-    // The second arg (filterName) is currently consumed only by the
-    // aria-live announcement inside the dropdown; the URL is the
-    // single source of truth for the active filter state.
-    void filterName;
-  }
-
-  function handleSave(name: string) {
-    const canonicalParams = serializeFilterState(filters);
-    if (!canonicalParams) {
-      // Should be guarded by the modal — but defensively bail.
-      setSaveOpen(false);
-      return;
-    }
-    const result = saved.save(name, canonicalParams);
-    if (result.ok) {
-      setSaveOpen(false);
-    }
-  }
-
-  async function handleCopyUrl() {
-    if (typeof window === "undefined") return;
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopyState("copied");
-      window.setTimeout(() => setCopyState("idle"), 1800);
-    } catch {
-      setCopyState("idle");
-    }
-  }
-
-  const isEmpty = isFilterEmpty(filters);
-  // `saved.rename` already returns the `ValidationResult` shape expected
-  // by the dropdown — no wrapper needed.
-  const renameResult = saved.rename;
 
   return (
     <div>
       <h2>{intl.formatMessage({ id: 'auditLog.filters.title', defaultMessage: 'Audit Log' })}</h2>
       <p style={{ color: "var(--muted)" }}>
-        Recent activity for this workspace. In compact density mode, identical
-        consecutive events are grouped by day and collapsed into summary badges.
+        Recent activity for this workspace. Click any event to view full
+        request/response detail. In compact density mode, identical consecutive
+        events are grouped by day and collapsed into summary badges.
       </p>
-
-      <div
-        style={{
-          marginTop: "1.5rem",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.75rem",
-          alignItems: "center",
-        }}
-        role="toolbar"
-        aria-label={intl.formatMessage({
-          id: 'auditLog.filters.toolbarLabel',
-          defaultMessage: 'Filter and manage saved views',
-        })}
-      >
-        <SavedFiltersDropdown
-          filters={saved.filters}
-          isHydrated={saved.isHydrated}
-          maxFilters={saved.maxFilters}
-          isFull={saved.isFull}
-          maxNameLength={saved.maxNameLength}
-          onApply={(sp, name) => applySavedFilter(sp, name)}
-          onRename={renameResult}
-          onDelete={(id) => saved.remove(id)}
+      <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
+        <AuditLogTimeline
+          entries={MOCK_AUDIT_ENTRIES}
+          onFetchDetail={handleFetchDetail}
         />
-
-        <button
-          type="button"
-          onClick={() => setSaveOpen(true)}
-          disabled={isEmpty || saved.isFull}
-          aria-disabled={isEmpty || saved.isFull}
-          title={
-            isEmpty
-              ? 'Apply filters before saving'
-              : saved.isFull
-                ? intl.formatMessage(
-                    { id: 'auditLog.filters.capReached', defaultMessage: 'This workspace is at its limit of {max} saved filters. Delete one to make room.' },
-                    { max: saved.maxFilters },
-                  )
-                : undefined
-          }
-          data-testid="open-save-filter-modal"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            minHeight: '2.75rem',
-            padding: '0.45rem 0.85rem',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-strong)',
-            background: isEmpty || saved.isFull ? 'var(--surface-soft)' : 'var(--surface)',
-            color: isEmpty || saved.isFull ? 'var(--muted)' : 'var(--text)',
-            font: 'inherit',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-            cursor: isEmpty || saved.isFull ? 'not-allowed' : 'pointer',
-          }}
-        >
-          <span aria-hidden="true">＋</span>
-          {intl.formatMessage({
-            id: 'auditLog.filters.saveMenu',
-            defaultMessage: 'Save current filter…',
-          })}
-        </button>
-
-        <button
-          type="button"
-          onClick={handleCopyUrl}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            minHeight: '2.75rem',
-            padding: '0.45rem 0.85rem',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            font: 'inherit',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-          aria-label={intl.formatMessage({
-            id: 'auditLog.filters.copyUrl',
-            defaultMessage: 'Copy shareable URL',
-          })}
-          data-testid="copy-share-url"
-        >
-          <span aria-hidden="true">{copyState === 'copied' ? '✓' : '⧉'}</span>
-          {copyState === 'copied'
-            ? intl.formatMessage({ id: 'auditLog.filters.copied', defaultMessage: 'Copied to clipboard' })
-            : intl.formatMessage({ id: 'auditLog.filters.copyUrl', defaultMessage: 'Copy shareable URL' })}
-        </button>
-
-        {!isEmpty && (
-          <button
-            type="button"
-            onClick={clearAll}
-            data-testid="clear-audit-filters"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              minHeight: '2.75rem',
-              padding: '0.45rem 0.85rem',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid transparent',
-              background: 'transparent',
-              color: 'var(--muted)',
-              font: 'inherit',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            {intl.formatMessage({ id: 'common.cancel', defaultMessage: 'Cancel' })} filters
-          </button>
-        )}
       </div>
 
       {/* Filter chips + date range — pure UI that writes to the URL */}
