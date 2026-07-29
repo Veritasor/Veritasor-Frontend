@@ -13,6 +13,8 @@ interface Source {
   accountLabel: string
   status: HealthStatus
   lastSync: string | null
+  /** ISO timestamp when OAuth token expired — undefined means not expired */
+  tokenExpiredAt?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -21,8 +23,8 @@ interface Source {
 
 const INITIAL_SOURCES: Source[] = [
   { id: 'src-001', provider: 'Stripe', accountLabel: 'acct_1A2B3C4D', status: 'healthy', lastSync: '2026-06-01T14:00:00Z' },
-  { id: 'src-002', provider: 'Shopify', accountLabel: 'my-store.myshopify.com', status: 'warning', lastSync: '2026-05-30T08:15:00Z' },
-  { id: 'src-003', provider: 'QuickBooks', accountLabel: 'Acme Corp', status: 'error', lastSync: '2026-05-20T11:45:00Z' },
+  { id: 'src-002', provider: 'Shopify', accountLabel: 'my-store.myshopify.com', status: 'warning', lastSync: '2026-05-30T08:15:00Z', tokenExpiredAt: '2026-06-18T00:00:00Z' },
+  { id: 'src-003', provider: 'QuickBooks', accountLabel: 'Acme Corp', status: 'error', lastSync: '2026-05-20T11:45:00Z', tokenExpiredAt: '2026-05-25T00:00:00Z' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -38,6 +40,163 @@ const STATUS_META: Record<HealthStatus, { label: string; bg: string; color: stri
 function formatSync(iso: string | null) {
   if (!iso) return 'Never'
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+/**
+ * Returns a human-readable relative time string for how long ago a date was.
+ * e.g. "3 days ago", "about 2 months ago"
+ */
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays < 1) return 'today'
+  if (diffDays === 1) return '1 day ago'
+  if (diffDays < 30) return `${diffDays} days ago`
+  const diffMonths = Math.round(diffDays / 30)
+  if (diffMonths === 1) return 'about 1 month ago'
+  return `about ${diffMonths} months ago`
+}
+
+// ---------------------------------------------------------------------------
+// ExpiredTokenBanner — #222
+// ---------------------------------------------------------------------------
+
+interface ExpiredTokenBannerProps {
+  sources: Source[]
+  onReconnect: (id: string) => void
+  dismissedIds: Set<string>
+  onDismiss: (id: string) => void
+}
+
+function ExpiredTokenBanner({ sources, onReconnect, dismissedIds, onDismiss }: ExpiredTokenBannerProps) {
+  const expiredSources = sources.filter(
+    (s) => s.tokenExpiredAt !== undefined && !dismissedIds.has(s.id),
+  )
+
+  if (expiredSources.length === 0) return null
+
+  return (
+    <section
+      aria-label={`${expiredSources.length} revenue source${expiredSources.length !== 1 ? 's' : ''} need${expiredSources.length === 1 ? 's' : ''} reconnecting`}
+      style={{
+        display: 'grid',
+        gap: '0.625rem',
+        padding: '1rem 1.1rem',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid rgba(251,191,36,0.35)',
+        background:
+          'linear-gradient(135deg,rgba(251,191,36,0.08),rgba(251,113,133,0.05)),var(--surface)',
+        marginBottom: '1.25rem',
+      }}
+    >
+      {/* Banner header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Warning icon */}
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '1.75rem',
+              height: '1.75rem',
+              borderRadius: '50%',
+              background: 'var(--warning-soft)',
+              color: 'var(--warning)',
+              fontSize: '0.9rem',
+              flexShrink: 0,
+            }}
+          >
+            ⚠
+          </span>
+          <strong style={{ fontSize: '0.95rem', color: 'var(--text)' }}>
+            {expiredSources.length === 1
+              ? `${expiredSources[0].provider} needs reconnecting`
+              : `${expiredSources.length} sources need reconnecting`}
+          </strong>
+        </div>
+      </div>
+
+      {/* Per-source rows */}
+      <ul
+        style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.5rem' }}
+        aria-label="Expired integrations"
+      >
+        {expiredSources.map((source) => (
+          <li
+            key={source.id}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.625rem 0.875rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: 'rgba(15,23,42,0.5)',
+            }}
+          >
+            {/* Provider + account */}
+            <div style={{ flex: '1 1 10rem', minWidth: 0 }}>
+              <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{source.provider}</span>
+              <span style={{ color: 'var(--muted)', fontSize: '0.82rem', marginLeft: '0.5rem' }}>
+                {source.accountLabel}
+              </span>
+            </div>
+
+            {/* Relative expiry time */}
+            <span
+              aria-label={`Token expired ${formatRelativeTime(source.tokenExpiredAt!)}`}
+              style={{
+                fontSize: '0.78rem',
+                color: 'var(--warning)',
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              Expired {formatRelativeTime(source.tokenExpiredAt!)}
+            </span>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
+              <button
+                type="button"
+                aria-label={`Reconnect ${source.provider} now`}
+                onClick={() => onReconnect(source.id)}
+                style={{
+                  ...accentBtn,
+                  fontSize: '0.82rem',
+                  padding: '0.35rem 0.875rem',
+                }}
+              >
+                Reconnect
+              </button>
+              <button
+                type="button"
+                aria-label={`Dismiss reconnect reminder for ${source.provider}`}
+                onClick={() => onDismiss(source.id)}
+                style={{
+                  ...secondaryBtn,
+                  fontSize: '0.82rem',
+                  padding: '0.35rem 0.625rem',
+                  minWidth: 'auto',
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {/* Footer note */}
+      <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.55 }}>
+        Attestations that rely on these sources will be incomplete until they are reconnected.
+        Dismissed reminders reappear after 24 hours.
+      </p>
+    </section>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -456,6 +615,9 @@ export default function RevenueSources() {
   const { addToast } = useToast()
   const [sources, setSources] = useState<Source[]>(INITIAL_SOURCES)
   const [pendingDisconnect, setPendingDisconnect] = useState<Source | null>(null)
+  const [dismissedBannerIds, setDismissedBannerIds] = useState<Set<string>>(new Set())
+  // Ref so we can schedule undismiss after 24 h — simplified to 30 s in dev
+  const dismissTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const getLabel = useCallback((s: Source) => s.provider, [])
 
@@ -472,8 +634,32 @@ export default function RevenueSources() {
 
   function handleReconnect(id: string) {
     setSources((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: 'healthy', lastSync: new Date().toISOString() } : s)),
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, status: 'healthy', lastSync: new Date().toISOString(), tokenExpiredAt: undefined }
+          : s,
+      ),
     )
+    // Clear any pending re-show timer
+    const timer = dismissTimers.current.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      dismissTimers.current.delete(id)
+    }
+  }
+
+  function handleBannerDismiss(id: string) {
+    setDismissedBannerIds((prev) => new Set(prev).add(id))
+    // Re-show after 30 s (stands in for 24 h in production)
+    const timer = setTimeout(() => {
+      setDismissedBannerIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      dismissTimers.current.delete(id)
+    }, 30_000)
+    dismissTimers.current.set(id, timer)
   }
 
   function handleDisconnectRequest(source: Source) {
@@ -520,6 +706,14 @@ export default function RevenueSources() {
       >
         {announcement}
       </div>
+
+      {/* ── Expired-token reconnect banner (#222) ── */}
+      <ExpiredTokenBanner
+        sources={sources}
+        onReconnect={handleReconnect}
+        dismissedIds={dismissedBannerIds}
+        onDismiss={handleBannerDismiss}
+      />
 
       {sources.length === 0 ? (
         <section
