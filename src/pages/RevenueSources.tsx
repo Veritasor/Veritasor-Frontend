@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, type CSSProperties } from 'react'
+import { useState, useCallback, useMemo, useRef, type CSSProperties } from 'react'
 import { useDragReorder } from '../hooks/useDragReorder'
 
 // ---------------------------------------------------------------------------
@@ -55,6 +55,37 @@ function formatRelativeTime(iso: string): string {
   const diffMonths = Math.round(diffDays / 30)
   if (diffMonths === 1) return 'about 1 month ago'
   return `about ${diffMonths} months ago`
+}
+
+// ---------------------------------------------------------------------------
+// Mock impact data — replace with real API
+// ---------------------------------------------------------------------------
+
+interface ImpactPipeline {
+  id: string
+  name: string
+  nextRun: string
+}
+
+function getMockImpact(provider: string): ImpactPipeline[] {
+  const base = new Date()
+  base.setDate(base.getDate() + 1)
+  return [
+    { id: 'pipe-001', name: `${provider} Revenue Verification`, nextRun: base.toISOString() },
+    { id: 'pipe-002', name: 'Monthly Attestation Batch', nextRun: new Date(base.getTime() + 86400000 * 2).toISOString() },
+    { id: 'pipe-003', name: 'Compliance Report Sync', nextRun: new Date(base.getTime() + 86400000 * 7).toISOString() },
+  ]
+}
+
+function formatNextRun(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = d.getTime() - now.getTime()
+  if (diff < 0) return 'Overdue'
+  if (diff < 86400000) return 'Tomorrow'
+  if (diff < 86400000 * 2) return 'In 2 days'
+  if (diff < 86400000 * 7) return `In ${Math.round(diff / 86400000)} days`
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 // ---------------------------------------------------------------------------
