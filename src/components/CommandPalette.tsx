@@ -5,6 +5,7 @@ import { useToast } from './ToastContext'
 type PaletteScope = 'global' | 'page'
 
 const SCOPE_STORAGE_KEY = 'veritasor-palette-scope'
+const PINNED_STORAGE_KEY = 'veritasor-pinned-commands'
 
 export interface Command {
   id: string
@@ -167,6 +168,7 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [recents, setRecents] = useState<string[]>([])
+  const [pinned, setPinned] = useState<string[]>([])
   const [scope, setScope] = useState<PaletteScope>(loadScope)
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -199,6 +201,14 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
   }, [])
 
   // Save a command as recent
+  const togglePin = useCallback((id: string) => {
+    setPinned((prev) => {
+      const next = prev.includes(id) ? prev.filter((p) => p !== id) : [id, ...prev]
+      localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   const saveToRecents = (id: string) => {
     const nextRecents = [id, ...recents.filter((r) => r !== id)].slice(0, 4)
     setRecents(nextRecents)
@@ -229,6 +239,11 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
   }, [query, scopeFiltered])
 
   // Get recents mapped to command items
+  const pinnedCommands = useMemo(() => {
+    if (query) return []
+    return pinned.map((id) => scopeFiltered.find((cmd) => cmd.id === id)).filter((cmd): cmd is Command => !!cmd)
+  }, [pinned, query, scopeFiltered])
+
   const recentCommands = useMemo(() => {
     if (query) return []
     return recents
@@ -238,26 +253,23 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
 
   // Construct a single flat list of visible items to easily manage active index
   const visibleItems = useMemo(() => {
-    const items: (Command & { isRecent?: boolean })[] = []
+    const items: (Command & { isRecent?: boolean; isPinned?: boolean })[] = []
 
-    // If query is empty, show recents first
-    if (!query && recentCommands.length > 0) {
+    if (!query) {
+      pinnedCommands.forEach((cmd) => items.push({ ...cmd, isPinned: true }))
       recentCommands.forEach((cmd) => {
-        items.push({ ...cmd, isRecent: true })
+        if (!pinnedCommands.some((p) => p.id === cmd.id))
+          items.push({ ...cmd, isRecent: true })
       })
     }
 
-    // Then show main filtered commands (or all commands grouped if query is empty)
     filteredCommands.forEach((cmd) => {
-      // Don't show in main list if it's already in recents (to avoid double entry in empty state)
-      const inRecents = !query && recentCommands.some((r) => r.id === cmd.id)
-      if (!inRecents) {
-        items.push(cmd)
-      }
+      const skip = !query && (pinnedCommands.some((p) => p.id === cmd.id) || recentCommands.some((r) => r.id === cmd.id))
+      if (!skip) items.push(cmd)
     })
 
     return items
-  }, [filteredCommands, recentCommands, query])
+  }, [filteredCommands, pinnedCommands, recentCommands, query])
 
   // Reset active index when query/results change
   useEffect(() => {
@@ -319,9 +331,15 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
   const renderedSections = (() => {
     const sections: { title: string; items: typeof visibleItems }[] = []
 
+    if (!query && pinnedCommands.length > 0) {
+      sections.push({
+        title: 'Pinned',
+        items: visibleItems.filter((i) => i.isPinned),
+      })
+    }
     if (!query && recentCommands.length > 0) {
       sections.push({
-        title: 'Recent Searches',
+        title: 'Recent',
         items: visibleItems.filter((i) => i.isRecent),
       })
     }
@@ -468,6 +486,20 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
                           <span className="cmd-item-title">{cmd.title}</span>
                           {cmd.description && <span className="cmd-item-desc">{cmd.description}</span>}
                         </div>
+                        <button
+                          type="button"
+                          className="cmd-pin-btn"
+                          onClick={(e) => { e.stopPropagation(); togglePin(cmd.id); }}
+                          aria-label={pinned.includes(cmd.id) ? 'Unpin' : 'Pin'}
+                          aria-pressed={pinned.includes(cmd.id)}
+                          title={pinned.includes(cmd.id) ? 'Unpin' : 'Pin'}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            padding: '2px 4px', fontSize: '0.9rem',
+                            opacity: pinned.includes(cmd.id) ? 1 : 0.3,
+                            transition: 'opacity 120ms',
+                          }}
+                        >{pinned.includes(cmd.id) ? '📌' : '📌'}</button>
                         {cmd.shortcut && (
                           <div className="cmd-item-shortcut" aria-hidden="true">
                             {cmd.shortcut.map((key) => (
