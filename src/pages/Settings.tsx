@@ -4,6 +4,7 @@ import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
 import TokensExport from '../components/tokens/TokensExport'
+import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
 import type { MfaMethod } from '../components/MfaMethodChooser'
@@ -11,17 +12,17 @@ import WebhookRetryPanel, { type WebhookDelivery } from '../components/WebhookRe
 
 // Tab definitions ordered by frequency of use
 const TABS = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'notifications', label: 'Notifications' },
-  { id: 'team', label: 'Team' },
-  { id: 'integrations', label: 'Integrations' },
-  { id: 'api-keys', label: 'API Keys' },
-  { id: 'tokens', label: 'Tokens' },
-  { id: 'billing', label: 'Billing' },
-  { id: 'security', label: 'Security' },
-  { id: 'audit-log', label: 'Audit Log' },
-  { id: 'webhooks', label: 'Webhooks' },
-] as const
+  { id: "profile", label: "Profile" },
+  { id: "notifications", label: "Notifications" },
+  { id: "team", label: "Team" },
+  { id: "integrations", label: "Integrations" },
+  { id: "api-keys", label: "API Keys" },
+  { id: "tokens", label: "Tokens" },
+  { id: "billing", label: "Billing" },
+  { id: "security", label: "Security" },
+  { id: "audit-log", label: "Audit Log" },
+  { id: "a11y-audit", label: "Accessibility" },
+] as const;
 
 type TabId = (typeof TABS)[number]['id']
 
@@ -5330,7 +5331,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   "audit-log": AuditLogPanel,
-  webhooks: WebhooksPanel,
+  "a11y-audit": A11yAuditPanel,
 };
 
 // ─── Unsaved Changes Navigation Guard ─────────────────────────────────────────
