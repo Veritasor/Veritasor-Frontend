@@ -1,25 +1,27 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Toast } from './ToastContext'
+import { resolveAutoDismissMs } from './toastRules'
 
 export type ToastAnimationState = 'entering' | 'idle' | 'exiting'
 
 interface ToastItemProps {
   toast: Toast
   onRemove: (id: string) => void
+  /**
+   * When true, the toast is rendered inside an expanded overflow group and
+   * should not animate its entrance/exit — the group owns the motion.
+   */
+  disableMotion?: boolean
 }
 
-export default function ToastItem({ toast, onRemove }: ToastItemProps) {
-  const { id, type, message, duration, onUndo, undoLabel = 'Undo', count } = toast
+export default function ToastItem({ toast, onRemove, disableMotion = false }: ToastItemProps) {
+  const { id, type, message, duration, onUndo, undoLabel = 'Undo' } = toast
 
-  // Auto-dismiss duration: success/info default to 5000ms, warning/error persist (0) unless specified
-  const initialDuration =
-    duration !== undefined
-      ? duration
-      : type === 'success' || type === 'info'
-      ? 5000
-      : type === 'bulk-undo'
-      ? 8000
-      : 0
+  // Auto-dismiss duration: success/info default to 5000ms, warning/error persist
+  // (0) unless explicitly overridden. ToastItem.tsx consults `toastRules` so the
+  // documented cadence stays in lock-step with the spec.
+  const hasUndo = typeof onUndo === 'function'
+  const initialDuration = resolveAutoDismissMs(type, hasUndo, duration)
 
   const [timeLeft, setTimeLeft] = useState(initialDuration)
   const [isPaused, setIsPaused] = useState(false)
@@ -27,9 +29,14 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
   const timerRef = useRef<number | null>(null)
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastTickRef = useRef<number>(Date.now())
+  const removingRef = useRef<boolean>(false)
 
   // Mark entrance complete after animation duration
   useEffect(() => {
+    if (disableMotion) {
+      setAnimationState('idle')
+      return
+    }
     const frame = requestAnimationFrame(() => {
       const timer = setTimeout(() => {
         setAnimationState('idle')
@@ -37,50 +44,38 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
       return () => clearTimeout(timer)
     })
     return () => cancelAnimationFrame(frame)
-  }, [])
+  }, [disableMotion])
 
   // Cleanup exit timer on unmount
   useEffect(() => {
     return () => {
       if (exitTimerRef.current !== null) {
         clearTimeout(exitTimerRef.current)
+        exitTimerRef.current = null
       }
+      removingRef.current = false
     }
   }, [])
 
   const handleRemove = useCallback(() => {
+    if (removingRef.current) return
+    removingRef.current = true
+    if (disableMotion) {
+      onRemove(id)
+      return
+    }
     setAnimationState('exiting')
+    // Clear any prior exit timer so the removal is debounced to a single
+    // setTimeout, even if the countdown effect ticks handleRemove more than
+    // once when fake timers (or paused/resumed intervals) tick past zero.
+    if (exitTimerRef.current !== null) {
+      clearTimeout(exitTimerRef.current)
+    }
     // Wait for exit animation to complete before removing from DOM
     exitTimerRef.current = setTimeout(() => {
       onRemove(id)
     }, 200) // matches motion.duration.sm for fast exit
-  }, [id, onRemove])
-
-  // Handle global Escape key and Undo key
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        handleRemove()
-      }
-      if (type === 'bulk-undo' && e.key.toLowerCase() === 'u') {
-        if (
-          e.target instanceof HTMLInputElement ||
-          e.target instanceof HTMLTextAreaElement ||
-          (e.target as HTMLElement).isContentEditable
-        ) {
-          return
-        }
-        if (onUndo) {
-          onUndo()
-        }
-        handleRemove()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [handleRemove, type, onUndo])
+  }, [id, onRemove, disableMotion])
 
   // Countdown timer logic
   useEffect(() => {
@@ -101,6 +96,14 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
       setTimeLeft((prev) => {
         const next = prev - delta
         if (next <= 0) {
+          // Clear the interval the moment we cross zero so it cannot keep
+          // firing tick updates (or trigger infinite loops under vitest's
+          // `runAllTimers` safety limit). handleRemove is idempotent but
+          // it does not own the timer's lifecycle.
+          if (timerRef.current != null) {
+            clearInterval(timerRef.current)
+            timerRef.current = null
+          }
           handleRemove()
           return 0
         }
@@ -180,12 +183,13 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
   const progressPercent = initialDuration > 0 ? (timeLeft / initialDuration) * 100 : 0
   const ariaRole = type === 'error' ? 'alert' : 'status'
 
-  const animationClass =
-    animationState === 'entering'
-      ? 'toast-entering'
-      : animationState === 'exiting'
-      ? 'toast-exiting'
-      : ''
+  const animationClass = disableMotion
+    ? ''
+    : animationState === 'entering'
+    ? 'toast-entering'
+    : animationState === 'exiting'
+    ? 'toast-exiting'
+    : ''
 
   return (
     <div
@@ -211,6 +215,7 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
             type="button"
             className="toast-undo-btn"
             onClick={handleUndoClick}
+            aria-keyshortcuts="Enter"
           >
             {undoLabel}
             {type === 'bulk-undo' && <span className="toast-undo-shortcut"> (U)</span>}
@@ -221,6 +226,7 @@ export default function ToastItem({ toast, onRemove }: ToastItemProps) {
           type="button"
           className="toast-close-btn"
           aria-label="Close notification"
+          aria-keyshortcuts="Escape"
           onClick={handleRemove}
         >
           <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
