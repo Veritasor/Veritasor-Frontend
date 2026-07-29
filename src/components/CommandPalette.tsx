@@ -168,7 +168,6 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
   const [activeIndex, setActiveIndex] = useState(0)
   const [recents, setRecents] = useState<string[]>([])
   const [scope, setScope] = useState<PaletteScope>(loadScope)
-  const [scopeFocused, setScopeFocused] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const scopeRef = useRef<HTMLDivElement>(null)
@@ -372,8 +371,6 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
               handleScopeChange(next)
             }
           }}
-          onFocus={() => setScopeFocused(true)}
-          onBlur={() => setScopeFocused(false)}
           style={{
             display: 'flex',
             gap: 0,
