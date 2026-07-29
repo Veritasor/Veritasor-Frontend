@@ -13,15 +13,18 @@
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
+import { LocaleProvider } from '../i18n/provider'
 import Settings from '../pages/Settings'
 
 function renderSettings(hash = '') {
   return render(
-    <MemoryRouter initialEntries={[`/settings${hash}`]}>
-      <Routes>
-        <Route path="/settings" element={<Settings />} />
-      </Routes>
-    </MemoryRouter>,
+    <LocaleProvider>
+      <MemoryRouter initialEntries={[`/settings${hash}`]}>
+        <Routes>
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </MemoryRouter>
+    </LocaleProvider>,
   )
 }
 

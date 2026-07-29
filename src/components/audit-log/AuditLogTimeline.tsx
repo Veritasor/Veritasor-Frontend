@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useDensityMode } from '../../hooks/useDensityMode'
 import type { CSSProperties } from 'react'
+import AuditLogDetailDrawer from './AuditLogDetailDrawer'
+import type { AuditLogEntryDetail } from './AuditLogDetailDrawer'
 
 export type SeverityLevel = 'info' | 'warn' | 'error' | 'critical'
 
@@ -238,6 +240,8 @@ function collapseBursts(entries: AuditLogEntry[], threshold: number): (AuditLogE
 interface AuditLogTimelineProps {
   entries: AuditLogEntry[]
   burstThreshold?: number
+  /** Provide enriched entry detail on demand; falls back to base entry if omitted */
+  onFetchDetail?: (id: string) => AuditLogEntryDetail | Promise<AuditLogEntryDetail>
 }
 
 const burstThresholdDefault = 3
@@ -315,10 +319,42 @@ const badgeStyle: CSSProperties = {
 export default function AuditLogTimeline({
   entries,
   burstThreshold = burstThresholdDefault,
+  onFetchDetail,
 }: AuditLogTimelineProps) {
   const { density } = useDensityMode('default')
   const isCompact = density === 'compact'
   const [legendOpen, setLegendOpen] = useState(false)
+
+  const [activeDetail, setActiveDetail] = useState<AuditLogEntryDetail | null>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  async function openDrawer(entry: AuditLogEntry, triggerEl: HTMLElement) {
+    triggerRef.current = triggerEl
+    if (onFetchDetail) {
+      const detail = await Promise.resolve(onFetchDetail(entry.id))
+      setActiveDetail(detail)
+    } else {
+      setActiveDetail(entry)
+    }
+  }
+
+  function closeDrawer() {
+    setActiveDetail(null)
+  }
+
+  // Shared style for entry row button wrapper
+  const rowButtonStyle: CSSProperties = {
+    all: 'unset',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-1) 0',
+    borderBottom: '1px solid var(--border)',
+    width: '100%',
+    cursor: 'pointer',
+    borderRadius: 4,
+    transition: 'background 100ms ease',
+  }
 
   if (entries.length === 0) {
     return (
@@ -358,7 +394,24 @@ export default function AuditLogTimeline({
                   }
                   const entry = item as AuditLogEntry
                   return (
-                    <li key={entry.id} style={entryStyle} role="listitem">
+                    <li key={`burst-${index}`} style={burstStyle} role="listitem">
+                      <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
+                      <span style={eventStyle}>{burst.event}</span>
+                      <span style={{ ...detailStyle, marginLeft: 'auto' }}>
+                        {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
+                      </span>
+                    </li>
+                  )
+                }
+                const entry = item as AuditLogEntry
+                return (
+                  <li key={entry.id} role="listitem" style={{ listStyle: 'none' }}>
+                    <button
+                      type="button"
+                      aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
+                      onClick={(e) => openDrawer(entry, e.currentTarget)}
+                      style={rowButtonStyle}
+                    >
                       <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
                       {entry.severity && (
                         <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
@@ -371,18 +424,17 @@ export default function AuditLogTimeline({
                           <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
                         )}
                       </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-          )
-        })}
-      </div>
-    )
-  }
-
-  return (
+                      <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.75rem', paddingTop: '0.05rem', flexShrink: 0 }}>›</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
+  ) : (
     <div role="log" aria-label="Audit log timeline" aria-live="polite">
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
         <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
@@ -406,5 +458,16 @@ export default function AuditLogTimeline({
         ))}
       </ul>
     </div>
+  )
+
+  return (
+    <>
+      {timeline}
+      <AuditLogDetailDrawer
+        entry={activeDetail}
+        onClose={closeDrawer}
+        triggerRef={triggerRef}
+      />
+    </>
   )
 }
