@@ -1833,6 +1833,103 @@ input {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
 
+/* ─── Chart entrance animations ─────────────────────────────────────────── */
+/*
+ * Bar-grow animation for metric card values.
+ * Scales from 0 to 1 on the Y axis so the number appears to rise.
+ * Duration matches motion.duration.lg (280 ms) — under 400 ms per spec.
+ */
+@keyframes chart-bar-grow {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/*
+ * Line-draw animation for trend-like indicators.
+ * Reveals the element by scaling width from 0 to 100%.
+ */
+@keyframes chart-line-draw {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/*
+ * Reduced-motion equivalent: simple fade-in only.
+ * Used when prefers-reduced-motion: reduce is active.
+ */
+@keyframes chart-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Entrance animation classes — applied by JS when element scrolls into view */
+.chart-entrance {
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+.chart-entrance.chart-entrance-animate {
+  animation: chart-fade-in var(--motion-duration-md) var(--motion-easing-standard) forwards;
+}
+
+/* Bar-grow variant: for numeric values like revenue */
+.chart-entrance-bar-grow {
+  transform-origin: bottom;
+}
+
+.chart-entrance-bar-grow.chart-entrance-animate {
+  animation-name: chart-bar-grow;
+  animation-duration: var(--motion-duration-lg);
+  animation-timing-function: var(--motion-easing-decelerate);
+}
+
+/* Line-draw variant: for progress indicators */
+.chart-entrance-line-draw {
+  transform-origin: left;
+}
+
+.chart-entrance-line-draw.chart-entrance-animate {
+  animation-name: chart-line-draw;
+  animation-duration: var(--motion-duration-lg);
+  animation-timing-function: var(--motion-easing-standard);
+}
+
+/* Respect prefers-reduced-motion — collapse all entrance to fade-in only */
+@media (prefers-reduced-motion: reduce) {
+  .chart-entrance-bar-grow.chart-entrance-animate {
+    animation-name: chart-fade-in;
+    animation-duration: var(--motion-duration-xs);
+    animation-timing-function: var(--motion-easing-linear);
+  }
+
+  .chart-entrance-line-draw.chart-entrance-animate {
+    animation-name: chart-fade-in;
+    animation-duration: var(--motion-duration-xs);
+    animation-timing-function: var(--motion-easing-linear);
+  }
+
+  .chart-entrance.chart-entrance-animate {
+    animation-duration: var(--motion-duration-xs);
+    animation-timing-function: var(--motion-easing-linear);
+  }
+}
+
 /* ─── Dashboard page wrapper ───────────────────────────────────────────── */
 .dashboard-page {
   display: grid;

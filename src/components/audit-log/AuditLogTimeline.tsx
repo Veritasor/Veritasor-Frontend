@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useDensityMode } from '../../hooks/useDensityMode'
 import type { CSSProperties } from 'react'
 import AuditLogDetailDrawer from './AuditLogDetailDrawer'
@@ -367,102 +367,97 @@ export default function AuditLogTimeline({
   if (isCompact) {
     const days = groupByDay(entries)
     return (
-      <div role="log" aria-label="Audit log timeline" aria-live="polite">
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-          <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
-        </div>
-        {days.map((day) => {
-          const bursts = collapseBursts(day.entries, burstThreshold)
-          return (
-            <section key={day.date} style={groupStyle} aria-labelledby={`day-heading-${day.date}`}>
-              <h3 id={`day-heading-${day.date}`} style={dayHeaderStyle}>
-                {day.date}
-              </h3>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label={`Events for ${day.date}`}>
-                {bursts.map((item, index) => {
-                  if ('count' in item) {
-                    const burst = item as BurstGroup
+      <>
+        <div role="log" aria-label="Audit log timeline" aria-live="polite">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+            <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
+          </div>
+          {days.map((day) => {
+            const bursts = collapseBursts(day.entries, burstThreshold)
+            return (
+              <section key={day.date} style={groupStyle} aria-labelledby={`day-heading-${day.date}`}>
+                <h3 id={`day-heading-${day.date}`} style={dayHeaderStyle}>
+                  {day.date}
+                </h3>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label={`Events for ${day.date}`}>
+                  {bursts.map((item, index) => {
+                    if ('count' in item) {
+                      const burst = item as BurstGroup
+                      return (
+                        <li key={`burst-${index}`} style={burstStyle} role="listitem">
+                          <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
+                          <span style={eventStyle}>{burst.event}</span>
+                          <span style={{ ...detailStyle, marginLeft: 'auto' }}>
+                            {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
+                          </span>
+                        </li>
+                      )
+                    }
+                    const entry = item as AuditLogEntry
                     return (
-                      <li key={`burst-${index}`} style={burstStyle} role="listitem">
-                        <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
-                        <span style={eventStyle}>{burst.event}</span>
-                        <span style={{ ...detailStyle, marginLeft: 'auto' }}>
-                          {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
-                        </span>
+                      <li key={entry.id} role="listitem" style={{ listStyle: 'none' }}>
+                        <button
+                          type="button"
+                          aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
+                          onClick={(e) => openDrawer(entry, e.currentTarget)}
+                          style={rowButtonStyle}
+                        >
+                          <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
+                          {entry.severity && (
+                            <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+                              <SeverityChip severity={entry.severity} />
+                            </span>
+                          )}
+                          <div>
+                            <span style={eventStyle}>{entry.event}</span>
+                            {entry.details && (
+                              <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+                            )}
+                          </div>
+                          <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.75rem', paddingTop: '0.05rem', flexShrink: 0 }}>›</span>
+                        </button>
                       </li>
                     )
-                  }
-                  const entry = item as AuditLogEntry
-                  return (
-                    <li key={`burst-${index}`} style={burstStyle} role="listitem">
-                      <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
-                      <span style={eventStyle}>{burst.event}</span>
-                      <span style={{ ...detailStyle, marginLeft: 'auto' }}>
-                        {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
-                      </span>
-                    </li>
-                  )
-                }
-                const entry = item as AuditLogEntry
-                return (
-                  <li key={entry.id} role="listitem" style={{ listStyle: 'none' }}>
-                    <button
-                      type="button"
-                      aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
-                      onClick={(e) => openDrawer(entry, e.currentTarget)}
-                      style={rowButtonStyle}
-                    >
-                      <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
-                      {entry.severity && (
-                        <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
-                          <SeverityChip severity={entry.severity} />
-                        </span>
-                      )}
-                      <div>
-                        <span style={eventStyle}>{entry.event}</span>
-                        {entry.details && (
-                          <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
-                        )}
-                      </div>
-                      <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.75rem', paddingTop: '0.05rem', flexShrink: 0 }}>›</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-        )
-      })}
-    </div>
-  ) : (
-    <div role="log" aria-label="Audit log timeline" aria-live="polite">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
-        <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
-      </div>
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {entries.map((entry) => (
-          <li key={entry.id} style={entryStyle} role="listitem">
-            <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
-            {entry.severity && (
-              <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
-                <SeverityChip severity={entry.severity} />
-              </span>
-            )}
-            <div>
-              <span style={eventStyle}>{entry.event}</span>
-              {entry.details && (
-                <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
+                  })}
+                </ul>
+              </section>
+            )
+          })}
+        </div>
+        <AuditLogDetailDrawer
+          entry={activeDetail}
+          onClose={closeDrawer}
+          triggerRef={triggerRef}
+        />
+      </>
+    )
+  }
 
   return (
     <>
-      {timeline}
+      <div role="log" aria-label="Audit log timeline" aria-live="polite">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+          <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
+        </div>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {entries.map((entry) => (
+            <li key={entry.id} style={entryStyle} role="listitem">
+              <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
+              {entry.severity && (
+                <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+                  <SeverityChip severity={entry.severity} />
+                </span>
+              )}
+              <div>
+                <span style={eventStyle}>{entry.event}</span>
+                {entry.details && (
+                  <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
       <AuditLogDetailDrawer
         entry={activeDetail}
         onClose={closeDrawer}

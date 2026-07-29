@@ -14,13 +14,19 @@ import { MemoryRouter } from 'react-router-dom'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { describe, expect, it, afterEach } from 'vitest'
 import RevenueSources from '../pages/RevenueSources'
+import { LocaleProvider } from '../i18n/provider'
+import { ToastProvider } from '../components/ToastContext'
 
 afterEach(() => cleanup())
 
 function renderPage() {
   return render(
     <MemoryRouter>
-      <RevenueSources />
+      <LocaleProvider>
+        <ToastProvider>
+          <RevenueSources />
+        </ToastProvider>
+      </LocaleProvider>
     </MemoryRouter>,
   )
 }

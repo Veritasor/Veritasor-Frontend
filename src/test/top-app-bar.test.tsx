@@ -4,11 +4,14 @@ import { describe, it, expect, vi } from 'vitest'
 import TopAppBar from '../components/TopAppBar'
 import Layout from '../components/Layout'
 import { CookieConsentProvider } from '../components/CookieConsentContext'
+import { LocaleProvider } from '../i18n/provider'
 
 function renderWithRouter(ui: React.ReactElement, { initialEntries = ['/'] } = {}) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <CookieConsentProvider>{ui}</CookieConsentProvider>
+      <CookieConsentProvider>
+        <LocaleProvider>{ui}</LocaleProvider>
+      </CookieConsentProvider>
     </MemoryRouter>,
   )
 }

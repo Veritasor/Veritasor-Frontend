@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
@@ -9,11 +9,16 @@ import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
 import type { MfaMethod } from '../components/MfaMethodChooser'
 import WebhookRetryPanel, { type WebhookDelivery } from '../components/WebhookRetryPanel'
+import DensityToggle from '../components/DensityToggle'
+import ThemeSwitcher from '../components/ThemeSwitcher'
+import DirtyStateBanner from '../components/DirtyStateBanner'
+import { useDirtyForm, type SaveStatus } from '../hooks/useDirtyForm'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: "profile", label: "Profile" },
   { id: "notifications", label: "Notifications" },
+  { id: "appearance", label: "Appearance" },
   { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
   { id: "api-keys", label: "API Keys" },
@@ -121,6 +126,19 @@ const mfaSection: Record<MfaState, () => JSX.Element> = {
 };
 
 // ─── Tab Panels ───────────────────────────────────────────────────────────────
+
+function BusinessProfilePanel() {
+  return (
+    <div style={{ display: "grid", gap: "1rem" }}>
+      <div>
+        <h2>Business Profile</h2>
+        <p style={{ color: "var(--muted)" }}>
+          Manage your business details, legal entity information, and compliance settings.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function ProfilePanel() {
   const registry = useDirtyRegistry();
@@ -2614,9 +2632,65 @@ function SecurityPanel() {
           style={{ display: "grid", gap: "1rem", maxWidth: 480 }}
           onSubmit={handlePwSubmit}
         >
-          Update password
-        </button>
-      </form>
+          <div style={{ display: "grid", gap: "0.4rem" }}>
+            <label htmlFor="current-password" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              Current password
+            </label>
+            <input
+              id="current-password"
+              type="password"
+              value={pwForm.values.currentPassword}
+              onChange={(e) => pwForm.setField("currentPassword", e.target.value)}
+              style={{
+                padding: "0.6rem 0.8rem",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--surface-strong)",
+                color: "var(--text)",
+                fontSize: "0.95rem",
+              }}
+            />
+          </div>
+          <div style={{ display: "grid", gap: "0.4rem" }}>
+            <label htmlFor="new-password" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              New password
+            </label>
+            <input
+              id="new-password"
+              type="password"
+              value={pwForm.values.newPassword}
+              onChange={(e) => pwForm.setField("newPassword", e.target.value)}
+              style={{
+                padding: "0.6rem 0.8rem",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--surface-strong)",
+                color: "var(--text)",
+                fontSize: "0.95rem",
+              }}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!pwForm.isDirty || pwForm.saveStatus === "saving"}
+            aria-busy={pwForm.saveStatus === "saving"}
+            style={{
+              alignSelf: "start",
+              padding: "0.6rem 1.25rem",
+              borderRadius: 8,
+              border: "none",
+              background: "var(--accent)",
+              color: "#04111f",
+              fontWeight: 700,
+              cursor: !pwForm.isDirty || pwForm.saveStatus === "saving" ? "default" : "pointer",
+              fontSize: "0.95rem",
+              opacity: !pwForm.isDirty || pwForm.saveStatus === "saving" ? 0.6 : 1,
+              minHeight: "2.75rem",
+            }}
+          >
+            {pwForm.saveStatus === "saving" ? "Saving…" : "Update password"}
+          </button>
+        </form>
 
       <hr style={{ margin: 0, borderColor: "var(--border)", opacity: 0.5 }} />
 
@@ -2671,6 +2745,7 @@ function SecurityPanel() {
           </p>
         ) : null}
       </section>
+    </div>
     </div>
   );
 }
@@ -2884,63 +2959,70 @@ const MOCK_AUDIT_DETAILS: Record<string, Partial<AuditLogEntryDetail>> = {
       details: "Merkle root: 0x7f...3a",
       severity: "info",
     },
-    {
-      id: "2",
-      timestamp: "2026-07-28T08:14:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-      severity: "info",
-    },
-    {
-      id: "3",
-      timestamp: "2026-07-28T08:15:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-      severity: "info",
-    },
-    {
-      id: "4",
-      timestamp: "2026-07-28T09:00:00Z",
-      event: "Revenue source connected",
-      details: "Provider: Stripe",
-      severity: "info",
-    },
-    {
-      id: "5",
-      timestamp: "2026-07-27T14:30:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-      severity: "error",
-    },
-    {
-      id: "6",
-      timestamp: "2026-07-27T14:31:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-      severity: "error",
-    },
-    {
-      id: "7",
-      timestamp: "2026-07-27T14:32:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-      severity: "error",
-    },
-    {
-      id: "8",
-      timestamp: "2026-07-27T14:33:00Z",
-      event: "Attestation failed",
-      details: "Timeout after 30s",
-      severity: "error",
-    },
-    {
-      id: "9",
-      timestamp: "2026-07-26T10:00:00Z",
-      event: "API key rotated",
-      severity: "warn",
-    },
-  ];
+  },
+  "2": {
+    id: "2",
+    timestamp: "2026-07-28T08:14:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+    severity: "info",
+  },
+  "3": {
+    id: "3",
+    timestamp: "2026-07-28T08:15:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+    severity: "info",
+  },
+  "4": {
+    id: "4",
+    timestamp: "2026-07-28T09:00:00Z",
+    event: "Revenue source connected",
+    details: "Provider: Stripe",
+    severity: "info",
+  },
+  "5": {
+    id: "5",
+    timestamp: "2026-07-27T14:30:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+    severity: "error",
+  },
+  "6": {
+    id: "6",
+    timestamp: "2026-07-27T14:31:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+    severity: "error",
+  },
+  "7": {
+    id: "7",
+    timestamp: "2026-07-27T14:32:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+    severity: "error",
+  },
+  "8": {
+    id: "8",
+    timestamp: "2026-07-27T14:33:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+    severity: "error",
+  },
+  "9": {
+    id: "9",
+    timestamp: "2026-07-26T10:00:00Z",
+    event: "API key rotated",
+    severity: "warn",
+  },
+};
 
+function AuditLogPanel() {
+  const intl = { formatMessage: ({ defaultMessage }: { defaultMessage: string }) => defaultMessage };
+  const handleFetchDetail = useCallback(async (id: string) => {
+    // TODO: Replace with actual API call
+    return MOCK_AUDIT_DETAILS[id] ?? { id };
+  }, []);
   return (
     <div>
       <h2>{intl.formatMessage({ id: 'auditLog.filters.title', defaultMessage: 'Audit Log' })}</h2>
@@ -4271,12 +4353,6 @@ function BulkActionToolbar({
   );
 }
 
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // #245 — InviteMemberModal
 // Multi-email chip input with role preselect and invitation email preview.
@@ -5325,10 +5401,102 @@ function TeamPanel() {
   );
 }
 
+function AppearancePanel() {
+  const [workspace, setWorkspace] = useState('default-workspace')
+
+  return (
+    <div style={{ display: "grid", gap: "1.5rem" }}>
+      <div>
+        <h2>Appearance</h2>
+        <p style={{ color: "var(--muted)" }}>
+          Customise the look and feel of your dashboard.
+        </p>
+      </div>
+
+      {/* ── Theme ─────────────────────────────────────────── */}
+      <div
+        style={{
+          display: "grid",
+          gap: "1rem",
+          padding: "1.25rem",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          background: "var(--surface)",
+          maxWidth: 600,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0, fontSize: "1rem" }}>Theme</h3>
+          <p
+            style={{
+              margin: "0.25rem 0 0",
+              color: "var(--muted)",
+              fontSize: "0.88rem",
+            }}
+          >
+            Choose between System, Light, Dark, or High Contrast mode.
+          </p>
+        </div>
+        <ThemeSwitcher />
+        <p
+          style={{
+            margin: 0,
+            color: "var(--muted)",
+            fontSize: "0.82rem",
+            lineHeight: 1.5,
+          }}
+        >
+          Changes are saved automatically and sync across devices when you are
+          signed in.
+        </p>
+      </div>
+
+      {/* ── Density ───────────────────────────────────────── */}
+      <div
+        style={{
+          display: "grid",
+          gap: "1rem",
+          padding: "1.25rem",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          background: "var(--surface)",
+          maxWidth: 600,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0, fontSize: "1rem" }}>Display density</h3>
+          <p
+            style={{
+              margin: "0.25rem 0 0",
+              color: "var(--muted)",
+              fontSize: "0.88rem",
+            }}
+          >
+            Control the spacing and information density of data-heavy views.
+          </p>
+        </div>
+        <DensityToggle workspace={workspace} />
+        <p
+          style={{
+            margin: 0,
+            color: "var(--muted)",
+            fontSize: "0.82rem",
+            lineHeight: 1.5,
+          }}
+        >
+          Your preference is saved locally and synced to the cloud when you are
+          signed in. Changes take effect immediately.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 const PANELS: Record<TabId, () => JSX.Element> = {
   profile: ProfilePanel,
   business: BusinessProfilePanel,
   notifications: NotificationsPanel,
+  appearance: AppearancePanel,
   team: TeamPanel,
   integrations: SettingsIntegrationsPanel,
   "api-keys": ApiKeysPanel,
@@ -5357,9 +5525,28 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabId>(() =>
     getTabFromHash(location.hash),
   );
+  const [pendingLeave, setPendingLeave] = useState<{ kind: string; target?: string } | null>(null);
+  const blocker = { state: 'unblocked' as const, reset: () => {} };
   const [sheetOpen, setSheetOpen] = useState(false);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const srAnnounceRef = useRef<HTMLDivElement>(null);
+  const prevFocusRef = useRef<HTMLElement | null>(null);
+  const registryRef = useRef<DirtyRegistryCtx>({
+    entries: new Map(),
+    register: () => {},
+    unregister: () => {},
+  });
+  const registry = registryRef.current;
+  const pageState = useMemo(() => ({
+    anyDirty: false,
+    dirtyTabs: [] as TabId[],
+    aggregateStatus: 'idle' as SaveStatus,
+    lastSavedAt: null as Date | null,
+    saveAll: async () => {},
+    discardAll: () => {},
+  }), []);
 
   useEffect(() => {
     if (blocker.state === "blocked") {
@@ -5496,6 +5683,7 @@ export default function Settings() {
   );
 
   const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? 'Settings'
+  const draftLabelText = "";
   const Panel = PANELS[activeTab]
 
   return (
@@ -5624,6 +5812,7 @@ export default function Settings() {
         {TABS.map((tab, index) => {
           const isActive = tab.id === activeTab;
           return (
+            <>
             <button
               key={tab.id}
               ref={(el) => {
@@ -5661,7 +5850,7 @@ export default function Settings() {
               <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
                 Draft{draftLabelText}
               </span>
-            </div>
+            </button>
             <div
               style={{
                 display: "flex",
@@ -5712,8 +5901,8 @@ export default function Settings() {
                 Discard all
               </button>
             </div>
-          </div>
-        )}
+          </>
+        )})}
 
         <label htmlFor="settings-tab-select" className="sr-only">
           Settings section
@@ -5832,6 +6021,7 @@ export default function Settings() {
             </div>
           );
         })}
+      </div>
       </div>
 
       {pendingLeave !== null && (
@@ -6019,8 +6209,8 @@ export default function Settings() {
               </button>
             </div>
           </div>
-        );
-      })}
-    </div>
+        </div>
+      )}
+    </DirtyRegistryContext.Provider>
   )
 }

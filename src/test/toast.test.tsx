@@ -150,11 +150,13 @@ describe('Toast Notification System', () => {
     render(
       <LocaleProvider>
         <MemoryRouter initialEntries={['/']}>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<UndoTrigger />} />
-            </Route>
-          </Routes>
+          <CookieConsentProvider>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<UndoTrigger />} />
+              </Route>
+            </Routes>
+          </CookieConsentProvider>
         </MemoryRouter>
       </LocaleProvider>
     )

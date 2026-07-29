@@ -16,6 +16,10 @@ export interface Toast {
    * summary). An empty/missing value places the toast in the default "stack".
    */
   groupId?: string;
+  /**
+   * Optional item count for stacked/grouped toasts.
+   */
+  count?: number;
 }
 
 interface ToastContextValue {
@@ -60,11 +64,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       onUndo?: () => void,
       undoLabel?: string,
       groupId?: string,
+      count?: number,
     ) => {
       const id = Math.random().toString(36).substring(2, 9);
       setToasts((prev) => [
         ...prev,
-        { id, message, type, duration, onUndo, undoLabel, groupId },
+        { id, message, type, duration, onUndo, undoLabel, groupId, count },
       ]);
       return id;
     },

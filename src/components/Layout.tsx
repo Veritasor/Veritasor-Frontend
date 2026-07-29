@@ -1,17 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Outlet, NavLink } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
 import { ToastProvider } from "./ToastContext";
 import { useCookieConsent } from "./CookieConsentContext";
 import OfflineBanner from "./OfflineBanner";
-import FailedPaymentBanner from "./FailedPaymentBanner";
 import { BillingProvider, useBilling } from "./BillingContext";
 import ToastContainer from "./ToastContainer";
 import ShortcutsOverlay from "./ShortcutsOverlay";
+import ContextualHelpSearch from "./ContextualHelpSearch";
 
 function BillingBannerSlot() {
   const { failedPayment, dismissFailedPayment } = useBilling();
+  if (!failedPayment) return null;
   return (
     <div
       role="alert"
@@ -23,30 +24,41 @@ function BillingBannerSlot() {
         right: 0,
         zIndex: 9999,
         padding: "0.6rem 1rem",
-        background: "var(--warning-soft, #fef3c7)",
-        borderBottom: "1px solid rgba(251, 191, 36, 0.4)",
+        background: "var(--danger-soft, #fef2f2)",
+        borderBottom: "1px solid rgba(251, 113, 133, 0.4)",
         textAlign: "center",
         fontSize: "0.9rem",
         fontWeight: 600,
-        color: "var(--warning, #d97706)",
+        color: "var(--danger, #e11d48)",
       }}
     >
-      ⚠ You appear to be offline. Some features may be unavailable.
+      <span>
+        ⚠ A recent payment failed.{' '}
+        <button
+          type="button"
+          onClick={dismissFailedPayment}
+          style={{
+            background: "none",
+            border: "none",
+            color: "inherit",
+            fontWeight: 700,
+            cursor: "pointer",
+            textDecoration: "underline",
+            fontSize: "inherit",
+            fontFamily: "inherit",
+          }}
+        >
+          Update payment method
+        </button>
+      </span>
     </div>
   );
 }
 
-const navItems = [
-  { path: '/', name: 'Dashboard' },
-  { path: '/attestations', name: 'Attestations' },
-  { path: '/sources', name: 'Revenue Sources' },
-  { path: '/motion-tokens', name: 'Motion Tokens' },
-]
-
 function LayoutInner() {
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [helpSearchOpen, setHelpSearchOpen] = useState(false);
   const { openSettings: openCookieSettings } = useCookieConsent();
 
   /**
@@ -70,7 +82,7 @@ function LayoutInner() {
         return;
       }
 
-      // Ctrl/Cmd+K — open command palette (not in editable fields)
+      // Ctrl/Cmd+K — placeholder for command palette (not in editable fields)
       if ((e.ctrlKey || e.metaKey) && e.key === "k" && !isEditable) {
         e.preventDefault();
 
@@ -81,7 +93,6 @@ function LayoutInner() {
           lastKeyRef.current = null;
         }, 1500);
 
-        setCmdOpen(true);
         return;
       }
 
@@ -95,9 +106,6 @@ function LayoutInner() {
         e.preventDefault();
         if (chordTimerRef.current) clearTimeout(chordTimerRef.current);
         lastKeyRef.current = null;
-        // Close the command palette if it was opened by Ctrl+K
-        setCmdOpen(false);
-        setOpenWsSwitcherInSearchMode(true);
         return;
       }
     }
