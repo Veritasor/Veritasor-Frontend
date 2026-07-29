@@ -2,6 +2,7 @@ import {
   useCallback, useEffect, useRef, useState,
   type CSSProperties,
 } from 'react'
+import { EmptyStateIllustration } from '../EmptyStateIllustrations'
 import {
   FORMAT_META,
   FORMAT_SAMPLE,
@@ -449,13 +450,7 @@ function DownloadsTray({
       {jobs.length === 0 ? (
         /* Empty state */
         <div className="export-empty-state">
-          <svg
-            width="40" height="40" viewBox="0 0 40 40" fill="none"
-            aria-hidden="true" focusable="false"
-          >
-            <circle cx="20" cy="20" r="18" stroke="var(--border-strong)" strokeWidth="1.5" />
-            <path d="M20 12v10M20 28v.5" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
-          </svg>
+          <EmptyStateIllustration type="data-export" />
           <h4 className="export-empty-title">No exports yet</h4>
           <p className="export-empty-body">
             Exports you generate appear here. Files stay available until they
