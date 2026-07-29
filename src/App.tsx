@@ -6,6 +6,7 @@ import ApiKeys from './pages/ApiKeys'
 import HelpArticle from './pages/HelpArticle'
 import RevenueSources from './pages/RevenueSources'
 import Settings from './pages/Settings'
+import ConsentPreferences from './pages/ConsentPreferences'
 import {
   ConnectSourceWizard,
   SelectSourceProviderStep,
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="settings" element={<Settings />} />
             <Route path="api-keys" element={<ApiKeys />} />
             <Route path="help" element={<HelpArticle />} />
+            <Route path="consent-preferences" element={<ConsentPreferences />} />
             <Route path="connect-source" element={<ConnectSourceWizard />}>
               <Route path="provider" element={<SelectSourceProviderStep />} />
               <Route path="authorize" element={<AuthorizeSourceStep />} />

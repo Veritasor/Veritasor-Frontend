@@ -1,4 +1,6 @@
+import { useState } from "react";
 import AuthShell from "../components/AuthShell";
+import TermsOfServiceChangelogModal from "../components/TermsOfServiceChangelogModal";
 
 const highlights = [
   "Clear field grouping keeps legal, team, and security details easy to scan",
@@ -6,7 +8,38 @@ const highlights = [
   "Responsive spacing keeps the full flow usable without horizontal scrolling",
 ];
 
+const CURRENT_TOS_VERSION = "v2.4.0";
+const PREVIOUS_TOS_VERSION = "v2.3.0";
+const TOS_EFFECTIVE_DATE = "2026-07-29";
+const TOS_SUMMARY =
+  "We updated the Terms of Service to make version history explicit, surface the most relevant policy diffs, and make it easier to review the full agreement before continuing.";
+
+const TOS_CHANGES = [
+  {
+    kind: "Added" as const,
+    title: "Versioned changelog and comparison view",
+    detail:
+      "Every update now includes a release label plus a human-readable diff summary so legal and compliance reviewers can spot policy changes faster.",
+  },
+  {
+    kind: "Updated" as const,
+    title: "Data retention and export language",
+    detail:
+      "Retention timing now states how long profile, audit, and support records are kept before deletion or anonymization.",
+  },
+  {
+    kind: "Removed" as const,
+    title: "Ambiguous third-party sharing wording",
+    detail:
+      "The policy no longer uses broad phrasing around sharing and instead names the operational disclosures that actually apply.",
+  },
+];
+
 export default function Signup() {
+  const [tosModalOpen, setTosModalOpen] = useState(false);
+  const [acknowledgedVersion, setAcknowledgedVersion] = useState<string | null>(null);
+
+  const hasAcknowledgedCurrentTerms = acknowledgedVersion === CURRENT_TOS_VERSION;
 
   return (
     <AuthShell
@@ -20,6 +53,21 @@ export default function Signup() {
       sideDescription="Typography, spacing, and button hierarchy are shared across all authentication screens so engineers can extend the flow without inventing new patterns."
       sideHighlights={highlights}
     >
+      <TermsOfServiceChangelogModal
+        open={tosModalOpen}
+        currentVersion={CURRENT_TOS_VERSION}
+        previousVersion={PREVIOUS_TOS_VERSION}
+        effectiveDate={TOS_EFFECTIVE_DATE}
+        summary={TOS_SUMMARY}
+        changes={TOS_CHANGES}
+        fullTextHref="/legal/terms-of-service-v2-4-0.txt"
+        pdfHref="/legal/terms-of-service-v2-4-0.pdf"
+        onAcknowledge={(version) => {
+          setAcknowledgedVersion(version);
+          setTosModalOpen(false);
+        }}
+        onClose={() => setTosModalOpen(false)}
+      />
       <form className="auth-form">
         <div className="auth-grid">
           <div className="auth-input-group">
@@ -87,16 +135,26 @@ export default function Signup() {
           <p className="auth-strength-copy">Strong enough for a production workspace</p>
         </div>
 
-        <label className="auth-checkbox">
-          <input type="checkbox" />
-          <span>
-            I agree to the terms, privacy policy, and audit logging
-            requirements.
-          </span>
-        </label>
+        <div className="auth-message auth-message-warning tos-acknowledgement" role="note">
+          <div className="tos-acknowledgement-copy">
+            <strong>Updated terms need review</strong>
+            <span>
+              Version {CURRENT_TOS_VERSION} replaces {PREVIOUS_TOS_VERSION}. Acknowledge the changelog before creating your account.
+            </span>
+          </div>
+          <button type="button" className="auth-button auth-button-secondary tos-review-button" onClick={() => setTosModalOpen(true)}>
+            Review changes
+          </button>
+        </div>
+
+        {hasAcknowledgedCurrentTerms && (
+          <div className="auth-message auth-message-success" role="status" aria-live="polite">
+            Terms {CURRENT_TOS_VERSION} acknowledged.
+          </div>
+        )}
 
         <div className="auth-actions">
-          <button type="submit" className="auth-button auth-button-primary">
+          <button type="submit" className="auth-button auth-button-primary" disabled={!hasAcknowledgedCurrentTerms}>
             Create account
           </button>
           <button type="button" className="auth-button auth-button-secondary">

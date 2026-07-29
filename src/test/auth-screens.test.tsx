@@ -1,5 +1,5 @@
 import { MemoryRouter } from 'react-router-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
 import Login from '../pages/Login'
@@ -64,6 +64,33 @@ describe('authentication screens visual system', () => {
     expect(
       screen.getByRole('button', { name: /create account/i }),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /create account/i }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /review changes/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('opens the terms changelog modal and enables signup after acknowledgement', () => {
+    renderWithRouter(<Signup />)
+
+    fireEvent.click(screen.getByRole('button', { name: /review changes/i }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /download full text/i })).toHaveAttribute(
+      'href',
+      '/legal/terms-of-service-v2-4-0.txt',
+    )
+    expect(screen.getByRole('button', { name: /acknowledge and continue/i })).toBeDisabled()
+
+    fireEvent.click(screen.getByLabelText(/i have reviewed version v2\.4\.0/i))
+    fireEvent.click(screen.getByRole('button', { name: /acknowledge and continue/i }))
+
+    expect(
+      screen.getByRole('button', { name: /create account/i }),
+    ).toBeEnabled()
+    expect(screen.getByText(/terms v2\.4\.0 acknowledged/i)).toBeInTheDocument()
   })
 
   it('renders forgot password messaging and recovery actions', () => {
