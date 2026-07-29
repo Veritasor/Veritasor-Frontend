@@ -1,5 +1,8 @@
+import { useRef, useState } from 'react'
 import { useDensityMode } from '../../hooks/useDensityMode'
 import type { CSSProperties } from 'react'
+import AuditLogDetailDrawer from './AuditLogDetailDrawer'
+import type { AuditLogEntryDetail } from './AuditLogDetailDrawer'
 
 export interface AuditLogEntry {
   id: string
@@ -80,6 +83,8 @@ function collapseBursts(entries: AuditLogEntry[], threshold: number): (AuditLogE
 interface AuditLogTimelineProps {
   entries: AuditLogEntry[]
   burstThreshold?: number
+  /** Provide enriched entry detail on demand; falls back to base entry if omitted */
+  onFetchDetail?: (id: string) => AuditLogEntryDetail | Promise<AuditLogEntryDetail>
 }
 
 const burstThresholdDefault = 3
@@ -157,9 +162,41 @@ const badgeStyle: CSSProperties = {
 export default function AuditLogTimeline({
   entries,
   burstThreshold = burstThresholdDefault,
+  onFetchDetail,
 }: AuditLogTimelineProps) {
   const { density } = useDensityMode('default')
   const isCompact = density === 'compact'
+
+  const [activeDetail, setActiveDetail] = useState<AuditLogEntryDetail | null>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  async function openDrawer(entry: AuditLogEntry, triggerEl: HTMLElement) {
+    triggerRef.current = triggerEl
+    if (onFetchDetail) {
+      const detail = await Promise.resolve(onFetchDetail(entry.id))
+      setActiveDetail(detail)
+    } else {
+      setActiveDetail(entry)
+    }
+  }
+
+  function closeDrawer() {
+    setActiveDetail(null)
+  }
+
+  // Shared style for entry row button wrapper
+  const rowButtonStyle: CSSProperties = {
+    all: 'unset',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-1) 0',
+    borderBottom: '1px solid var(--border)',
+    width: '100%',
+    cursor: 'pointer',
+    borderRadius: 4,
+    transition: 'background 100ms ease',
+  }
 
   if (entries.length === 0) {
     return (
@@ -169,34 +206,38 @@ export default function AuditLogTimeline({
     )
   }
 
-  if (isCompact) {
-    const days = groupByDay(entries)
-    return (
-      <div role="log" aria-label="Audit log timeline" aria-live="polite">
-        {days.map((day) => {
-          const bursts = collapseBursts(day.entries, burstThreshold)
-          return (
-            <section key={day.date} style={groupStyle} aria-labelledby={`day-heading-${day.date}`}>
-              <h3 id={`day-heading-${day.date}`} style={dayHeaderStyle}>
-                {day.date}
-              </h3>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label={`Events for ${day.date}`}>
-                {bursts.map((item, index) => {
-                  if ('count' in item) {
-                    const burst = item as BurstGroup
-                    return (
-                      <li key={`burst-${index}`} style={burstStyle} role="listitem">
-                        <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
-                        <span style={eventStyle}>{burst.event}</span>
-                        <span style={{ ...detailStyle, marginLeft: 'auto' }}>
-                          {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
-                        </span>
-                      </li>
-                    )
-                  }
-                  const entry = item as AuditLogEntry
+  const timeline = isCompact ? (
+    <div role="log" aria-label="Audit log timeline" aria-live="polite">
+      {groupByDay(entries).map((day) => {
+        const bursts = collapseBursts(day.entries, burstThreshold)
+        return (
+          <section key={day.date} style={groupStyle} aria-labelledby={`day-heading-${day.date}`}>
+            <h3 id={`day-heading-${day.date}`} style={dayHeaderStyle}>
+              {day.date}
+            </h3>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label={`Events for ${day.date}`}>
+              {bursts.map((item, index) => {
+                if ('count' in item) {
+                  const burst = item as BurstGroup
                   return (
-                    <li key={entry.id} style={entryStyle} role="listitem">
+                    <li key={`burst-${index}`} style={burstStyle} role="listitem">
+                      <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
+                      <span style={eventStyle}>{burst.event}</span>
+                      <span style={{ ...detailStyle, marginLeft: 'auto' }}>
+                        {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
+                      </span>
+                    </li>
+                  )
+                }
+                const entry = item as AuditLogEntry
+                return (
+                  <li key={entry.id} role="listitem" style={{ listStyle: 'none' }}>
+                    <button
+                      type="button"
+                      aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
+                      onClick={(e) => openDrawer(entry, e.currentTarget)}
+                      style={rowButtonStyle}
+                    >
                       <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
                       <div>
                         <span style={eventStyle}>{entry.event}</span>
@@ -204,32 +245,50 @@ export default function AuditLogTimeline({
                           <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
                         )}
                       </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-          )
-        })}
-      </div>
-    )
-  }
-
-  return (
+                      <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.75rem', paddingTop: '0.05rem', flexShrink: 0 }}>›</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
+  ) : (
     <div role="log" aria-label="Audit log timeline" aria-live="polite">
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {entries.map((entry) => (
-          <li key={entry.id} style={entryStyle} role="listitem">
-            <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
-            <div>
-              <span style={eventStyle}>{entry.event}</span>
-              {entry.details && (
-                <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
-              )}
-            </div>
+          <li key={entry.id} role="listitem">
+            <button
+              type="button"
+              aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
+              onClick={(e) => openDrawer(entry, e.currentTarget)}
+              style={rowButtonStyle}
+            >
+              <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={eventStyle}>{entry.event}</span>
+                {entry.details && (
+                  <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+                )}
+              </div>
+              <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: '0.75rem', paddingTop: '0.05rem', flexShrink: 0 }}>›</span>
+            </button>
           </li>
         ))}
       </ul>
     </div>
+  )
+
+  return (
+    <>
+      {timeline}
+      <AuditLogDetailDrawer
+        entry={activeDetail}
+        onClose={closeDrawer}
+        triggerRef={triggerRef}
+      />
+    </>
   )
 }

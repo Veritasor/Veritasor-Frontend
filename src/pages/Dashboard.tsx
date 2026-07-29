@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import AttestationConfirmModal from '../components/AttestationConfirmModal'
+import UsageMeter from '../components/UsageMeter'
 
 const DEMO_DETAILS = {
   source: 'Stripe (live)',
@@ -13,6 +14,24 @@ const METRICS = [
   { label: 'Total Revenue', value: '$84,320', sub: 'YTD 2026' },
   { label: 'Attestations', value: '12', sub: 'This month' },
   { label: 'Revenue Sources', value: '3', sub: 'Connected' },
+]
+
+// Demo usage data — swap for real API values in production
+const USAGE_DATA = [
+  {
+    label: 'Attestations',
+    used: 9,
+    limit: 10,
+    unit: 'attestations',
+    period: 'July 2026',
+  },
+  {
+    label: 'API calls',
+    used: 7_520,
+    limit: 10_000,
+    unit: 'calls',
+    period: 'July 2026',
+  },
 ]
 
 export default function Dashboard() {
@@ -73,6 +92,22 @@ export default function Dashboard() {
             </li>
             <li>View attestation history</li>
           </ul>
+        </section>
+
+        <section className="dashboard-section" aria-labelledby="usage-heading">
+          <h2 id="usage-heading">Usage this month</h2>
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            {USAGE_DATA.map((u) => (
+              <UsageMeter
+                key={u.label}
+                label={u.label}
+                used={u.used}
+                limit={u.limit}
+                unit={u.unit}
+                period={u.period}
+              />
+            ))}
+          </div>
         </section>
       </div>
 

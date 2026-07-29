@@ -400,14 +400,21 @@ export default function AttestationDetail() {
           aria-label={printStatus.ariaLabel}
           className="no-print"
           style={{
-            padding: '0.3rem 0.85rem',
-            borderRadius: '999px',
-            fontSize: '0.82rem',
-            fontWeight: 700,
-            background: status.bg,
-            color: status.color,
-            letterSpacing: '0.04em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: 'var(--primary)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '0.375rem',
+            padding: '0.5rem 1rem',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'opacity 0.2s',
           }}
+          onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
+          onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
         >
           {status.label}
         </span>

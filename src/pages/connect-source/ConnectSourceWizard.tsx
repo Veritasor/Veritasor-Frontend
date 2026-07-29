@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   Link,
   Outlet,
@@ -11,6 +11,22 @@ import WizardProgress from '../../components/WizardProgress'
 type ProviderId = 'stripe' | 'shopify' | 'razorpay'
 type AuthorizationStatus = 'idle' | 'pending' | 'authorized' | 'denied'
 type SyncWindowId = 'trailing-12-months' | 'current-fiscal-year' | 'all-history'
+
+// ---------------------------------------------------------------------------
+// Mapping step types (#223)
+// ---------------------------------------------------------------------------
+
+type InternalCategory = 'recurring' | 'one-time' | 'refund' | 'fee' | 'other'
+type LedgerAccount = 'revenue' | 'deferred' | 'contra' | 'expense' | 'unassigned'
+
+interface CurrencyRow {
+  /** ISO 4217 code as reported by the source */
+  currency: string
+  /** User-assigned internal category */
+  category: InternalCategory | null
+  /** User-assigned ledger account */
+  ledgerAccount: LedgerAccount | null
+}
 
 type ProviderDefinition = {
   id: ProviderId
@@ -38,8 +54,11 @@ type WizardData = {
   authorizationStatus: AuthorizationStatus
   syncWindow: SyncWindowId | null
   optionalScopes: string[]
+  /** Currency/ledger mapping rows (#223) */
+  currencyMappings: CurrencyRow[]
   confirmLeastPrivilege: boolean
   scopeValidationAttempted: boolean
+  mappingValidationAttempted: boolean
 }
 
 type WizardContext = {
@@ -51,7 +70,10 @@ type WizardContext = {
   setAuthorizationDenied: () => void
   setSyncWindow: (windowId: SyncWindowId) => void
   toggleOptionalScope: (scopeId: string) => void
+  setCurrencyMapping: (currency: string, field: 'category' | 'ledgerAccount', value: string) => void
   setConfirmLeastPrivilege: (checked: boolean) => void
+  runTestConnection: () => void
+  resetTestConnection: () => void
 }
 
 const providerOptions: ProviderDefinition[] = [
@@ -135,6 +157,12 @@ const wizardSteps: WizardStep[] = [
     detail: 'Decide how much history and supporting context to sync.',
   },
   {
+    id: 'mapping',
+    path: '/connect-source/mapping',
+    label: 'Map currencies',
+    detail: 'Assign internal categories and ledger accounts to source currencies.',
+  },
+  {
     id: 'confirm',
     path: '/connect-source/confirm',
     label: 'Confirm',
@@ -142,13 +170,39 @@ const wizardSteps: WizardStep[] = [
   },
 ]
 
+// Default currency rows — in production these would come from the provider's account info
+const DEFAULT_CURRENCY_ROWS: CurrencyRow[] = [
+  { currency: 'USD', category: 'recurring', ledgerAccount: 'revenue' },
+  { currency: 'EUR', category: null, ledgerAccount: null },
+  { currency: 'GBP', category: null, ledgerAccount: null },
+  { currency: 'INR', category: null, ledgerAccount: null },
+]
+
+const CATEGORY_OPTIONS: { value: InternalCategory; label: string }[] = [
+  { value: 'recurring', label: 'Recurring' },
+  { value: 'one-time', label: 'One-time' },
+  { value: 'refund', label: 'Refund' },
+  { value: 'fee', label: 'Fee' },
+  { value: 'other', label: 'Other' },
+]
+
+const LEDGER_OPTIONS: { value: LedgerAccount; label: string }[] = [
+  { value: 'revenue', label: 'Revenue' },
+  { value: 'deferred', label: 'Deferred revenue' },
+  { value: 'contra', label: 'Contra revenue' },
+  { value: 'expense', label: 'Expense' },
+  { value: 'unassigned', label: 'Unassigned' },
+]
+
 const initialWizardData: WizardData = {
   provider: null,
   authorizationStatus: 'idle',
   syncWindow: null,
   optionalScopes: [],
+  currencyMappings: DEFAULT_CURRENCY_ROWS,
   confirmLeastPrivilege: false,
   scopeValidationAttempted: false,
+  mappingValidationAttempted: false,
 }
 
 function getProviderName(provider: ProviderId | null) {
@@ -171,20 +225,19 @@ function isScopeComplete(data: WizardData) {
   return isAuthorizeComplete(data) && data.syncWindow !== null
 }
 
+function isMappingComplete(data: WizardData) {
+  return (
+    isScopeComplete(data) &&
+    data.currencyMappings.every((row) => row.category !== null && row.ledgerAccount !== null)
+  )
+}
+
 function getFirstIncompleteStepIndex(data: WizardData) {
-  if (!isProviderComplete(data)) {
-    return 0
-  }
-
-  if (!isAuthorizeComplete(data)) {
-    return 1
-  }
-
-  if (!isScopeComplete(data)) {
-    return 2
-  }
-
-  return 3
+  if (!isProviderComplete(data)) return 0
+  if (!isAuthorizeComplete(data)) return 1
+  if (!isScopeComplete(data)) return 2
+  if (!isMappingComplete(data)) return 3
+  return 4
 }
 
 function useWizardContext() {
@@ -227,6 +280,24 @@ export function ConnectSourceWizard() {
   }, [data.authorizationStatus])
 
   useEffect(() => {
+    if (data.testConnectionStatus !== 'running') {
+      return
+    }
+
+    // Simulate a test connection that takes ~1.6 s and can randomly fail
+    const timeoutId = window.setTimeout(() => {
+      // Use a deterministic heuristic for demo: Razorpay always fails first try
+      const willFail = data.provider === 'razorpay'
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: willFail ? 'failure' : 'success',
+      }))
+    }, 1600)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [data.testConnectionStatus, data.provider])
+
+  useEffect(() => {
     const activeStep = wizardSteps[currentStepIndex]
 
     if (!activeStep) {
@@ -251,7 +322,9 @@ export function ConnectSourceWizard() {
         ? data.authorizationStatus !== 'authorized'
         : activeStep.id === 'confirm'
           ? !data.confirmLeastPrivilege
-          : false
+          : activeStep.id === 'test-connection'
+            ? data.testConnectionStatus !== 'success'
+            : false
 
   function goToStep(index: number) {
     navigate(wizardSteps[index].path)
@@ -264,6 +337,19 @@ export function ConnectSourceWizard() {
         scopeValidationAttempted: true,
       }))
       return
+    }
+
+    if (activeStep.id === 'mapping') {
+      const hasUnmapped = data.currencyMappings.some(
+        (row) => row.category === null || row.ledgerAccount === null,
+      )
+      if (hasUnmapped) {
+        setData((currentData) => ({
+          ...currentData,
+          mappingValidationAttempted: true,
+        }))
+        return
+      }
     }
 
     if (isLastStep) {
@@ -284,8 +370,10 @@ export function ConnectSourceWizard() {
         authorizationStatus: 'idle',
         syncWindow: null,
         optionalScopes: [],
+        currencyMappings: DEFAULT_CURRENCY_ROWS,
         confirmLeastPrivilege: false,
         scopeValidationAttempted: false,
+        mappingValidationAttempted: false,
       }),
     startAuthorization: () =>
       setData((currentData) => ({
@@ -303,6 +391,7 @@ export function ConnectSourceWizard() {
         syncWindow: windowId,
         scopeValidationAttempted: false,
         confirmLeastPrivilege: false,
+        testConnectionStatus: 'idle',
       })),
     toggleOptionalScope: (scopeId) =>
       setData((currentData) => ({
@@ -312,10 +401,30 @@ export function ConnectSourceWizard() {
           : [...currentData.optionalScopes, scopeId],
         confirmLeastPrivilege: false,
       })),
+    setCurrencyMapping: (currency, field, value) =>
+      setData((currentData) => ({
+        ...currentData,
+        mappingValidationAttempted: false,
+        currencyMappings: currentData.currencyMappings.map((row) =>
+          row.currency === currency
+            ? { ...row, [field]: value === '' ? null : value }
+            : row,
+        ),
+      })),
     setConfirmLeastPrivilege: (checked) =>
       setData((currentData) => ({
         ...currentData,
         confirmLeastPrivilege: checked,
+      })),
+    runTestConnection: () =>
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: 'running',
+      })),
+    resetTestConnection: () =>
+      setData((currentData) => ({
+        ...currentData,
+        testConnectionStatus: 'idle',
       })),
   }
 
@@ -592,6 +701,10 @@ export function ConfirmSourceStep() {
   const syncWindowLabel =
     syncWindows.find((windowOption) => windowOption.id === data.syncWindow)?.label ?? 'Not set'
 
+  const unmappedCount = data.currencyMappings.filter(
+    (r) => r.category === null || r.ledgerAccount === null,
+  ).length
+
   return (
     <div className="wizard-step-body">
       <section className="app-card wizard-inline-card">
@@ -622,6 +735,14 @@ export function ConfirmSourceStep() {
                 : 'None added'}
             </dd>
           </div>
+          <div>
+            <dt>Currency mapping</dt>
+            <dd>
+              {unmappedCount === 0
+                ? `${data.currencyMappings.length} currencies mapped`
+                : `${unmappedCount} of ${data.currencyMappings.length} unmapped`}
+            </dd>
+          </div>
         </dl>
       </section>
 
@@ -639,6 +760,270 @@ export function ConfirmSourceStep() {
           </span>
         </span>
       </label>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// MapCurrenciesStep — #223
+// ---------------------------------------------------------------------------
+
+export function MapCurrenciesStep() {
+  const { data, setCurrencyMapping } = useWizardContext()
+  const [search, setSearch] = useState('')
+  const searchId = useId()
+  const alertId = useId()
+
+  const { currencyMappings, mappingValidationAttempted } = data
+
+  const hasUnmapped = currencyMappings.some(
+    (row) => row.category === null || row.ledgerAccount === null,
+  )
+
+  const filtered = currencyMappings.filter((row) =>
+    row.currency.toLowerCase().includes(search.toLowerCase()),
+  )
+
+  return (
+    <div className="wizard-step-body">
+      {/* Context callout */}
+      <div className="wizard-callout">
+        <h3>Why this step matters</h3>
+        <p className="wizard-supporting-copy">
+          Each currency the source reports must be mapped to an internal revenue category and a
+          ledger account. Unmapped currencies will be excluded from attestation evidence until
+          they are assigned. Defaults are pre-filled where Veritasor can infer a safe choice.
+        </p>
+      </div>
+
+      {/* Validation alert — shown inline when user tries to advance with unmapped rows */}
+      {mappingValidationAttempted && hasUnmapped && (
+        <div id={alertId} className="wizard-inline-alert" role="alert">
+          All currencies must have a category and ledger account assigned before continuing.
+          Rows flagged below are missing one or both values.
+        </div>
+      )}
+
+      <section className="app-card wizard-inline-card">
+        <h3>Currency and ledger mapping</h3>
+
+        {/* Search */}
+        <div style={{ marginBottom: '0.75rem' }}>
+          <label htmlFor={searchId} className="sr-only">
+            Search currencies
+          </label>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: '0.875rem',
+                color: 'var(--muted)',
+                fontSize: '1rem',
+                pointerEvents: 'none',
+              }}
+            >
+              🔍
+            </span>
+            <input
+              id={searchId}
+              type="search"
+              placeholder="Search by currency code…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search currencies"
+              style={{
+                width: '100%',
+                minHeight: '2.75rem',
+                padding: '0.6rem 0.875rem 0.6rem 2.5rem',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(15,23,42,0.82)',
+                color: 'var(--text)',
+                font: 'inherit',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Two-column mapping table */}
+        <div
+          role="table"
+          aria-label="Currency mapping"
+          aria-describedby={mappingValidationAttempted && hasUnmapped ? alertId : undefined}
+          style={{ display: 'grid', gap: '0.5rem' }}
+        >
+          {/* Header row */}
+          <div
+            role="row"
+            aria-hidden="true"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '5rem 1fr 1fr auto',
+              gap: '0.75rem',
+              padding: '0.4rem 0.875rem',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.07em',
+              color: 'var(--muted)',
+            }}
+          >
+            <span>Currency</span>
+            <span>Category</span>
+            <span>Ledger account</span>
+            <span style={{ width: '1.25rem' }} />
+          </div>
+
+          {filtered.length === 0 ? (
+            <p style={{ margin: '0.5rem 0', color: 'var(--muted)', fontSize: '0.9rem', textAlign: 'center' }}>
+              No currencies match "{search}".
+            </p>
+          ) : (
+            filtered.map((row) => {
+              const isUnmapped =
+                mappingValidationAttempted &&
+                (row.category === null || row.ledgerAccount === null)
+              const categorySelectId = `cat-${row.currency}`
+              const ledgerSelectId = `ledger-${row.currency}`
+
+              return (
+                <div
+                  key={row.currency}
+                  role="row"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '5rem 1fr 1fr auto',
+                    gap: '0.75rem',
+                    alignItems: 'center',
+                    padding: '0.6rem 0.875rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: isUnmapped
+                      ? '1px solid rgba(251,113,133,0.45)'
+                      : '1px solid var(--border)',
+                    background: isUnmapped
+                      ? 'rgba(251,113,133,0.06)'
+                      : 'rgba(148,163,184,0.04)',
+                  }}
+                >
+                  {/* Currency code */}
+                  <span
+                    role="cell"
+                    style={{
+                      fontWeight: 700,
+                      fontFamily: '"SF Mono","Fira Code",monospace',
+                      fontSize: '0.9rem',
+                      color: 'var(--text)',
+                    }}
+                  >
+                    {row.currency}
+                  </span>
+
+                  {/* Category select */}
+                  <div role="cell">
+                    <label htmlFor={categorySelectId} className="sr-only">
+                      {row.currency} internal category
+                    </label>
+                    <select
+                      id={categorySelectId}
+                      value={row.category ?? ''}
+                      onChange={(e) => setCurrencyMapping(row.currency, 'category', e.target.value)}
+                      aria-invalid={isUnmapped && row.category === null}
+                      style={{
+                        width: '100%',
+                        minHeight: '2.5rem',
+                        padding: '0.4rem 2rem 0.4rem 0.75rem',
+                        border: `1px solid ${isUnmapped && row.category === null ? 'var(--danger)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(15,23,42,0.82)',
+                        color: row.category === null ? 'rgba(173,192,217,0.55)' : 'var(--text)',
+                        font: 'inherit',
+                        fontSize: '0.88rem',
+                        appearance: 'none',
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23adc0d9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 0.625rem center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">— Select category —</option>
+                      {CATEGORY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Ledger account select */}
+                  <div role="cell">
+                    <label htmlFor={ledgerSelectId} className="sr-only">
+                      {row.currency} ledger account
+                    </label>
+                    <select
+                      id={ledgerSelectId}
+                      value={row.ledgerAccount ?? ''}
+                      onChange={(e) =>
+                        setCurrencyMapping(row.currency, 'ledgerAccount', e.target.value)
+                      }
+                      aria-invalid={isUnmapped && row.ledgerAccount === null}
+                      style={{
+                        width: '100%',
+                        minHeight: '2.5rem',
+                        padding: '0.4rem 2rem 0.4rem 0.75rem',
+                        border: `1px solid ${isUnmapped && row.ledgerAccount === null ? 'var(--danger)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(15,23,42,0.82)',
+                        color: row.ledgerAccount === null ? 'rgba(173,192,217,0.55)' : 'var(--text)',
+                        font: 'inherit',
+                        fontSize: '0.88rem',
+                        appearance: 'none',
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23adc0d9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 0.625rem center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">— Select ledger —</option>
+                      {LEDGER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Unmapped flag indicator */}
+                  <span
+                    role="cell"
+                    aria-label={isUnmapped ? `${row.currency} has unmapped fields` : undefined}
+                    style={{
+                      width: '1.25rem',
+                      textAlign: 'center',
+                      color: isUnmapped ? 'var(--danger)' : 'var(--success)',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    {isUnmapped ? '✗' : row.category !== null && row.ledgerAccount !== null ? '✓' : ''}
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* Summary footer */}
+        <p
+          role="status"
+          aria-live="polite"
+          style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}
+        >
+          {currencyMappings.filter((r) => r.category !== null && r.ledgerAccount !== null).length}
+          {' '}of {currencyMappings.length} currencies fully mapped
+        </p>
+      </section>
     </div>
   )
 }
