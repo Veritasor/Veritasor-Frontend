@@ -2,15 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
+import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
 import TokensExport from '../components/tokens/TokensExport'
+import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaMethodChooser from '../components/MfaMethodChooser'
-import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import type { MfaMethod } from '../components/MfaMethodChooser'
+import WebhookRetryPanel, { type WebhookDelivery } from '../components/WebhookRetryPanel'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
   { id: "profile", label: "Profile" },
-  { id: "business", label: "Business" },
   { id: "notifications", label: "Notifications" },
   { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
@@ -19,9 +21,10 @@ const TABS = [
   { id: "billing", label: "Billing" },
   { id: "security", label: "Security" },
   { id: "audit-log", label: "Audit Log" },
+  { id: "a11y-audit", label: "Accessibility" },
 ] as const;
 
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof TABS)[number]['id']
 
 function getTabFromHash(hash: string): TabId {
   const id = hash.replace("#", "") as TabId;
@@ -2611,115 +2614,9 @@ function SecurityPanel() {
           style={{ display: "grid", gap: "1rem", maxWidth: 480 }}
           onSubmit={handlePwSubmit}
         >
-          <div style={{ display: "grid", gap: "0.4rem" }}>
-            <label
-              htmlFor="settings-current-password"
-              style={{ fontSize: "0.9rem", fontWeight: 600 }}
-            >
-              Current password
-            </label>
-            <input
-              id="settings-current-password"
-              type="password"
-              value={pwForm.values.currentPassword}
-              onChange={(e) =>
-                pwForm.setField("currentPassword", e.target.value)
-              }
-              autoComplete="current-password"
-              style={{
-                padding: "0.6rem 0.8rem",
-                borderRadius: 8,
-                border: `1px solid ${pwForm.isDirty ? "var(--border-strong)" : "var(--border)"}`,
-                background: "var(--surface-strong)",
-                color: "var(--text)",
-                fontSize: "0.95rem",
-              }}
-            />
-          </div>
-          <div style={{ display: "grid", gap: "0.4rem" }}>
-            <label
-              htmlFor="settings-new-password"
-              style={{ fontSize: "0.9rem", fontWeight: 600 }}
-            >
-              New password
-            </label>
-            <input
-              id="settings-new-password"
-              type="password"
-              value={pwForm.values.newPassword}
-              onChange={(e) => pwForm.setField("newPassword", e.target.value)}
-              autoComplete="new-password"
-              style={{
-                padding: "0.6rem 0.8rem",
-                borderRadius: 8,
-                border: `1px solid ${pwForm.isDirty ? "var(--border-strong)" : "var(--border)"}`,
-                background: "var(--surface-strong)",
-                color: "var(--text)",
-                fontSize: "0.95rem",
-              }}
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              type="submit"
-              disabled={!pwForm.isDirty || pwForm.saveStatus === "saving"}
-              aria-busy={pwForm.saveStatus === "saving"}
-              style={{
-                alignSelf: "start",
-                padding: "0.6rem 1.25rem",
-                borderRadius: 8,
-                border: "none",
-                background: "var(--accent)",
-                color: "#04111f",
-                fontWeight: 700,
-                cursor:
-                  !pwForm.isDirty || pwForm.saveStatus === "saving"
-                    ? "default"
-                    : "pointer",
-                fontSize: "0.95rem",
-                opacity:
-                  !pwForm.isDirty || pwForm.saveStatus === "saving" ? 0.6 : 1,
-                minHeight: "2.75rem",
-              }}
-            >
-              {pwForm.saveStatus === "saving" ? "Updating…" : "Update password"}
-            </button>
-            {pwForm.isDirty && (
-              <button
-                type="button"
-                onClick={pwForm.reset}
-                style={{
-                  padding: "0.6rem 1rem",
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  color: "var(--text)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
-                  minHeight: "2.75rem",
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
-      <hr
-        style={{
-          border: "none",
-          borderTop: "1px solid var(--border)",
-          margin: 0,
-        }}
-      />
-      {mfaSection[mfaState]()}
+          Update password
+        </button>
+      </form>
 
       <hr style={{ margin: 0, borderColor: "var(--border)", opacity: 0.5 }} />
 
@@ -2885,6 +2782,319 @@ function WebhooksPanel() {
       </div>
     </div>
   );
+}
+
+function TokensPanel() {
+  return (
+    <div>
+      <h2>Design tokens</h2>
+      <p style={{ color: "var(--muted)" }}>
+        Export a snapshot of Veritasor design tokens as CSS custom properties.
+        Choose a scope, then copy or download the file.
+      </p>
+      <div style={{ marginTop: "1.5rem", maxWidth: 720 }}>
+        <TokensExport />
+      </div>
+    </div>
+  );
+}
+
+const MOCK_AUDIT_ENTRIES: AuditLogEntry[] = [
+  {
+    id: "1",
+    timestamp: "2026-07-28T08:12:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "2",
+    timestamp: "2026-07-28T08:14:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "3",
+    timestamp: "2026-07-28T08:15:00Z",
+    event: "Attestation completed",
+    details: "Merkle root: 0x7f...3a",
+  },
+  {
+    id: "4",
+    timestamp: "2026-07-28T09:00:00Z",
+    event: "Revenue source connected",
+    details: "Provider: Stripe",
+  },
+  {
+    id: "5",
+    timestamp: "2026-07-27T14:30:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "6",
+    timestamp: "2026-07-27T14:31:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "7",
+    timestamp: "2026-07-27T14:32:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "8",
+    timestamp: "2026-07-27T14:33:00Z",
+    event: "Attestation failed",
+    details: "Timeout after 30s",
+  },
+  {
+    id: "9",
+    timestamp: "2026-07-26T10:00:00Z",
+    event: "API key rotated",
+  },
+];
+
+// Simulated detail data for each audit log entry.
+// In production this would be fetched from the API by entry id.
+const MOCK_AUDIT_DETAILS: Record<string, Partial<AuditLogEntryDetail>> = {
+  "1": {
+    actor: "joel@example.com",
+    ip: "203.0.113.42",
+    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    method: "POST",
+    path: "/api/v1/attestations",
+    statusCode: 200,
+    requestHeaders: {
+      "content-type": "application/json",
+      "authorization": "Bearer vrt_live_••••3f9a",
+      "x-request-id": "req_01j8abc123xyz",
+    },
+    requestPayload: {
+      source: "stripe",
+      period: "2026-06",
+      recordCount: 1247,
+    },
+    responsePayload: {
+      id: "att_01j8xyz",
+      merkleRoot: "0x7f3a2c9b1d8e4f06a5c2b7e3d1f09a4c",
+      status: "completed",
+      timestamp: "2026-07-28T08:12:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
+    },
+    {
+      id: "2",
+      timestamp: "2026-07-28T08:14:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
+    },
+    {
+      id: "3",
+      timestamp: "2026-07-28T08:15:00Z",
+      event: "Attestation completed",
+      details: "Merkle root: 0x7f...3a",
+      severity: "info",
+    },
+    {
+      id: "4",
+      timestamp: "2026-07-28T09:00:00Z",
+      event: "Revenue source connected",
+      details: "Provider: Stripe",
+      severity: "info",
+    },
+    {
+      id: "5",
+      timestamp: "2026-07-27T14:30:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "6",
+      timestamp: "2026-07-27T14:31:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "7",
+      timestamp: "2026-07-27T14:32:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "8",
+      timestamp: "2026-07-27T14:33:00Z",
+      event: "Attestation failed",
+      details: "Timeout after 30s",
+      severity: "error",
+    },
+    {
+      id: "9",
+      timestamp: "2026-07-26T10:00:00Z",
+      event: "API key rotated",
+      severity: "warn",
+    },
+  ];
+
+  return (
+    <div>
+      <h2>{intl.formatMessage({ id: 'auditLog.filters.title', defaultMessage: 'Audit Log' })}</h2>
+      <p style={{ color: "var(--muted)" }}>
+        Recent activity for this workspace. Click any event to view full
+        request/response detail. In compact density mode, identical consecutive
+        events are grouped by day and collapsed into summary badges.
+      </p>
+      <div style={{ marginTop: "1.5rem", maxWidth: 800 }}>
+        <AuditLogTimeline
+          entries={MOCK_AUDIT_ENTRIES}
+          onFetchDetail={handleFetchDetail}
+        />
+      </div>
+
+      {/* Filter chips + date range — pure UI that writes to the URL */}
+      <div style={{ marginTop: '1rem', display: 'grid', gap: '0.65rem' }}>
+        <div role="group" aria-label="Filter by status" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <button
+            type="button"
+            aria-pressed={filters.activeChips.length === 0}
+            onClick={() => updateParam('status', '')}
+            style={chipStyle(filters.activeChips.length === 0)}
+          >
+            All
+          </button>
+          {AUDIT_LOG_CHIPS.map((chip) => {
+            const active = (filters.activeChips as string[]).includes(chip.id);
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  const next = active
+                    ? (filters.activeChips as string[]).filter((c) => c !== chip.id)
+                    : [...(filters.activeChips as string[]), chip.id];
+                  updateParam('status', next.join(','));
+                }}
+                style={chipStyle(active)}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+          <label style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
+            From
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => updateParam('from', e.target.value)}
+              style={{
+                padding: '0.35rem 0.5rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+                font: 'inherit',
+              }}
+            />
+          </label>
+          <label style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
+            To
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => updateParam('to', e.target.value)}
+              style={{
+                padding: '0.35rem 0.5rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+                font: 'inherit',
+              }}
+            />
+          </label>
+          <input
+            type="search"
+            placeholder="Search audit log…"
+            value={filters.query}
+            onChange={(e) => updateParam('q', e.target.value)}
+            aria-label="Search audit log"
+            style={{
+              flex: '1 1 240px',
+              padding: '0.45rem 0.7rem',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'var(--surface-strong)',
+              color: 'var(--text)',
+              font: 'inherit',
+              minHeight: '2.5rem',
+            }}
+          />
+        </div>
+      </div>
+
+      <p
+        role="status"
+        aria-live="polite"
+        style={{ margin: '1rem 0 0', color: 'var(--muted)', fontSize: '0.9rem' }}
+        data-testid="audit-filter-summary"
+      >
+        {intl.formatMessage(
+          { id: 'auditLog.filters.results.singular', defaultMessage: 'Showing {count} of {total} entries' },
+          { count: entries.length, total: AUDIT_LOG_MOCK_ENTRIES.length },
+        )}
+      </p>
+
+      <div style={{ marginTop: "1rem", maxWidth: 800 }} data-testid="audit-log-timeline">
+        {entries.length === 0 ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              padding: '1rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px dashed var(--border)',
+              background: 'var(--surface-soft)',
+              color: 'var(--muted)',
+            }}
+          >
+            No entries match the current filters.
+          </div>
+        ) : (
+          <AuditLogTimeline entries={entries} />
+        )}
+      </div>
+
+      <SaveFilterModal
+        isOpen={saveOpen}
+        existingNames={saved.filters.map((f) => f.name)}
+        onSave={handleSave}
+        onClose={() => setSaveOpen(false)}
+      />
+    </div>
+  );
+}
+
+function chipStyle(active: boolean): React.CSSProperties {
+  return {
+    minHeight: '2.5rem',
+    padding: '0.35rem 0.85rem',
+    borderRadius: 999,
+    border: `1px solid ${active ? 'rgba(94, 234, 212, 0.55)' : 'var(--border)'}`,
+    background: active ? 'rgba(94, 234, 212, 0.18)' : 'var(--surface)',
+    color: active ? '#d8fffa' : 'var(--text)',
+    font: 'inherit',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  };
 }
 
 type TeamRole = "owner" | "admin" | "billing" | "member";
@@ -5126,6 +5336,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   "audit-log": AuditLogPanel,
+  "a11y-audit": A11yAuditPanel,
 };
 
 // ─── Unsaved Changes Navigation Guard ─────────────────────────────────────────
@@ -5146,50 +5357,9 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabId>(() =>
     getTabFromHash(location.hash),
   );
+  const [sheetOpen, setSheetOpen] = useState(false);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  // ── Dirty-registry provider ────────────────────────────────────────────
-
-  const [registryTick, setRegistryTick] = useState(0);
-  const entriesRef = useRef<Map<TabId, DirtyTabEntry>>(new Map());
-
-  const registry = useMemo<DirtyRegistryCtx>(() => {
-    void registryTick;
-    return {
-      entries: entriesRef.current,
-      register: (tab: TabId, entry: DirtyTabEntry) => {
-        const prev = entriesRef.current.get(tab);
-        const changed =
-          !prev ||
-          prev.isDirty !== entry.isDirty ||
-          prev.saveStatus !== entry.saveStatus ||
-          (prev.lastSavedAt?.getTime() ?? 0) !==
-            (entry.lastSavedAt?.getTime() ?? 0);
-        entriesRef.current.set(tab, entry);
-        if (changed) setRegistryTick((t) => t + 1);
-      },
-      unregister: (tab: TabId) => {
-        if (entriesRef.current.has(tab)) {
-          entriesRef.current.delete(tab);
-          setRegistryTick((t) => t + 1);
-        }
-      },
-    };
-  }, [registryTick]);
-
-  const pageState = usePageDirtyState(registry);
-
-  // ── Pending navigation guard ──────────────────────────────────────────
-
-  const [pendingLeave, setPendingLeave] = useState<LeaveAction | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const srAnnounceRef = useRef<HTMLDivElement | null>(null);
-  const prevFocusRef = useRef<HTMLElement | null>(null);
-
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      pageState.anyDirty && currentLocation.pathname !== nextLocation.pathname,
-  );
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (blocker.state === "blocked") {
@@ -5272,6 +5442,18 @@ export default function Settings() {
     }
   }, [location.hash, activeTab, pageState.anyDirty]);
 
+  useEffect(() => {
+    if (!sheetOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSheetOpen(false)
+        document.getElementById('settings-sheet-trigger')?.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [sheetOpen])
+
   const selectTab = useCallback(
     (id: TabId) => {
       if (id === activeTab) return;
@@ -5313,17 +5495,8 @@ export default function Settings() {
     [selectTab],
   );
 
-  const Panel = PANELS[activeTab];
-  const dirtyTabLabels = pageState.dirtyTabs
-    .map((id) => TABS.find((t) => t.id === id)?.label)
-    .filter(Boolean) as string[];
-
-  const draftLabelText =
-    dirtyTabLabels.length === 1
-      ? ` in ${dirtyTabLabels[0]}`
-      : dirtyTabLabels.length > 1
-        ? ` in: ${dirtyTabLabels.join(", ")}`
-        : "";
+  const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? 'Settings'
+  const Panel = PANELS[activeTab]
 
   return (
     <DirtyRegistryContext.Provider value={registry}>
@@ -5338,21 +5511,132 @@ export default function Settings() {
         />
         <h1 style={{ marginTop: 0 }}>Settings</h1>
 
-        {pageState.anyDirty && (
+      {/* Mobile: bottom-sheet trigger */}
+      <button
+        id="settings-sheet-trigger"
+        type="button"
+        className="settings-tab-select"
+        aria-haspopup="listbox"
+        aria-expanded={sheetOpen}
+        onClick={() => setSheetOpen(true)}
+        style={{
+          width: "100%",
+          padding: "0.6rem 0.8rem",
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--surface-strong)',
+          color: 'var(--text)',
+          fontSize: '0.95rem',
+          marginBottom: '1.5rem',
+          textAlign: 'left',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span>{activeLabel}</span>
+        <span aria-hidden="true" style={{ fontSize: '0.8rem' }}>▼</span>
+      </button>
+
+      {/* Bottom sheet */}
+      {sheetOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Settings sections"
+          ref={sheetRef}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+          }}
+        >
           <div
-            role="region"
-            aria-label="Unsaved changes across settings"
+            aria-hidden="true"
+            onClick={() => setSheetOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
+          />
+          <div
             style={{
-              display: "grid",
-              gap: "0.6rem",
-              padding: "0.85rem 1rem",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--warning-soft)",
-              border: "1px solid rgba(251, 191, 36, 0.35)",
-              marginBottom: "1rem",
+              position: 'relative',
+              background: 'var(--surface)',
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              padding: '1rem 0 2rem',
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              animation: 'slideUp 0.2s ease-out',
             }}
           >
             <div
+              style={{
+                width: 40,
+                height: 4,
+                background: 'var(--border)',
+                borderRadius: 2,
+                margin: '0 auto 1rem',
+              }}
+            />
+            <ul role="listbox" aria-label="Settings sections" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {TABS.map((tab) => (
+                <li key={tab.id} role="option" aria-selected={tab.id === activeTab}>
+                  <button
+                    type="button"
+                    onClick={() => { selectTab(tab.id); setSheetOpen(false) }}
+                    style={{
+                      width: '100%',
+                      padding: '0.8rem 1.2rem',
+                      border: 'none',
+                      background: tab.id === activeTab ? 'var(--surface-strong)' : 'transparent',
+                      color: tab.id === activeTab ? 'var(--accent)' : 'var(--text)',
+                      fontSize: '1rem',
+                      fontWeight: tab.id === activeTab ? 600 : 400,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop: tablist */}
+      <div
+        role="tablist"
+        aria-label="Settings tabs"
+        className="settings-tablist"
+        style={{
+          display: "flex",
+          gap: "0",
+          borderBottom: "2px solid var(--border)",
+          marginBottom: "1.5rem",
+          overflowX: "auto",
+        }}
+      >
+        {TABS.map((tab, index) => {
+          const isActive = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              ref={(el) => {
+                tabRefs.current[index] = el;
+              }}
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-controls={`panel-${tab.id}`}
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              type="button"
+              onClick={() => selectTab(tab.id)}
+              onKeyDown={(e) => handleKeyDown(e, index)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -5735,8 +6019,8 @@ export default function Settings() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-    </DirtyRegistryContext.Provider>
-  );
+        );
+      })}
+    </div>
+  )
 }
