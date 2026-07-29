@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef } from "react";
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
 import { ToastProvider } from "./ToastContext";
-import { useCookieConsent } from "./CookieConsentContext";
 import OfflineBanner from "./OfflineBanner";
 import { BillingProvider, useBilling } from "./BillingContext";
 import ToastContainer from "./ToastContainer";
@@ -56,10 +55,13 @@ function BillingBannerSlot() {
 }
 
 function LayoutInner() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const [helpSearchOpen, setHelpSearchOpen] = useState(false);
-  const { openSettings: openCookieSettings } = useCookieConsent();
+  const [openWsSwitcherInSearchMode, setOpenWsSwitcherInSearchMode] = useState(false);
 
   /**
    * Sequential key chord tracker for multi-key shortcuts.
@@ -171,7 +173,7 @@ function LayoutInner() {
             <button
               type="button"
               className="sidebar-cookie-btn"
-              onClick={openCookieSettings}
+              onClick={() => navigate('/consent-preferences')}
               aria-label="Open cookie settings"
             >
               Cookie settings
