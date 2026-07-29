@@ -6,11 +6,25 @@ export default function ToastContainer() {
 
   if (toasts.length === 0) return null
 
+  const banners = toasts.filter(t => t.type === 'bulk-undo')
+  const normalToasts = toasts.filter(t => t.type !== 'bulk-undo')
+
   return (
-    <div aria-live="polite" aria-atomic="false" className="toast-container">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
-      ))}
-    </div>
+    <>
+      {banners.length > 0 && (
+        <div aria-live="polite" aria-atomic="false" className="banner-container">
+          {banners.map((toast) => (
+            <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+          ))}
+        </div>
+      )}
+      {normalToasts.length > 0 && (
+        <div aria-live="polite" aria-atomic="false" className="toast-container">
+          {normalToasts.map((toast) => (
+            <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+          ))}
+        </div>
+      )}
+    </>
   )
 }
