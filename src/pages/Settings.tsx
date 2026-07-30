@@ -4,6 +4,7 @@ import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
 import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
 import TokensExport from '../components/tokens/TokensExport'
+import TokensDiffViewer from '../components/tokens/TokensDiffViewer'
 import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
 import A11yCoverageMatrix from '../components/a11y/A11yCoverageMatrix'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
@@ -2865,10 +2866,10 @@ function TokensPanel() {
     <div>
       <h2>Design tokens</h2>
       <p style={{ color: "var(--muted)" }}>
-        Export a snapshot of Veritasor design tokens as CSS custom properties.
-        Choose a scope, then copy or download the file.
+        Review theme changes, then export a snapshot of Veritasor design tokens as CSS custom properties.
       </p>
-      <div style={{ marginTop: "1.5rem", maxWidth: 720 }}>
+      <div style={{ marginTop: "1.5rem", maxWidth: 1100, display: "grid", gap: "1.5rem" }}>
+        <TokensDiffViewer />
         <TokensExport />
       </div>
     </div>
