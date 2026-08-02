@@ -48,12 +48,10 @@ export default function WizardProgress({
                 isCurrent ? 'is-current' : ''
               }`}
               aria-current={isCurrent ? 'step' : undefined}
-              style={{ transition: 'background-color 200ms ease, border-color 200ms ease, color 200ms ease' }}
             >
               <span
                 className="wizard-progress-marker"
                 aria-hidden="true"
-                style={{ transition: 'transform 200ms ease', transform: isCurrent ? 'scale(1.06)' : 'scale(1)' }}
               >
                 {isComplete ? '✓' : index + 1}
               </span>

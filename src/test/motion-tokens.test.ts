@@ -209,19 +209,16 @@ describe('Motion CSS — prefers-reduced-motion override', () => {
   })
 
   it('reduced-motion toast enter keyframe contains only opacity, no transform', () => {
-    // Find the reduced-motion @keyframes toast-enter block
-    const reducedSection = rawCss.slice(rawCss.indexOf('@media (prefers-reduced-motion: reduce)'))
-    // Extract the @keyframes toast-enter block inside — use a non-greedy match
-    // so we get the first occurrence (the one inside the media query)
-    const kfMatch = reducedSection.match(/^\s+@keyframes toast-enter\s*\{((?:[^}]*}\s*[^}]*)+)\}/m)
-    expect(kfMatch, 'No toast-enter keyframe in reduced-motion block').not.toBeNull()
-    // The keyframe body contains all the stop rules (0% { ... } 100% { ... })
-    // We validate the entire match text
-    const fullKfText = kfMatch![0]
-    expect(fullKfText).toContain('opacity')
+    // The reduced-motion block redefines @keyframes toast-enter later in the
+    // file — take the LAST definition (the one inside the media query). The
+    // body is matched with balanced, non-nested braces so the match stops at
+    // the keyframe's end instead of swallowing the rest of the stylesheet.
+    const kfMatches = rawCss.match(/@keyframes toast-enter\s*\{((?:[^{}]*\{[^{}]*\})+\s*)\}/g) ?? []
+    const reducedKf = kfMatches[kfMatches.length - 1]
+    expect(reducedKf, 'No reduced-motion toast-enter keyframe found').toBeDefined()
+    expect(reducedKf).toContain('opacity')
     // The reduced-motion version must NOT add transform
-    // Split stop rules to check each one
-    const stopRules = fullKfText.match(/\d+%\s*\{[^}]*\}/g) ?? []
+    const stopRules = reducedKf.match(/\d+%\s*\{[^}]*\}/g) ?? []
     for (const rule of stopRules) {
       expect(rule, `Stop rule contains transform: ${rule}`).not.toContain('transform')
     }
@@ -230,6 +227,73 @@ describe('Motion CSS — prefers-reduced-motion override', () => {
   it('skeleton animation falls back to pulse under reduced motion', () => {
     const reducedBlock = rawCss.slice(rawCss.indexOf('@media (prefers-reduced-motion: reduce)'))
     expect(reducedBlock).toContain('pulse')
+  })
+})
+
+/* ─── Reduced-motion fallback spec (docs/uiux/reduced-motion-fallback-spec.md) ── */
+
+describe('Reduced-motion fallback spec — modal', () => {
+  it('modal-in keyframe uses --motion-duration-md for default entrance', () => {
+    expect(rawCss).toContain('animation: modal-in var(--motion-duration-md)')
+  })
+
+  it('modal-in keyframe animates opacity and a scale', () => {
+    const kfMatch = rawCss.match(/@keyframes modal-in\s*\{((?:[^}]*}\s*[^}]*)+)\}/)
+    expect(kfMatch, 'modal-in keyframe not found').not.toBeNull()
+    expect(kfMatch![0]).toContain('opacity')
+    expect(kfMatch![0]).toContain('scale')
+  })
+
+  it('reduced-motion modal-in collapses to opacity-only at --motion-duration-xs', () => {
+    // The reduced-motion block redefines the keyframe — extract the LAST
+    // @keyframes modal-in (the one inside the media query) using balanced,
+    // non-nested braces so the match stops at the keyframe's end.
+    const kfMatches = rawCss.match(/@keyframes modal-in\s*\{((?:[^{}]*\{[^{}]*\})+\s*)\}/g) ?? []
+    const reducedKf = kfMatches[kfMatches.length - 1]
+    expect(reducedKf, 'reduced-motion modal-in keyframe not found').toBeDefined()
+    // from/to stops must only animate opacity — no transform/scale
+    const stopRules = reducedKf.match(/(?:from|to)\s*\{[^{}]*\}/g) ?? []
+    expect(stopRules.length).toBeGreaterThan(0)
+    for (const rule of stopRules) {
+      expect(rule).not.toContain('transform')
+      expect(rule).not.toContain('scale')
+      expect(rule).toContain('opacity')
+    }
+    // Reduced-motion modal rules run at --motion-duration-xs
+    const reducedSection = rawCss.slice(rawCss.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(reducedSection).toContain('animation: modal-in var(--motion-duration-xs) ease both;')
+  })
+})
+
+describe('Reduced-motion fallback spec — progress (wizard + attestation)', () => {
+  it('wizard-progress-item transition uses --motion-duration-md', () => {
+    const ruleMatch = rawCss.match(/\.wizard-progress-item\s*\{([^}]*)\}/g) ?? []
+    const transitionRule = ruleMatch.find((r) => r.includes('transition:'))
+    expect(transitionRule, '.wizard-progress-item transition rule not found').toBeDefined()
+    expect(transitionRule!).toContain('--motion-duration-md')
+  })
+
+  it('reduced-motion disables wizard-progress transitions and marker scale', () => {
+    const reducedBlock = rawCss.slice(rawCss.indexOf('@media (prefers-reduced-motion: reduce)'))
+    const wizardOverride = reducedBlock.match(/\.wizard-progress-item,\s*\.wizard-progress-marker\s*\{([^}]*)\}/)
+    expect(wizardOverride, 'wizard reduced-motion override not found').not.toBeNull()
+    expect(wizardOverride![1]).toContain('transition: none')
+    expect(reducedBlock).toContain('.wizard-progress-item.is-current .wizard-progress-marker')
+    expect(reducedBlock).toContain('transform: none')
+  })
+
+  it('ap-step-panel transition uses --motion-duration-md and standard easing', () => {
+    const ruleMatch = rawCss.match(/\.ap-step-panel\s*\{([^}]*)\}/)
+    expect(ruleMatch, '.ap-step-panel rule not found').not.toBeNull()
+    expect(ruleMatch![1]).toContain('--motion-duration-md')
+    expect(ruleMatch![1]).toContain('--motion-easing-standard')
+  })
+
+  it('reduced-motion disables attestation progress transitions', () => {
+    const reducedBlock = rawCss.slice(rawCss.indexOf('@media (prefers-reduced-motion: reduce)'))
+    const apOverride = reducedBlock.match(/\.ap-step,\s*\.ap-step-panel,\s*\.ap-chevron\s*\{([^}]*)\}/)
+    expect(apOverride, 'attestation progress reduced-motion override not found').not.toBeNull()
+    expect(apOverride![1]).toContain('transition: none')
   })
 })
 

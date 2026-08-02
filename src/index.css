@@ -905,6 +905,46 @@ input {
   outline: none;
 }
 
+/* ─── Modal entrance animation (fade + subtle scale) ────────────────────── */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-backdrop {
+  animation: modal-in var(--motion-duration-md) var(--motion-easing-standard) both;
+}
+
+.modal-dialog {
+  animation: modal-in var(--motion-duration-md) var(--motion-easing-standard) both;
+}
+
+/* Reduced-motion: fade-only, no scale */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes modal-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .modal-backdrop {
+    animation: modal-in var(--motion-duration-xs) ease both;
+  }
+
+  .modal-dialog {
+    animation: modal-in var(--motion-duration-xs) ease both;
+  }
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -2316,6 +2356,60 @@ input {
 .wizard-progress-item.is-complete .wizard-progress-marker {
   background: rgba(52, 211, 153, 0.18);
   color: #dcfff1;
+}
+
+/* Step state transitions — moved out of inline styles so the
+ * prefers-reduced-motion override can live next to the rules
+ * (see docs/uiux/reduced-motion-fallback-spec.md). */
+.wizard-progress-item {
+  transition:
+    background-color var(--motion-duration-md) ease,
+    border-color var(--motion-duration-md) ease,
+    color var(--motion-duration-md) ease;
+}
+
+.wizard-progress-marker {
+  transition: transform var(--motion-duration-md) ease;
+}
+
+.wizard-progress-item.is-current .wizard-progress-marker {
+  transform: scale(1.06);
+}
+
+/* Reduced-motion: no motion — state swaps are instant */
+@media (prefers-reduced-motion: reduce) {
+  .wizard-progress-item,
+  .wizard-progress-marker {
+    transition: none;
+  }
+
+  .wizard-progress-item.is-current .wizard-progress-marker {
+    transform: none;
+  }
+}
+
+/* ─── Attestation progress timeline (ExpandableStep) ────────────────────── */
+/* Transitions moved out of inline styles so prefers-reduced-motion can
+ * override them (see docs/uiux/reduced-motion-fallback-spec.md). */
+.ap-step {
+  transition: background var(--motion-duration-sm) ease;
+}
+
+.ap-step-panel {
+  transition: max-height var(--motion-duration-md) var(--motion-easing-standard);
+}
+
+.ap-chevron {
+  transition: transform var(--motion-duration-sm) ease;
+}
+
+/* Reduced-motion: no motion — expand/collapse is instant */
+@media (prefers-reduced-motion: reduce) {
+  .ap-step,
+  .ap-step-panel,
+  .ap-chevron {
+    transition: none;
+  }
 }
 
 .wizard-progress-copy {

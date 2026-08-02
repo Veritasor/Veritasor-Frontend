@@ -277,16 +277,17 @@ function ExpandableStep({ step, stepStatus, index, defaultExpanded = false }: Ex
   const statusText =
     stepStatus === 'completed' ? 'Done' : isCurrent ? 'In progress' : 'Pending'
 
-  // Smooth height animation
+  // Smooth height animation (transition lives in CSS class .ap-step-panel so
+  // prefers-reduced-motion can override it — see reduced-motion-fallback-spec.md)
   const panelStyle: React.CSSProperties = {
     overflow: 'hidden',
-    transition: 'max-height var(--motion-duration-md) var(--motion-easing-standard)',
     maxHeight: expanded ? '20rem' : '0',
   }
 
   return (
     <li
       aria-current={isCurrent ? 'step' : undefined}
+      className="ap-step"
       style={{
         borderRadius: 14,
         border: '1px solid var(--border)',
@@ -297,7 +298,6 @@ function ExpandableStep({ step, stepStatus, index, defaultExpanded = false }: Ex
               ? 'rgba(94,234,212,0.06)'
               : 'transparent',
         overflow: 'hidden',
-        transition: 'background var(--motion-duration-sm) ease',
       }}
     >
       {/* Header row — acts as the toggle trigger */}
@@ -377,11 +377,11 @@ function ExpandableStep({ step, stepStatus, index, defaultExpanded = false }: Ex
           {/* Chevron */}
           <span
             aria-hidden="true"
+            className="ap-chevron"
             style={{
               fontSize: '0.6rem',
               color: 'var(--muted)',
               transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform var(--motion-duration-sm) ease',
               display: 'inline-block',
             }}
           >
@@ -396,6 +396,7 @@ function ExpandableStep({ step, stepStatus, index, defaultExpanded = false }: Ex
         role="region"
         aria-labelledby={triggerId}
         ref={panelRef}
+        className="ap-step-panel"
         style={panelStyle}
       >
         <div
