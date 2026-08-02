@@ -1,8 +1,17 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Toast } from './ToastContext'
 import { resolveAutoDismissMs } from './toastRules'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 
 export type ToastAnimationState = 'entering' | 'idle' | 'exiting'
+
+// Match the CSS motion tokens so the JS lifecycle stays in lock-step with the
+// animation: --motion-duration-lg (280ms) enter, --motion-duration-sm (140ms)
+// exit. Under prefers-reduced-motion the CSS collapses both to
+// --motion-duration-xs (80ms), so the JS timers shorten to match.
+const ENTER_DELAY_MS = 280
+const EXIT_DELAY_MS = 140
+const REDUCED_MOTION_DELAY_MS = 80
 
 interface ToastItemProps {
   toast: Toast
@@ -16,6 +25,10 @@ interface ToastItemProps {
 
 export default function ToastItem({ toast, onRemove, disableMotion = false }: ToastItemProps) {
   const { id, type, message, duration, onUndo, undoLabel = 'Undo', count } = toast
+
+  const reducedMotion = useReducedMotion()
+  const enterDelayMs = reducedMotion ? REDUCED_MOTION_DELAY_MS : ENTER_DELAY_MS
+  const exitDelayMs = reducedMotion ? REDUCED_MOTION_DELAY_MS : EXIT_DELAY_MS
 
   // Auto-dismiss duration: success/info default to 5000ms, warning/error persist
   // (0) unless explicitly overridden. ToastItem.tsx consults `toastRules` so the
@@ -40,11 +53,11 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
     const frame = requestAnimationFrame(() => {
       const timer = setTimeout(() => {
         setAnimationState('idle')
-      }, 300) // matches motion.duration.lg
+      }, enterDelayMs) // matches motion.duration.lg (or xs under reduced motion)
       return () => clearTimeout(timer)
     })
     return () => cancelAnimationFrame(frame)
-  }, [disableMotion])
+  }, [disableMotion, enterDelayMs])
 
   // Cleanup exit timer on unmount
   useEffect(() => {
@@ -74,8 +87,8 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
     // Wait for exit animation to complete before removing from DOM
     exitTimerRef.current = setTimeout(() => {
       onRemove(id)
-    }, 200) // matches motion.duration.sm for fast exit
-  }, [id, onRemove, disableMotion])
+    }, exitDelayMs) // matches motion.duration.sm (or xs under reduced motion)
+  }, [id, onRemove, disableMotion, exitDelayMs])
 
   // Countdown timer logic
   useEffect(() => {

@@ -441,3 +441,123 @@ describe('Toast Motion', () => {
     expect(progressBar).not.toBeInTheDocument()
   })
 })
+
+// ─── Reduced-motion timing (docs/uiux/reduced-motion-fallback-spec.md) ─────
+describe('Toast Notification System — reduced motion', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const renderSystem = () => {
+    return render(
+      <LocaleProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <CookieConsentProvider>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<TestTrigger />} />
+              </Route>
+            </Routes>
+          </CookieConsentProvider>
+        </MemoryRouter>
+      </LocaleProvider>
+    )
+  }
+
+  const mockReducedMotion = (matches: boolean) => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList)
+    // Fire rAF synchronously so the entrance setTimeout starts at t=0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0)
+      return 0
+    })
+  }
+
+  it('entrance state settles after 80ms (fade-only) instead of 280ms when reduced motion is active', () => {
+    mockReducedMotion(true)
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    const toastEl = screen.getByText('Success message').closest('.toast')
+    expect(toastEl).toHaveClass('toast-entering')
+
+    // Still entering at 79ms — the reduced-motion enter delay is 80ms
+    act(() => {
+      vi.advanceTimersByTime(79)
+    })
+    expect(screen.getByText('Success message').closest('.toast')).toHaveClass('toast-entering')
+
+    // One more ms crosses the threshold
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByText('Success message').closest('.toast')).not.toHaveClass('toast-entering')
+  })
+
+  it('keeps the full 280ms entrance when reduced motion is NOT active', () => {
+    mockReducedMotion(false)
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    // Advance past the reduced-motion threshold only — still entering
+    act(() => {
+      vi.advanceTimersByTime(80)
+    })
+    expect(screen.getByText('Success message').closest('.toast')).toHaveClass('toast-entering')
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+    expect(screen.getByText('Success message').closest('.toast')).not.toHaveClass('toast-entering')
+  })
+
+  it('removes the toast after 80ms exit when reduced motion is active', () => {
+    mockReducedMotion(true)
+    renderSystem()
+
+    act(() => {
+      screen.getByRole('button', { name: /trigger success/i }).click()
+    })
+
+    // Settle entrance
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+
+    act(() => {
+      screen.getByRole('button', { name: /close notification/i }).click()
+    })
+    expect(screen.getByText('Success message').closest('.toast')).toHaveClass('toast-exiting')
+
+    // 79ms — still animating out
+    act(() => {
+      vi.advanceTimersByTime(79)
+    })
+    expect(screen.queryByText('Success message')).toBeInTheDocument()
+
+    // Crosses the 80ms exit threshold — removed
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.queryByText('Success message')).not.toBeInTheDocument()
+  })
+})
