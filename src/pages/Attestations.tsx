@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
 import AttestationConfirmModal, { AttestationDetails, FeeInfo } from '../components/AttestationConfirmModal'
+import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
 import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -9,6 +10,7 @@ import { AttestationCalendar } from '../components/scheduling/AttestationCalenda
 // ─── Types ────────────────────────────────────────────────────────────────
 
 type AttestationStatus = "pending" | "verified" | "failed";
+type BatchOutcomeStatus = 'success' | 'queued' | 'failed'
 
 type AttestationListItem = {
   id: string
@@ -24,6 +26,18 @@ type AttestationStatusMeta = {
   text: string
   marker: string
   icon: (props: { size: number }) => JSX.Element
+}
+
+type BatchPeriod = {
+  id: string
+  label: string
+  range: string
+  records: number
+}
+
+type BatchOutcome = BatchPeriod & {
+  status: BatchOutcomeStatus
+  message: string
 }
 
 const STATUS_META: Record<AttestationStatus, AttestationStatusMeta> = {
@@ -112,6 +126,57 @@ const STATUS_META: Record<AttestationStatus, AttestationStatusMeta> = {
   },
 };
 
+const BATCH_PERIODS: BatchPeriod[] = [
+  {
+    id: '2026-05',
+    label: 'May 2026',
+    range: 'May 1-31',
+    records: 15420,
+  },
+  {
+    id: '2026-04',
+    label: 'April 2026',
+    range: 'Apr 1-30',
+    records: 14880,
+  },
+  {
+    id: '2026-03',
+    label: 'March 2026',
+    range: 'Mar 1-31',
+    records: 16110,
+  },
+  {
+    id: '2026-02',
+    label: 'February 2026',
+    range: 'Feb 1-28',
+    records: 13290,
+  },
+]
+
+const BATCH_STATUS_COPY: Record<
+  BatchOutcomeStatus,
+  { label: string; tone: string; background: string; border: string }
+> = {
+  success: {
+    label: 'Success',
+    tone: 'var(--success)',
+    background: 'var(--success-soft)',
+    border: 'rgba(52, 211, 153, 0.35)',
+  },
+  queued: {
+    label: 'Queued',
+    tone: 'var(--warning)',
+    background: 'var(--warning-soft)',
+    border: 'rgba(251, 191, 36, 0.35)',
+  },
+  failed: {
+    label: 'Failed',
+    tone: 'var(--danger)',
+    background: 'var(--danger-soft)',
+    border: 'rgba(251, 113, 133, 0.35)',
+  },
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -132,6 +197,41 @@ function middleEllipsis(value: string, start = 10, end = 10) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────
+
+function createBatchOutcomes(periodIds: string[]): BatchOutcome[] {
+  return periodIds
+    .map((periodId, index) => {
+      const period = BATCH_PERIODS.find((item) => item.id === periodId)
+      if (!period) return null
+
+      const status: BatchOutcomeStatus =
+        index === 1 ? 'queued' : index === periodIds.length - 1 ? 'failed' : 'success'
+
+      const message =
+        status === 'success'
+          ? 'Published to Stellar and ready for review.'
+          : status === 'queued'
+            ? 'Queued behind the current verifier window.'
+            : 'Source reconciliation timed out. Re-run is available.'
+
+      return {
+        ...period,
+        status,
+        message,
+      }
+    })
+    .filter((item): item is BatchOutcome => item !== null)
+}
+
+function summarizeBatch(outcomes: BatchOutcome[]) {
+  return outcomes.reduce(
+    (summary, item) => {
+      summary[item.status] += 1
+      return summary
+    },
+    { success: 0, queued: 0, failed: 0 } as Record<BatchOutcomeStatus, number>,
+  )
+}
 
 function StatusBadge({ status }: { status: AttestationStatus }) {
   const meta = STATUS_META[status];
@@ -350,11 +450,370 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
+function BatchOutcomeBadge({ status }: { status: BatchOutcomeStatus }) {
+  const meta = BATCH_STATUS_COPY[status]
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+        padding: 'var(--density-badge-padding)',
+        borderRadius: 999,
+        border: `1px solid ${meta.border}`,
+        background: meta.background,
+        color: meta.tone,
+        fontSize: 'var(--density-badge-font)',
+        fontWeight: 800,
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          background: meta.tone,
+        }}
+      />
+      {meta.label}
+    </span>
+  )
+}
+
+function BatchAttestationPanel({
+  selectedPeriodIds,
+  outcomes,
+  isLoading,
+  onTogglePeriod,
+  onTriggerBatch,
+  onRerunFailed,
+}: {
+  selectedPeriodIds: string[]
+  outcomes: BatchOutcome[]
+  isLoading: boolean
+  onTogglePeriod: (periodId: string) => void
+  onTriggerBatch: () => void
+  onRerunFailed: () => void
+}) {
+  const summary = summarizeBatch(outcomes)
+  const failedCount = summary.failed
+  const selectedCount = selectedPeriodIds.length
+  const triggerDisabled = selectedCount === 0 || isLoading
+  const helperId = 'batch-period-picker-help'
+  const statusId = 'batch-run-status'
+
+  return (
+    <section
+      aria-labelledby="batch-trigger-title"
+      style={{
+        marginTop: '1.5rem',
+        padding: 'var(--density-padding)',
+        background:
+          'linear-gradient(135deg, rgba(94, 234, 212, 0.08), rgba(96, 165, 250, 0.07)), var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 14,
+        display: 'grid',
+        gap: 'var(--density-gap)',
+      }}
+    >
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          alignItems: 'start',
+        }}
+      >
+        <div style={{ display: 'grid', gap: '0.35rem', maxWidth: 680 }}>
+          <p
+            style={{
+              margin: 0,
+              color: 'var(--accent)',
+              fontSize: '0.8rem',
+              fontWeight: 900,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Batch trigger
+          </p>
+          <h2 id="batch-trigger-title" style={{ margin: 0, fontSize: '1.15rem' }}>
+            Select periods and run attestations together
+          </h2>
+          <p id={helperId} style={{ margin: 0, color: 'var(--muted)', lineHeight: 1.6 }}>
+            Choose one or more reporting periods. Results stay visible by period so partial
+            success is clear and failed items can be retried without re-running the full batch.
+          </p>
+        </div>
+
+        <div
+          aria-label="Batch result summary"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(74px, 1fr))',
+            gap: '0.5rem',
+            minWidth: 260,
+          }}
+        >
+          {([
+            ['success', 'Success'],
+            ['queued', 'Queued'],
+            ['failed', 'Failed'],
+          ] as const).map(([key, label]) => (
+            <div
+              key={key}
+              style={{
+                border: `1px solid ${BATCH_STATUS_COPY[key].border}`,
+                background: BATCH_STATUS_COPY[key].background,
+                borderRadius: 12,
+                padding: '0.65rem',
+                display: 'grid',
+                gap: '0.2rem',
+                minHeight: 70,
+              }}
+            >
+              <span
+                style={{
+                  color: BATCH_STATUS_COPY[key].tone,
+                  fontSize: '1.35rem',
+                  fontWeight: 900,
+                  lineHeight: 1,
+                }}
+              >
+                {summary[key]}
+              </span>
+              <span style={{ color: 'var(--muted)', fontSize: '0.78rem', fontWeight: 800 }}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 'var(--density-gap)',
+          alignItems: 'start',
+        }}
+      >
+        <fieldset
+          aria-describedby={helperId}
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: 'var(--density-padding)',
+            margin: 0,
+            background: 'rgba(15, 23, 42, 0.38)',
+            display: 'grid',
+            gap: '0.75rem',
+          }}
+        >
+          <legend style={{ padding: '0 0.35rem', fontWeight: 900 }}>
+            Reporting periods
+          </legend>
+
+          {BATCH_PERIODS.map((period) => {
+            const checked = selectedPeriodIds.includes(period.id)
+            return (
+              <label
+                key={period.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                  gap: '0.75rem',
+                  alignItems: 'center',
+                  minHeight: 'var(--density-touch-min)',
+                  padding: '0.75rem',
+                  borderRadius: 12,
+                  border: `1px solid ${checked ? 'var(--border-strong)' : 'var(--border)'}`,
+                  background: checked ? 'rgba(94, 234, 212, 0.10)' : 'var(--surface-soft)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onTogglePeriod(period.id)}
+                  style={{
+                    width: 18,
+                    height: 18,
+                    accentColor: 'var(--accent)',
+                  }}
+                />
+                <span style={{ display: 'grid', gap: '0.2rem' }}>
+                  <strong>{period.label}</strong>
+                  <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
+                    {period.range}
+                  </span>
+                </span>
+                <span
+                  style={{
+                    color: 'var(--muted)',
+                    fontSize: '0.8rem',
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {period.records.toLocaleString()} records
+                </span>
+              </label>
+            )
+          })}
+
+          <button
+            type="button"
+            onClick={onTriggerBatch}
+            disabled={triggerDisabled}
+            aria-describedby={triggerDisabled && selectedCount === 0 ? 'batch-trigger-disabled-reason' : undefined}
+            aria-busy={isLoading}
+            style={{
+              minHeight: 'var(--density-touch-min)',
+              border: '1px solid transparent',
+              borderRadius: 12,
+              padding: '0.8rem 1rem',
+              background: triggerDisabled
+                ? 'rgba(148, 163, 184, 0.16)'
+                : 'linear-gradient(135deg, var(--accent), #60a5fa)',
+              color: triggerDisabled ? 'var(--muted)' : '#04111f',
+              fontWeight: 900,
+              cursor: triggerDisabled ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isLoading ? 'Starting batch...' : `Trigger ${selectedCount} period${selectedCount === 1 ? '' : 's'}`}
+          </button>
+          {selectedCount === 0 ? (
+            <p id="batch-trigger-disabled-reason" style={{ margin: 0, color: 'var(--muted)', fontSize: '0.85rem' }}>
+              Select at least one period to start a batch run.
+            </p>
+          ) : null}
+        </fieldset>
+
+        <section
+          aria-labelledby="batch-results-title"
+          aria-describedby={statusId}
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: 'var(--density-padding)',
+            background: 'rgba(15, 23, 42, 0.38)',
+            display: 'grid',
+            gap: '0.75rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <h3 id="batch-results-title" style={{ margin: 0, fontSize: '1rem' }}>
+                Per-period outcome
+              </h3>
+              <p
+                id={statusId}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                style={{ margin: '0.25rem 0 0', color: 'var(--muted)', fontSize: '0.88rem' }}
+              >
+                {outcomes.length
+                  ? `${summary.success} succeeded, ${summary.queued} queued, ${summary.failed} failed.`
+                  : 'No batch has been triggered yet.'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onRerunFailed}
+              disabled={failedCount === 0 || isLoading}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                borderRadius: 12,
+                border: `1px solid ${failedCount ? 'rgba(251, 113, 133, 0.5)' : 'var(--border)'}`,
+                background: failedCount ? 'var(--danger-soft)' : 'rgba(148, 163, 184, 0.10)',
+                color: failedCount ? 'var(--text)' : 'var(--muted)',
+                padding: '0.65rem 0.85rem',
+                fontWeight: 850,
+                cursor: failedCount ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Re-run failed
+            </button>
+          </div>
+
+          {outcomes.length ? (
+            <ul style={{ display: 'grid', gap: '0.65rem', listStyle: 'none', margin: 0, padding: 0 }}>
+              {outcomes.map((outcome) => (
+                <li
+                  key={outcome.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(130px, 0.7fr) auto minmax(0, 1fr)',
+                    gap: '0.75rem',
+                    alignItems: 'center',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: '0.75rem',
+                    background: 'var(--surface-soft)',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: '0.2rem' }}>
+                    <strong>{outcome.label}</strong>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
+                      {outcome.records.toLocaleString()} records
+                    </span>
+                  </div>
+                  <BatchOutcomeBadge status={outcome.status} />
+                  <span style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
+                    {outcome.message}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div
+              style={{
+                minHeight: 128,
+                display: 'grid',
+                placeItems: 'center',
+                textAlign: 'center',
+                color: 'var(--muted)',
+                border: '1px dashed rgba(148, 163, 184, 0.35)',
+                borderRadius: 12,
+                padding: '1rem',
+              }}
+            >
+              Batch outcomes will appear here after you trigger selected periods.
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+  )
+}
+
 export default function Attestations() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedPeriodIds, setSelectedPeriodIds] = useState<string[]>([
+    '2026-05',
+    '2026-04',
+    '2026-03',
+  ])
+  const [batchOutcomes, setBatchOutcomes] = useState<BatchOutcome[]>([])
 
   const attestations: AttestationListItem[] = [
     {
@@ -396,6 +855,32 @@ export default function Attestations() {
   function handleOpenModal() {
     setError(null)
     setModalOpen(true)
+  }
+
+  function handleTogglePeriod(periodId: string) {
+    setSelectedPeriodIds((current) =>
+      current.includes(periodId)
+        ? current.filter((id) => id !== periodId)
+        : [...current, periodId],
+    )
+  }
+
+  function handleTriggerBatch() {
+    setBatchOutcomes(createBatchOutcomes(selectedPeriodIds))
+  }
+
+  function handleRerunFailed() {
+    setBatchOutcomes((current) =>
+      current.map((outcome) =>
+        outcome.status === 'failed'
+          ? {
+              ...outcome,
+              status: 'queued',
+              message: 'Re-run queued for the next verifier window.',
+            }
+          : outcome,
+      ),
+    )
   }
 
   function handleCloseModal() {
@@ -440,6 +925,15 @@ export default function Attestations() {
         </header>
 
         <AttestationCalendar scheduledDates={scheduledDates} />
+
+        <BatchAttestationPanel
+          selectedPeriodIds={selectedPeriodIds}
+          outcomes={batchOutcomes}
+          isLoading={isLoading}
+          onTogglePeriod={handleTogglePeriod}
+          onTriggerBatch={handleTriggerBatch}
+          onRerunFailed={handleRerunFailed}
+        />
 
         <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
           {attestations.length === 0 ? (
