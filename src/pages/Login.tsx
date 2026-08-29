@@ -13,6 +13,7 @@ import MfaMethodChooser, {
   type MfaMethod,
 } from "../components/MfaMethodChooser";
 import ConfirmDialog from "../components/ConfirmDialog";
+import SubmitButton, { SUBMIT_DEMO_MS } from "../components/SubmitButton";
 
 type LoginState = "credentials" | "mfa-challenge" | "mfa-recovery";
 type MfaFallbackMethod = MfaMethod | "recovery";
@@ -101,6 +102,8 @@ function CredentialsState({ onContinue }: { onContinue: () => void }) {
   const [email, setEmail] = useState("ops@veritasor.com");
   const [password, setPassword] = useState("badpass");
   const [rememberDevice, setRememberDevice] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitTimerRef = useRef<number | null>(null);
   const emailId = useId();
   const passwordId = useId();
   const errorId = useId();
@@ -109,10 +112,23 @@ function CredentialsState({ onContinue }: { onContinue: () => void }) {
     password.length > 0 &&
     (password.length < 12 || !/[^A-Za-z0-9]/.test(password));
 
+  useEffect(() => {
+    return () => {
+      if (submitTimerRef.current !== null) {
+        window.clearTimeout(submitTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordTooShort) return;
-    onContinue();
+    if (passwordTooShort || isSubmitting) return;
+    setIsSubmitting(true);
+    submitTimerRef.current = window.setTimeout(() => {
+      submitTimerRef.current = null;
+      setIsSubmitting(false);
+      onContinue();
+    }, SUBMIT_DEMO_MS);
   };
 
   return (
@@ -189,9 +205,11 @@ function CredentialsState({ onContinue }: { onContinue: () => void }) {
         </label>
 
         <div className="auth-actions">
-          <button type="submit" className="auth-button auth-button-primary">
-            Sign in
-          </button>
+          <SubmitButton
+            idleLabel="Sign in"
+            busyLabel="Signing in…"
+            busy={isSubmitting}
+          />
           <button type="button" className="auth-button auth-button-secondary">
             Continue with Google
           </button>
@@ -718,14 +736,12 @@ function MfaChallengeState({
             ← Back
           </button>
           {!isKeyMethod && (
-            <button
-              type="submit"
-              className="auth-button auth-button-primary"
+            <SubmitButton
+              idleLabel="Verify code"
+              busyLabel="Verifying…"
+              busy={isSubmitting}
               disabled={submitDisabled}
-              aria-busy={isSubmitting}
-            >
-              {isSubmitting ? "Verifying…" : "Verify code"}
-            </button>
+            />
           )}
         </div>
       </form>
@@ -1282,17 +1298,15 @@ function MfaRecoveryFlowState({
             >
               ← Try a different method
             </button>
-            <button
-              type="submit"
-              className="auth-button auth-button-primary"
+            <SubmitButton
+              idleLabel="Verify code"
+              busyLabel="Verifying code…"
+              busy={isSubmitting}
               disabled={
                 isSubmitting ||
                 codeValue.trim().replace(/[^A-Z0-9]/g, "").length < 8
               }
-              aria-busy={isSubmitting}
-            >
-              {isSubmitting ? "Verifying code…" : "Verify code"}
-            </button>
+            />
           </div>
         </form>
       )}
@@ -1504,14 +1518,11 @@ function MfaRecoveryFlowState({
             >
               ← Back
             </button>
-            <button
-              type="submit"
-              className="auth-button auth-button-primary"
-              disabled={isSubmitting}
-              aria-busy={isSubmitting}
-            >
-              {isSubmitting ? "Submitting…" : "Submit request"}
-            </button>
+            <SubmitButton
+              idleLabel="Submit request"
+              busyLabel="Submitting…"
+              busy={isSubmitting}
+            />
           </div>
         </form>
       )}

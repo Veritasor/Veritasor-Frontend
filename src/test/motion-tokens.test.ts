@@ -233,6 +233,35 @@ describe('Motion CSS — prefers-reduced-motion override', () => {
   })
 })
 
+describe('Auth submit CSS — motion token adoption', () => {
+  it('.auth-button transition references --motion-duration-xs', () => {
+    const ruleMatch = rawCss.match(/\.auth-button\s*\{([^}]*)\}/)
+    expect(ruleMatch, '.auth-button rule not found').not.toBeNull()
+    expect(ruleMatch![1]).toContain('--motion-duration-xs')
+  })
+
+  it('.auth-button transition references --motion-easing-standard', () => {
+    const ruleMatch = rawCss.match(/\.auth-button\s*\{([^}]*)\}/)
+    expect(ruleMatch, '.auth-button rule not found').not.toBeNull()
+    expect(ruleMatch![1]).toContain('--motion-easing-standard')
+  })
+
+  it('.auth-button does not use a hardcoded 160ms duration', () => {
+    const ruleMatch = rawCss.match(/\.auth-button\s*\{([^}]*)\}/)
+    expect(ruleMatch, '.auth-button rule not found').not.toBeNull()
+    expect(ruleMatch![1]).not.toContain('160ms')
+  })
+
+  it('reduced-motion auth submit rules kill transform and spinner animation', () => {
+    expect(rawCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.auth-submit[\s\S]*?transform:\s*none/,
+    )
+    expect(rawCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.auth-submit-spinner[\s\S]*?animation:\s*none/,
+    )
+  })
+})
+
 /* ─── Token naming convention ────────────────────────────────────────────── */
 
 describe('Motion tokens — naming convention', () => {

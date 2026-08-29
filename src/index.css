@@ -1594,20 +1594,73 @@ input {
   font-weight: 700;
   cursor: pointer;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease,
-    color 160ms ease,
-    opacity 160ms ease;
+    transform var(--motion-duration-xs) var(--motion-easing-standard),
+    border-color var(--motion-duration-xs) var(--motion-easing-standard),
+    background-color var(--motion-duration-xs) var(--motion-easing-standard),
+    color var(--motion-duration-xs) var(--motion-easing-standard),
+    opacity var(--motion-duration-xs) var(--motion-easing-standard);
 }
 
-.auth-button:hover:not(:disabled) {
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .auth-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+.auth-button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .auth-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.auth-submit {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.auth-submit-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.auth-submit-spinner {
+  flex-shrink: 0;
+  animation: auth-submit-spin var(--motion-duration-lg) var(--motion-easing-linear) infinite;
+}
+
+@keyframes auth-submit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-submit:active:not(:disabled)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.22);
+  transform: scale(0);
+  border-radius: inherit;
+  animation: auth-submit-ripple var(--motion-duration-sm) var(--motion-easing-standard);
+  pointer-events: none;
+}
+
+@keyframes auth-submit-ripple {
+  from {
+    transform: scale(0.2);
+    opacity: 0.45;
+  }
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
 }
 
 .auth-button-primary {
@@ -6168,5 +6221,27 @@ html[data-theme] {
 @media (prefers-reduced-motion: reduce) {
   html[data-theme] {
     transition: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-button,
+  .auth-submit {
+    transition: none;
+    transform: none;
+  }
+
+  .auth-button:hover:not(:disabled),
+  .auth-button:active:not(:disabled) {
+    transform: none;
+  }
+
+  .auth-submit-spinner {
+    animation: none;
+  }
+
+  .auth-submit:active:not(:disabled)::after {
+    content: none;
+    animation: none;
   }
 }
