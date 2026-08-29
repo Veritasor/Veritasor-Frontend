@@ -1,12 +1,14 @@
 import { MemoryRouter } from 'react-router-dom'
 import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
 import Login from '../pages/Login'
 import Signup from '../pages/Signup'
 import ForgotPassword from '../pages/ForgotPassword'
 import NotFound from '../pages/NotFound'
 import { ToastProvider } from '../components/ToastContext'
+import { SUBMIT_DEMO_MS } from '../components/SubmitButton'
 
 function renderWithRouter(element: ReactElement) {
   return render(
@@ -24,6 +26,10 @@ function renderAtUrl(element: ReactElement, url: string) {
   )
 }
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe('authentication screens visual system', () => {
   it('renders login with the shared hierarchy and feedback states', () => {
     renderWithRouter(<Login />)
@@ -34,10 +40,10 @@ describe('authentication screens visual system', () => {
     expect(
       screen.getByRole('link', { name: /forgot password\?/i }),
     ).toHaveAttribute('href', '/forgot-password')
-    expect(screen.getByLabelText(/password/i)).toHaveAttribute(
-      'aria-describedby',
-      'login-password-error',
-    )
+    const passwordField = screen.getByLabelText(/password/i)
+    const describedBy = passwordField.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(screen.getByRole('alert')).toHaveAttribute('id', describedBy)
     expect(screen.getByRole('alert')).toHaveTextContent(
       /12 characters and one symbol/i,
     )
@@ -70,6 +76,64 @@ describe('authentication screens visual system', () => {
     expect(
       screen.getByRole('button', { name: /review changes/i }),
     ).toBeInTheDocument()
+  })
+
+  it('does not enter a loading submit when the login password is invalid', () => {
+    renderWithRouter(<Login />)
+
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeEnabled()
+    expect(screen.queryByText(/signing in/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /verify your sign-in/i })).not.toBeInTheDocument()
+  })
+
+  it('shows a busy sign-in control then continues to MFA after the demo delay', () => {
+    vi.useFakeTimers()
+    renderWithRouter(<Login />)
+
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: 'ValidPass12!' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    const busy = screen.getByRole('button', { name: /signing in/i })
+    expect(busy).toBeDisabled()
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    expect(document.querySelector('.auth-submit-spinner')).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(SUBMIT_DEMO_MS)
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /verify your sign-in/i }),
+    ).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('locks a second signup submit while the create-account control is busy', () => {
+    vi.useFakeTimers()
+    renderWithRouter(<Signup />)
+
+    fireEvent.click(screen.getByRole('button', { name: /review changes/i }))
+    fireEvent.click(screen.getByLabelText(/i have reviewed version v2\.4\.0/i))
+    fireEvent.click(screen.getByRole('button', { name: /acknowledge and continue/i }))
+
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+    const busy = screen.getByRole('button', { name: /creating account/i })
+    expect(busy).toBeDisabled()
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+
+    fireEvent.click(busy)
+    act(() => {
+      vi.advanceTimersByTime(SUBMIT_DEMO_MS)
+    })
+
+    expect(screen.getByRole('button', { name: /create account/i })).toBeEnabled()
+    vi.useRealTimers()
   })
 
   it('opens the terms changelog modal and enables signup after acknowledgement', () => {

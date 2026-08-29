@@ -31,6 +31,7 @@ export default defineConfig({
         'src/components/Layout.tsx',
         'src/components/AttestationConfirmModal.tsx',
         'src/components/SearchFilter.tsx',
+        'src/components/SubmitButton.tsx',
         'src/components/CookieConsentContext.tsx',
         'src/components/CookieBanner.tsx',
         'src/components/SkeletonLoader.tsx',
