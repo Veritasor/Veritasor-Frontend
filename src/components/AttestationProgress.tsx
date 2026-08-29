@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import ResultAnimation from './ResultAnimation'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -655,6 +656,27 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
       >
         <p style={{ margin: 0, color: 'var(--text)' }}>{message}</p>
       </div>
+
+      {/* ── Result animation (#529) ── shown after the attestation completes.
+          Rendered outside the live region so the outcome message is the sole
+          live announcement; the animation is decorative with an sr-only
+          label and auto-disables under prefers-reduced-motion. */}
+      {phase === 'complete' && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '1.25rem',
+            borderRadius: 12,
+            background: 'var(--success-soft)',
+            border: '1px solid rgba(52, 211, 153, 0.28)',
+          }}
+        >
+          <ResultAnimation outcome="success" label="Attestation complete" />
+        </div>
+      )}
 
       {/* ── Filter row (#219) ── */}
       <FilterRow
