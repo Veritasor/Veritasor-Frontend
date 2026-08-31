@@ -180,5 +180,18 @@
   "auditLog.filters.copied": "Copied to clipboard",
   "auditLog.filters.capReached": "This workspace is at its limit of {max} saved filters. Delete one to make room.",
   "auditLog.filters.results.singular": "Showing {count} of {total} entries",
-  "auditLog.filters.results.plural": "Showing {count} of {total} entries"
+  "auditLog.filters.results.plural": "Showing {count} of {total} entries",
+  "attestations.chart.title": "Attestation history",
+  "attestations.chart.description": "Attestation activity over time.",
+  "attestations.chart.loading": "Loading attestation history…",
+  "attestations.chart.error": "Unable to load attestation history.",
+  "attestations.chart.empty": "No attestation activity in this period.",
+  "attestations.chart.success": "Successful",
+  "attestations.chart.failure": "Failed",
+  "attestations.chart.viewAsTable": "View as table",
+  "attestations.chart.viewAsChart": "View as chart",
+  "attestations.chart.tableCaption": "Attestation history data",
+  "attestations.chart.timeAxisLabel": "Time",
+  "attestations.chart.countAxisLabel": "Count",
+  "attestations.chart.dataPoint": "{date}: {total} attestations ({successful} successful, {failed} failed)"
 }
