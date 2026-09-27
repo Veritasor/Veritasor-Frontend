@@ -17,6 +17,38 @@ import {
   resolveAutoDismissMs,
   splitStack,
 } from '../components/toastRules'
+import type { ToastSeverity } from '../components/toastRules'
+
+/**
+ * Compile-time exhaustive guard.
+ *
+ * `ToastSeverity` is erased at runtime, so a type-level test is the only way to
+ * observe it. This function fails to compile if a severity is added to the union
+ * without being handled here, which keeps the union and the runtime cadence map
+ * from drifting apart.
+ */
+function severityLabel(severity: ToastSeverity): string {
+  switch (severity) {
+    case 'success':
+      return 'success'
+    case 'info':
+      return 'info'
+    case 'warning':
+      return 'warning'
+    case 'error':
+      return 'error'
+    default: {
+      const exhaustive: never = severity
+      return exhaustive
+    }
+  }
+}
+
+/** Runtime view of the `ToastSeverity` union, sourced from the typed cadence map. */
+const SEVERITIES = Object.keys(AUTO_DISMISS_MS) as readonly ToastSeverity[]
+
+/** Builds an untyped runtime value for a severity, as a plain JS caller would. */
+const asSeverity = (value: string): ToastSeverity => value as unknown as ToastSeverity
 
 describe('toastRules constants', () => {
   it('exposes the documented stack limits', () => {
@@ -105,5 +137,164 @@ describe('describeOverflow', () => {
       .toBe('2 previous notifications')
     expect(describeOverflow(7, 'undoable change', 'undoable changes'))
       .toBe('7 undoable changes')
+  })
+
+  it('uses the plural branch for every count except exactly 1', () => {
+    // Boundary: 0 is not "no notifications", it is the plural form.
+    expect(describeOverflow(0, 'change', 'changes')).toBe('0 changes')
+    // Out-of-domain counts degrade to the plural branch instead of throwing.
+    expect(describeOverflow(-1, 'change', 'changes')).toBe('-1 changes')
+    expect(describeOverflow(1.5, 'change', 'changes')).toBe('1.5 changes')
+  })
+})
+
+describe('ToastSeverity', () => {
+  it('exposes exactly the four documented severities', () => {
+    expect(SEVERITIES).toEqual(['success', 'info', 'warning', 'error'])
+  })
+
+  it('keeps AUTO_DISMISS_MS a total record over the union (no missing keys)', () => {
+    // A severity added to the union without a cadence would drop out of this map
+    // and fail the `Record<ToastSeverity, number>` type at build time.
+    for (const severity of SEVERITIES) {
+      expect(AUTO_DISMISS_MS).toHaveProperty(severity)
+      expect(typeof AUTO_DISMISS_MS[severity]).toBe('number')
+    }
+    expect(Object.keys(AUTO_DISMISS_MS).sort()).toEqual([...SEVERITIES].sort())
+  })
+
+  it('maps every severity through the exhaustive compile-time guard', () => {
+    expect(SEVERITIES.map(severityLabel)).toEqual([...SEVERITIES])
+  })
+
+  it('accepts every union member and rejects values outside it', () => {
+    // Success path: each documented value resolves without throwing.
+    for (const severity of SEVERITIES) {
+      expect(() => resolveAutoDismissMs(severity, false)).not.toThrow()
+    }
+    // Failure path: the module performs no runtime validation — an unrecognised
+    // value yields a non-number rather than a thrown error. Pinned as current
+    // behaviour so it cannot change silently; see the PR description for the
+    // recommended follow-up to make this an explicit error.
+    for (const invalid of ['critical', 'SUCCESS', '', 'toast']) {
+      expect(resolveAutoDismissMs(asSeverity(invalid), false)).toBeUndefined()
+    }
+  })
+})
+
+describe('MAX_VISIBLE_DESKTOP / MAX_VISIBLE_MOBILE', () => {
+  it('exposes positive integer caps with desktop the looser of the two', () => {
+    expect(Number.isInteger(MAX_VISIBLE_DESKTOP)).toBe(true)
+    expect(Number.isInteger(MAX_VISIBLE_MOBILE)).toBe(true)
+    expect(MAX_VISIBLE_DESKTOP).toBeGreaterThan(0)
+    expect(MAX_VISIBLE_MOBILE).toBeGreaterThan(0)
+    // Mobile portrait is the constrained viewport, so its cap must be stricter.
+    expect(MAX_VISIBLE_MOBILE).toBeLessThan(MAX_VISIBLE_DESKTOP)
+  })
+
+  it('applies the mobile cap: only the newest toast stays visible', () => {
+    const items = ['oldest', 'newer', 'newest']
+    expect(splitStack(items, MAX_VISIBLE_MOBILE)).toEqual({
+      visible: ['newest'],
+      overflow: ['oldest', 'newer'],
+    })
+  })
+
+  it('applies the desktop cap and keeps the newest three', () => {
+    const items = ['1', '2', '3', '4', '5']
+    expect(splitStack(items, MAX_VISIBLE_DESKTOP)).toEqual({
+      visible: ['3', '4', '5'],
+      overflow: ['1', '2'],
+    })
+  })
+
+  it('renders no group card at exactly the cap, and one group card past it', () => {
+    // Primary state transition: the group card is absent while the stack is at
+    // the cap and appears on the very next toast.
+    const atCap = ['1', '2', '3']
+    expect(splitStack(atCap, MAX_VISIBLE_DESKTOP)).toEqual({
+      visible: ['1', '2', '3'],
+      overflow: [],
+    })
+
+    const pastCap = ['1', '2', '3', '4']
+    expect(splitStack(pastCap, MAX_VISIBLE_DESKTOP)).toEqual({
+      visible: ['2', '3', '4'],
+      overflow: ['1'],
+    })
+    expect(describeOverflow(1, 'earlier notification', 'earlier notifications'))
+      .toBe('1 earlier notification')
+  })
+
+  it('splits the same stack differently across the two viewports', () => {
+    const items = ['a', 'b', 'c', 'd']
+    expect(splitStack(items, MAX_VISIBLE_MOBILE).visible).toEqual(['d'])
+    expect(splitStack(items, MAX_VISIBLE_DESKTOP).visible).toEqual(['b', 'c', 'd'])
+  })
+})
+
+describe('resolveAutoDismissMs invalid and boundary inputs', () => {
+  it('returns a non-number for an unrecognised severity without undo', () => {
+    expect(resolveAutoDismissMs(asSeverity('critical'), false)).toBeUndefined()
+  })
+
+  it('returns NaN for an unrecognised severity with undo', () => {
+    const result = resolveAutoDismissMs(asSeverity('critical'), true)
+    expect(Number.isNaN(result)).toBe(true)
+  })
+
+  it('short-circuits on an explicit override before reading the severity', () => {
+    // An override is authoritative, so an unknown severity does not leak through.
+    expect(resolveAutoDismissMs(asSeverity('critical'), false, 4200)).toBe(4200)
+  })
+
+  it('treats an explicit 0 override as persistent even for auto-dismiss severities', () => {
+    expect(resolveAutoDismissMs('success', false, 0)).toBe(0)
+    expect(resolveAutoDismissMs('info', true, 0)).toBe(0)
+  })
+
+  it('persists every warning and error severity across the undo flag', () => {
+    for (const severity of ['warning', 'error'] as const) {
+      expect(resolveAutoDismissMs(severity, false)).toBe(0)
+      expect(resolveAutoDismissMs(severity, true)).toBe(0)
+    }
+  })
+})
+
+describe('splitStack invalid and boundary inputs', () => {
+  it('moves everything to overflow when the cap is zero or negative', () => {
+    expect(splitStack(['a', 'b'], 0)).toEqual({ visible: [], overflow: ['a', 'b'] })
+    expect(splitStack(['a', 'b'], -5)).toEqual({ visible: [], overflow: ['a', 'b'] })
+  })
+
+  it('truncates a fractional cap rather than exceeding it', () => {
+    // slice() truncates, so a 1.5 cap behaves as 2 for a 3-item stack.
+    expect(splitStack(['a', 'b', 'c'], 1.5)).toEqual({
+      visible: ['b', 'c'],
+      overflow: ['a'],
+    })
+  })
+
+  it('does not overflow for a single item under a fractional cap', () => {
+    expect(splitStack(['a'], 1.5)).toEqual({ visible: ['a'], overflow: [] })
+  })
+
+  it('never overflows for an infinite cap', () => {
+    expect(splitStack(['a', 'b'], Infinity)).toEqual({ visible: ['a', 'b'], overflow: [] })
+  })
+
+  it('keeps every item visible for a NaN cap instead of dropping toasts', () => {
+    // Degenerate-but-deterministic: the NaN cap must never silently lose items.
+    const result = splitStack(['a', 'b'], NaN)
+    expect(result.visible).toEqual(['a', 'b'])
+    expect(result.overflow).toEqual([])
+  })
+
+  it('returns fresh arrays rather than aliases of the input', () => {
+    const items = ['a', 'b', 'c', 'd'] as const
+    const result = splitStack(items, MAX_VISIBLE_DESKTOP)
+    expect(result.visible).not.toBe(items)
+    expect(result.overflow).not.toBe(items)
+    expect(items).toEqual(['a', 'b', 'c', 'd'])
   })
 })
