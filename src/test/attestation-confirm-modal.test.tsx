@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
-import AttestationConfirmModal from '../components/AttestationConfirmModal'
+import AttestationConfirmModal, {
+  type AttestationDetails,
+  type FeeBreakdownItem,
+  type FeeInfo,
+} from '../components/AttestationConfirmModal'
 import Dashboard from '../pages/Dashboard'
 
 function renderWithRouter(ui: React.ReactElement) {
@@ -445,6 +449,530 @@ describe('AttestationConfirmModal', () => {
 
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(document.activeElement).toBe(trigger)
+    })
+  })
+})
+
+// ─── FeeInfo / FeeBreakdownItem ───────────────────────────────────────────────
+
+/** Typed fixtures that satisfy the exported interfaces. */
+const SINGLE_ITEM_FEE: FeeInfo = {
+  total: 0.025,
+  breakdown: [{ label: 'Base fee', amount: 0.025 }],
+}
+
+const MULTI_ITEM_FEE: FeeInfo = {
+  total: 1.075,
+  breakdown: [
+    { label: 'Base fee', amount: 0.025 },
+    { label: 'Storage fee', amount: 0.05 },
+    { label: 'Network fee', amount: 1.0 },
+  ],
+}
+
+const ZERO_FEE: FeeInfo = {
+  total: 0,
+  breakdown: [{ label: 'Subsidised', amount: 0 }],
+}
+
+const LARGE_FEE: FeeInfo = {
+  total: 1_000_000,
+  breakdown: [{ label: 'Bulk processing', amount: 1_000_000 }],
+}
+
+describe('AttestationConfirmModal — FeeInfo display', () => {
+  describe('when feeInfo is null (calculating)', () => {
+    it('renders "Calculating fee…" placeholder', () => {
+      renderWithRouter(
+        <AttestationConfirmModal open onClose={vi.fn()} onConfirm={vi.fn()} feeInfo={null} />,
+      )
+      expect(screen.getByText(/calculating fee/i)).toBeInTheDocument()
+    })
+
+    it('calculating placeholder has aria-live="polite"', () => {
+      renderWithRouter(
+        <AttestationConfirmModal open onClose={vi.fn()} onConfirm={vi.fn()} feeInfo={null} />,
+      )
+      expect(screen.getByText(/calculating fee/i)).toHaveAttribute('aria-live', 'polite')
+    })
+
+    it('does not render the fee-toggle button when feeInfo is null', () => {
+      renderWithRouter(
+        <AttestationConfirmModal open onClose={vi.fn()} onConfirm={vi.fn()} feeInfo={null} />,
+      )
+      expect(
+        screen.queryByRole('button', { name: /view breakdown|hide breakdown/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not render the breakdown list when feeInfo is null', () => {
+      renderWithRouter(
+        <AttestationConfirmModal open onClose={vi.fn()} onConfirm={vi.fn()} feeInfo={null} />,
+      )
+      expect(document.getElementById('fee-breakdown-list')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('when feeInfo is provided — compact total', () => {
+    it('renders the total fee with "XLM" unit', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      expect(screen.getByText(/0\.025 XLM/)).toBeInTheDocument()
+    })
+
+    it('formats a large total with locale thousands separator', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={LARGE_FEE}
+        />,
+      )
+      expect(screen.getByText(/1,000,000 XLM/)).toBeInTheDocument()
+    })
+
+    it('renders zero-fee total as "0 XLM"', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={ZERO_FEE}
+        />,
+      )
+      expect(screen.getByText(/0 XLM/)).toBeInTheDocument()
+    })
+
+    it('renders the fee section with an accessible heading', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      expect(screen.getByRole('heading', { name: /estimated fee/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('when feeInfo is provided — breakdown toggle', () => {
+    it('renders "View breakdown" toggle button when feeInfo is set', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      expect(
+        screen.getByRole('button', { name: /view breakdown/i }),
+      ).toBeInTheDocument()
+    })
+
+    it('toggle button starts with aria-expanded="false"', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      const toggle = screen.getByRole('button', { name: /view breakdown/i })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('clicking toggle reveals the breakdown list', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(document.getElementById('fee-breakdown-list')).toBeInTheDocument()
+    })
+
+    it('clicking toggle changes button label to "Hide breakdown"', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(screen.getByRole('button', { name: /hide breakdown/i })).toBeInTheDocument()
+    })
+
+    it('toggle button has aria-expanded="true" when breakdown is visible', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(
+        screen.getByRole('button', { name: /hide breakdown/i }),
+      ).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('toggle button has aria-controls="fee-breakdown-list"', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      const toggle = screen.getByRole('button', { name: /view breakdown/i })
+      expect(toggle).toHaveAttribute('aria-controls', 'fee-breakdown-list')
+    })
+
+    it('clicking "Hide breakdown" collapses the list again', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      fireEvent.click(screen.getByRole('button', { name: /hide breakdown/i }))
+      expect(document.getElementById('fee-breakdown-list')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /view breakdown/i })).toBeInTheDocument()
+    })
+
+    it('breakdown list is not rendered initially (collapsed by default)', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={MULTI_ITEM_FEE}
+        />,
+      )
+      expect(document.getElementById('fee-breakdown-list')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('FeeBreakdownItem — breakdown list contents', () => {
+    it('renders all FeeBreakdownItem entries after expanding', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={MULTI_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(screen.getByText(/base fee/i)).toBeInTheDocument()
+      expect(screen.getByText(/storage fee/i)).toBeInTheDocument()
+      expect(screen.getByText(/network fee/i)).toBeInTheDocument()
+    })
+
+    it('each breakdown item shows its amount with "XLM" unit', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={MULTI_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      // The component renders each <li> with split text nodes: "Label: amount XLM"
+      // Use a function matcher to match across the full textContent of each list item.
+      const items = Array.from(
+        document.getElementById('fee-breakdown-list')!.querySelectorAll('li'),
+      ).map((li) => li.textContent ?? '')
+      expect(items.some((t) => t.includes('Base fee') && t.includes('0.025') && t.includes('XLM'))).toBe(true)
+      expect(items.some((t) => t.includes('Storage fee') && t.includes('0.05') && t.includes('XLM'))).toBe(true)
+      expect(items.some((t) => t.includes('Network fee') && t.includes('1') && t.includes('XLM'))).toBe(true)
+    })
+
+    it('renders a single-item breakdown correctly', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={SINGLE_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      const list = document.getElementById('fee-breakdown-list')
+      expect(list).toBeInTheDocument()
+      expect(list!.querySelectorAll('li')).toHaveLength(1)
+    })
+
+    it('renders a zero-amount FeeBreakdownItem correctly', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={ZERO_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(screen.getByText(/subsidised.*0 XLM/i)).toBeInTheDocument()
+    })
+
+    it('formats large breakdown amounts with locale separators', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={LARGE_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      // Text is split across multiple nodes: "Bulk processing", ":", "1,000,000", " XLM"
+      const items = Array.from(
+        document.getElementById('fee-breakdown-list')!.querySelectorAll('li'),
+      ).map((li) => li.textContent ?? '')
+      expect(
+        items.some((t) => t.includes('Bulk processing') && t.includes('1,000,000') && t.includes('XLM')),
+      ).toBe(true)
+    })
+
+    it('breakdown list has correct id for aria-controls reference', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={MULTI_ITEM_FEE}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(document.getElementById('fee-breakdown-list')).toBeInTheDocument()
+    })
+  })
+
+  describe('FeeInfo — invalid / boundary inputs', () => {
+    it('handles a FeeInfo with an empty breakdown array (no line items)', () => {
+      const emptyBreakdown: FeeInfo = { total: 0.5, breakdown: [] }
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          feeInfo={emptyBreakdown}
+        />,
+      )
+      // Total is still shown
+      expect(screen.getByText(/0\.5 XLM/)).toBeInTheDocument()
+      // Toggle is rendered even with empty breakdown
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      const list = document.getElementById('fee-breakdown-list')
+      expect(list).toBeInTheDocument()
+      expect(list!.querySelectorAll('li')).toHaveLength(0)
+    })
+
+    it('handles a negative total fee without throwing', () => {
+      // Negative values are not expected in production but the component
+      // must not crash — it should render whatever the number serialises to.
+      const negativeFee: FeeInfo = { total: -1, breakdown: [{ label: 'Refund', amount: -1 }] }
+      expect(() =>
+        renderWithRouter(
+          <AttestationConfirmModal
+            open
+            onClose={vi.fn()}
+            onConfirm={vi.fn()}
+            feeInfo={negativeFee}
+          />,
+        ),
+      ).not.toThrow()
+      expect(screen.getByText(/-1 XLM/)).toBeInTheDocument()
+    })
+
+    it('handles a very long FeeBreakdownItem label without crashing', () => {
+      const longLabel = 'A'.repeat(300)
+      const longLabelFee: FeeInfo = { total: 0.1, breakdown: [{ label: longLabel, amount: 0.1 }] }
+      expect(() =>
+        renderWithRouter(
+          <AttestationConfirmModal
+            open
+            onClose={vi.fn()}
+            onConfirm={vi.fn()}
+            feeInfo={longLabelFee}
+          />,
+        ),
+      ).not.toThrow()
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(screen.getByText(new RegExp(longLabel.slice(0, 20)))).toBeInTheDocument()
+    })
+
+    it('handles a FeeInfo with many breakdown items without crashing', () => {
+      const items: FeeBreakdownItem[] = Array.from({ length: 50 }, (_, i) => ({
+        label: `Fee item ${i + 1}`,
+        amount: 0.001,
+      }))
+      const bigFee: FeeInfo = { total: 0.05, breakdown: items }
+      expect(() =>
+        renderWithRouter(
+          <AttestationConfirmModal
+            open
+            onClose={vi.fn()}
+            onConfirm={vi.fn()}
+            feeInfo={bigFee}
+          />,
+        ),
+      ).not.toThrow()
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(document.getElementById('fee-breakdown-list')!.querySelectorAll('li')).toHaveLength(50)
+    })
+  })
+
+  describe('AttestationDetails — invalid / boundary inputs', () => {
+    it('handles recordCount of 0', () => {
+      const zeroRecords: AttestationDetails = {
+        ...DEMO_DETAILS,
+        recordCount: 0,
+      }
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          details={zeroRecords}
+        />,
+      )
+      expect(screen.getByText(/0 transactions/i)).toBeInTheDocument()
+    })
+
+    it('handles a very large recordCount with locale formatting', () => {
+      const bigRecords: AttestationDetails = {
+        ...DEMO_DETAILS,
+        recordCount: 9_999_999,
+      }
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          details={bigRecords}
+        />,
+      )
+      expect(screen.getByText(/9,999,999 transactions/i)).toBeInTheDocument()
+    })
+
+    it('truncates merkleRoot longer than 18 characters', () => {
+      const longRoot: AttestationDetails = {
+        ...DEMO_DETAILS,
+        merkleRoot: '0x' + 'a'.repeat(80),
+      }
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          details={longRoot}
+        />,
+      )
+      // Displayed value is the first 18 chars + ellipsis
+      expect(screen.getByText(/0xaaaaaaaaaaaaaaaa…/)).toBeInTheDocument()
+    })
+
+    it('handles an empty string merkleRoot without crashing', () => {
+      const emptyRoot: AttestationDetails = { ...DEMO_DETAILS, merkleRoot: '' }
+      expect(() =>
+        renderWithRouter(
+          <AttestationConfirmModal
+            open
+            onClose={vi.fn()}
+            onConfirm={vi.fn()}
+            details={emptyRoot}
+          />,
+        ),
+      ).not.toThrow()
+    })
+
+    it('handles a short merkleRoot (< 18 chars) without crashing', () => {
+      const shortRoot: AttestationDetails = { ...DEMO_DETAILS, merkleRoot: '0x1234' }
+      expect(() =>
+        renderWithRouter(
+          <AttestationConfirmModal
+            open
+            onClose={vi.fn()}
+            onConfirm={vi.fn()}
+            details={shortRoot}
+          />,
+        ),
+      ).not.toThrow()
+      // slice(0,18) of a short string is the string itself
+      expect(screen.getByText(/0x1234…/)).toBeInTheDocument()
+    })
+  })
+
+  describe('combined FeeInfo + AttestationDetails', () => {
+    it('renders both details and fee sections together without conflict', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          details={DEMO_DETAILS}
+          feeInfo={MULTI_ITEM_FEE}
+        />,
+      )
+      // Details section
+      expect(screen.getByText('Stripe (live)')).toBeInTheDocument()
+      expect(screen.getByText('May 2026')).toBeInTheDocument()
+      // Fee section
+      expect(screen.getByText(/1\.075 XLM/)).toBeInTheDocument()
+    })
+
+    it('fee breakdown toggle is independent of detail section', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          details={DEMO_DETAILS}
+          feeInfo={MULTI_ITEM_FEE}
+        />,
+      )
+      // Details are visible regardless of breakdown state
+      expect(screen.getByText('Stripe (live)')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /view breakdown/i }))
+      expect(screen.getByText('Stripe (live)')).toBeInTheDocument()
+      expect(screen.getByText(/base fee/i)).toBeInTheDocument()
+    })
+
+    it('both null details and null feeInfo render appropriate placeholders', () => {
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          details={null}
+          feeInfo={null}
+        />,
+      )
+      expect(screen.getByText(/loading attestation details/i)).toBeInTheDocument()
+      expect(screen.getByText(/calculating fee/i)).toBeInTheDocument()
     })
   })
 })
