@@ -16,7 +16,7 @@ interface Props {
 const STORAGE_KEY_PREFIX = 'veritasor:dismissed-announcements'
 
 function getStorageKey(userId?: string) {
-  return `\( {STORAGE_KEY_PREFIX}: \){userId ?? 'anonymous'}`
+  return `${STORAGE_KEY_PREFIX}:${userId ?? 'anonymous'}`
 }
 
 function loadDismissed(userId?: string): Set<string> {
