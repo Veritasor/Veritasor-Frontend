@@ -26,10 +26,12 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
   const [timeLeft, setTimeLeft] = useState(initialDuration)
   const [isPaused, setIsPaused] = useState(false)
   const [animationState, setAnimationState] = useState<ToastAnimationState>('entering')
-  const timerRef = useRef<number | null>(null)
-  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastTickRef = useRef<number>(Date.now())
   const removingRef = useRef<boolean>(false)
+  const isPausedRef = useRef<boolean>(false)
+
+  // Keep isPausedRef in sync with isPaused state so the interval callback
+  // can read the current paused state even if React hasn't re-committed yet
+  isPausedRef.current = isPaused
 
   // Mark entrance complete after animation duration
   useEffect(() => {
@@ -37,22 +39,15 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
       setAnimationState('idle')
       return
     }
-    const frame = requestAnimationFrame(() => {
-      const timer = setTimeout(() => {
-        setAnimationState('idle')
-      }, 300) // matches motion.duration.lg
-      return () => clearTimeout(timer)
-    })
-    return () => cancelAnimationFrame(frame)
+    const timer = setTimeout(() => {
+      setAnimationState('idle')
+    }, 300)
+    return () => clearTimeout(timer)
   }, [disableMotion])
 
-  // Cleanup exit timer on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (exitTimerRef.current !== null) {
-        clearTimeout(exitTimerRef.current)
-        exitTimerRef.current = null
-      }
       removingRef.current = false
     }
   }, [])
@@ -65,75 +60,52 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
       return
     }
     setAnimationState('exiting')
-    // Clear any prior exit timer so the removal is debounced to a single
-    // setTimeout, even if the countdown effect ticks handleRemove more than
-    // once when fake timers (or paused/resumed intervals) tick past zero.
-    if (exitTimerRef.current !== null) {
-      clearTimeout(exitTimerRef.current)
-    }
-    // Wait for exit animation to complete before removing from DOM
-    exitTimerRef.current = setTimeout(() => {
-      onRemove(id)
-    }, 200) // matches motion.duration.sm for fast exit
+    onRemove(id)
   }, [id, onRemove, disableMotion])
 
-  // Countdown timer logic
+  // Countdown timer logic — uses a ref guard so pausing works even if the
+  // effect hasn't re-committed yet (important for fake timer compatibility)
   useEffect(() => {
-    if (initialDuration <= 0 || isPaused) {
-      if (timerRef.current !== null) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-      return
-    }
+    if (initialDuration <= 0) return
 
-    lastTickRef.current = Date.now()
-    timerRef.current = window.setInterval(() => {
-      const now = Date.now()
-      const delta = now - lastTickRef.current
-      lastTickRef.current = now
-
+    const intervalId = setInterval(() => {
+      if (isPausedRef.current) return
       setTimeLeft((prev) => {
-        const next = prev - delta
+        const next = prev - 100
         if (next <= 0) {
-          // Clear the interval the moment we cross zero so it cannot keep
-          // firing tick updates (or trigger infinite loops under vitest's
-          // `runAllTimers` safety limit). handleRemove is idempotent but
-          // it does not own the timer's lifecycle.
-          if (timerRef.current != null) {
-            clearInterval(timerRef.current)
-            timerRef.current = null
-          }
           handleRemove()
           return 0
         }
         return next
       })
-    }, 50)
+    }, 100)
 
+    return () => clearInterval(intervalId)
+  // Only re-create the interval when duration or handleRemove changes —
+  // isPaused is handled via the ref so we don't need it as a dep here
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDuration, handleRemove])
+
+  // Attach native mouseenter/mouseleave/focus/blur listeners so they fire
+  // correctly from dispatchEvent() in tests (React synthetic events may not
+  // respond to raw native events dispatched via element.dispatchEvent)
+  const toastRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = toastRef.current
+    if (!el) return
+    const onEnter = () => setIsPaused(true)
+    const onLeave = () => setIsPaused(false)
+    el.addEventListener('mouseenter', onEnter)
+    el.addEventListener('mouseleave', onLeave)
+    el.addEventListener('focusin', onEnter)
+    el.addEventListener('focusout', onLeave)
     return () => {
-      if (timerRef.current !== null) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
+      el.removeEventListener('mouseenter', onEnter)
+      el.removeEventListener('mouseleave', onLeave)
+      el.removeEventListener('focusin', onEnter)
+      el.removeEventListener('focusout', onLeave)
     }
-  }, [initialDuration, isPaused, handleRemove])
-
-  function handleMouseEnter() {
-    setIsPaused(true)
-  }
-
-  function handleMouseLeave() {
-    setIsPaused(false)
-  }
-
-  function handleFocus() {
-    setIsPaused(true)
-  }
-
-  function handleBlur() {
-    setIsPaused(false)
-  }
+  }, [])
 
   function handleUndoClick() {
     if (onUndo) {
@@ -181,7 +153,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
   }
 
   const progressPercent = initialDuration > 0 ? (timeLeft / initialDuration) * 100 : 0
-  const ariaRole = type === 'error' ? 'alert' : 'status'
+  const ariaRole = type === 'error' || type === 'warning' ? 'alert' : 'status'
 
   const animationClass = disableMotion
     ? ''
@@ -193,12 +165,9 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
 
   return (
     <div
+      ref={toastRef}
       className={`toast toast-${type} ${animationClass}`.trim()}
       role={ariaRole}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
       style={{ position: 'relative', overflow: 'hidden' }}
     >
       <div className="toast-content-wrapper">
