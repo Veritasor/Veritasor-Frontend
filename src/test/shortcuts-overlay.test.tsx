@@ -167,7 +167,54 @@ describe('ShortcutsOverlay', () => {
     renderOverlay()
     const input = screen.getByRole('searchbox')
     fireEvent.change(input, { target: { value: 'Ctrl' } })
-    // Ctrl+K shortcut should be visible
     expect(screen.getByText('Open command palette')).toBeInTheDocument()
+  })
+
+  it('renders Shortcut labels from each category', () => {
+    renderOverlay()
+    expect(screen.getByText('Open keyboard shortcuts')).toBeInTheDocument()
+    expect(screen.getByText('Go to Dashboard')).toBeInTheDocument()
+    expect(screen.getByText('Toggle theme')).toBeInTheDocument()
+    expect(screen.getByText('New attestation')).toBeInTheDocument()
+  })
+
+  it('renders ShortcutCategory names from SHORTCUT_CATEGORIES', () => {
+    renderOverlay()
+    for (const cat of SHORTCUT_CATEGORIES) {
+      expect(screen.getByText(cat.name)).toBeInTheDocument()
+    }
+  })
+
+  it('handles representative invalid search inputs', () => {
+    renderOverlay()
+    const input = screen.getByRole('searchbox')
+    fireEvent.change(input, { target: { value: '' } })
+    expect(screen.getByText('Keyboard shortcuts')).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: '!!!@###' } })
+    expect(screen.getByText(/No shortcuts match/i)).toBeInTheDocument()
+  })
+
+  it('primary state transition: open closes overlay', () => {
+    const onClose = vi.fn()
+    renderOverlay(true, onClose)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    act(() => { setTimeout(() => {}, 0) })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('primary state transition: close removes overlay', () => {
+    const onClose = vi.fn()
+    renderOverlay(false, onClose)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('primary state transition: open then close', () => {
+    const onClose = vi.fn()
+    const { rerender } = renderOverlay(true)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    act(() => { setTimeout(() => {}, 0) })
+    rerender(<ShortcutsOverlay open={false} onClose={onClose} />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
