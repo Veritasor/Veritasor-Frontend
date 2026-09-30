@@ -273,7 +273,7 @@ function EmptyState() {
     </section>
   );
 }
-function AttestationTrendChart({ attestations }: { attestations: AttestationListItem[] }) {
+export function AttestationTrendChart({ attestations }: { attestations: AttestationListItem[] }) {
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const buckets = buildTrendBuckets(attestations);
