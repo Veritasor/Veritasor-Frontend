@@ -86,6 +86,109 @@ describe('AttestationConfirmModal', () => {
       expect(screen.getByRole('dialog')).toHaveFocus()
     })
 
+    it('bypasses focus trapping and preserves focus on Enter key press', () => {
+      setup({ details, feeInfo })
+
+      const closeButton = getCloseButton()
+      const confirmButton = getConfirmButton()
+      closeButton.focus()
+      expect(closeButton).toHaveFocus()
+
+      fireEvent.keyDown(closeButton, { key: 'Enter' })
+
+      expect(closeButton).toHaveFocus()
+      expect(confirmButton).not.toHaveFocus()
+    })
+
+    it('bypasses focus trapping and preserves focus on Space key press', () => {
+      setup({ details, feeInfo })
+
+      const cancelButton = getCancelButton()
+      const closeButton = getCloseButton()
+      cancelButton.focus()
+      expect(cancelButton).toHaveFocus()
+
+      fireEvent.keyDown(cancelButton, { key: ' ' })
+
+      expect(cancelButton).toHaveFocus()
+      expect(closeButton).not.toHaveFocus()
+    })
+
+    it('bypasses focus trapping and preserves focus on ArrowDown key press', () => {
+      setup({ details, feeInfo })
+
+      const confirmButton = getConfirmButton()
+      const closeButton = getCloseButton()
+      confirmButton.focus()
+      expect(confirmButton).toHaveFocus()
+
+      fireEvent.keyDown(confirmButton, { key: 'ArrowDown' })
+
+      expect(confirmButton).toHaveFocus()
+      expect(closeButton).not.toHaveFocus()
+    })
+
+    it('bypasses focus trapping and preserves focus on letter key press', () => {
+      setup({ details, feeInfo })
+
+      const closeButton = getCloseButton()
+      const confirmButton = getConfirmButton()
+      closeButton.focus()
+      expect(closeButton).toHaveFocus()
+
+      fireEvent.keyDown(closeButton, { key: 'a' })
+
+      expect(closeButton).toHaveFocus()
+      expect(confirmButton).not.toHaveFocus()
+    })
+
+    it('does not call preventDefault for non-Tab, non-Escape keys', () => {
+      setup({ details, feeInfo })
+
+      const closeButton = getCloseButton()
+      const handler = vi.fn()
+      closeButton.addEventListener('keydown', handler)
+
+      const nonTabKeys = ['Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'a', '1', 'F1']
+      nonTabKeys.forEach((key) => {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+        const preventDefaultSpy = vi.spyOn(event, 'preventDefault')
+        closeButton.dispatchEvent(event)
+        expect(preventDefaultSpy).not.toHaveBeenCalled()
+        preventDefaultSpy.mockRestore()
+      })
+
+      closeButton.removeEventListener('keydown', handler)
+    })
+
+    it('does not throw errors when non-Tab keys are pressed on the first focusable element', () => {
+      setup({ details, feeInfo })
+
+      const closeButton = getCloseButton()
+      closeButton.focus()
+
+      const nonTabKeys = ['Enter', 'Spacebar', 'ArrowDown', 'Escape']
+      nonTabKeys.forEach((key) => {
+        expect(() => {
+          fireEvent.keyDown(closeButton, { key })
+        }).not.toThrow()
+      })
+    })
+
+    it('does not throw errors when non-Tab keys are pressed on the last focusable element', () => {
+      setup({ details, feeInfo })
+
+      const confirmButton = getConfirmButton()
+      confirmButton.focus()
+
+      const nonTabKeys = ['Enter', 'Spacebar', 'ArrowUp', 'b']
+      nonTabKeys.forEach((key) => {
+        expect(() => {
+          fireEvent.keyDown(confirmButton, { key })
+        }).not.toThrow()
+      })
+    })
+
     it('wraps focus from the first focusable element to the last on Shift+Tab', () => {
       setup({ details, feeInfo })
 
