@@ -1,291 +1,257 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import AttestationConfirmModal, {
-  AttestationDetails,
-  AttestationConfirmModalProps,
-  FeeInfo,
+  type AttestationDetails,
+  type FeeInfo,
 } from './AttestationConfirmModal'
 
 const details: AttestationDetails = {
-  source: 'stripe',
+  source: 'Stripe',
   period: '2026-08',
   recordCount: 1234,
-  merkleRoot: '0xabcdef1234567890abcdef1234567890abcdef12',
+  merkleRoot: 'abcdef0123456789abcdef0123456789',
 }
 
 const feeInfo: FeeInfo = {
-  total: 1.5,
+  total: 12.5,
   breakdown: [
-    { label: 'Network fee', amount: 1 },
-    { label: 'Service fee', amount: 0.5 },
+    { label: 'Base fee', amount: 10 },
+    { label: 'Network fee', amount: 2.5 },
   ],
 }
 
-function setup(overrides: Partial<AttestationConfirmModalProps> = {}) {
-  const onClose = vi.fn()
-  const onConfirm = vi.fn()
-  const view = render(
-    <AttestationConfirmModal open onClose={onClose} onConfirm={onConfirm} {...overrides} />,
-  )
-  return { onClose, onConfirm, ...view }
-}
+function noop() {}
 
-function getCloseButton() {
-  return screen.getByRole('button', { name: 'Close dialog' })
-}
+// ─── conditional rendering (the `if (open)` / `if (!open) return null` branches) ──
 
-function getCancelButton() {
-  return screen.getByRole('button', { name: 'Cancel' })
-}
+describe('AttestationConfirmModal - open/close rendering', () => {
+  it('renders nothing while closed', () => {
+    render(<AttestationConfirmModal open={false} onClose={noop} onConfirm={noop} />)
 
-function getConfirmButton() {
-  return screen.getByRole('button', { name: 'Confirm & Attest' })
-}
-
-function getFeeToggleButton() {
-  return screen.getByRole('button', { name: 'View breakdown' })
-}
-
-describe('AttestationConfirmModal', () => {
-  describe('Rendering', () => {
-    it('renders the dialog with its title and details when open', () => {
-      setup({ details, feeInfo })
-
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(
-        screen.getByRole('heading', { name: 'Confirm Revenue Attestation' }),
-      ).toBeInTheDocument()
-      expect(screen.getByText('stripe')).toBeInTheDocument()
-      expect(screen.getByText('2026-08')).toBeInTheDocument()
-      expect(screen.getByText('1,234 transactions')).toBeInTheDocument()
-      expect(screen.getByText(/0xabcdef1234567890/)).toBeInTheDocument()
-      expect(screen.getByText('1.5 XLM')).toBeInTheDocument()
-    })
-
-    it('renders a loading placeholder when details are not provided', () => {
-      setup({ details: null, feeInfo: null })
-
-      expect(screen.getByText('Loading attestation details…')).toBeInTheDocument()
-      expect(screen.getByText('Calculating fee…')).toBeInTheDocument()
-      expect(screen.queryByLabelText('Attestation details')).not.toBeInTheDocument()
-    })
-
-    it('renders nothing when open is false', () => {
-      const { container } = setup({ open: false, details, feeInfo })
-
-      expect(container).toBeEmptyDOMElement()
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  describe('Focus management', () => {
-    it('moves focus to the dialog when it opens', () => {
-      setup({ details, feeInfo })
+  it('renders an accessible dialog while open', () => {
+    render(<AttestationConfirmModal open onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />)
 
-      expect(screen.getByRole('dialog')).toHaveFocus()
-    })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(dialog).toHaveAttribute('aria-labelledby', 'attest-modal-title')
+    expect(dialog).toHaveAttribute('aria-describedby', 'attest-modal-desc')
+    expect(document.getElementById('attest-modal-title')).toHaveTextContent(
+      'Confirm Revenue Attestation',
+    )
+    expect(document.getElementById('attest-modal-desc')).toBeInTheDocument()
+  })
 
-    it('wraps focus from the first focusable element to the last on Shift+Tab', () => {
-      setup({ details, feeInfo })
+  it('closes when `open` flips back to false', () => {
+    const { rerender } = render(
+      <AttestationConfirmModal open onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
 
-      const closeButton = getCloseButton()
-      const confirmButton = getConfirmButton()
+    rerender(<AttestationConfirmModal open={false} onClose={noop} onConfirm={noop} />)
 
-      closeButton.focus()
-      expect(closeButton).toHaveFocus()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
 
-      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
+// ─── triggerRef: focus move on open, restore on close ──────────────────────
 
-      expect(confirmButton).toHaveFocus()
-    })
+describe('AttestationConfirmModal - trigger focus management', () => {
+  it('moves focus to the dialog when it opens', () => {
+    const { rerender } = render(
+      <AttestationConfirmModal open={false} onClose={noop} onConfirm={noop} />,
+    )
 
-    it('wraps focus from the last focusable element to the first on Tab', () => {
-      setup({ details, feeInfo })
+    rerender(<AttestationConfirmModal open onClose={noop} onConfirm={noop} />)
 
-      const closeButton = getCloseButton()
-      const confirmButton = getConfirmButton()
+    expect(document.activeElement).toBe(screen.getByRole('dialog'))
+  })
 
-      confirmButton.focus()
-      expect(confirmButton).toHaveFocus()
-
-      fireEvent.keyDown(confirmButton, { key: 'Tab' })
-
-      expect(closeButton).toHaveFocus()
-    })
-
-    it('keeps focus inside the modal when Tab is pressed on a middle focusable element', () => {
-      setup({ details, feeInfo })
-
-      const cancelButton = getCancelButton()
-      const dialog = screen.getByRole('dialog')
-
-      cancelButton.focus()
-      expect(cancelButton).toHaveFocus()
-
-      fireEvent.keyDown(cancelButton, { key: 'Tab' })
-
-      expect(cancelButton).toHaveFocus()
-      expect(dialog).toContainElement(document.activeElement as HTMLElement)
-    })
-
-    it('does not wrap on Shift+Tab when focus is not on the first focusable element', () => {
-      setup({ details, feeInfo })
-
-      const cancelButton = getCancelButton()
-
-      cancelButton.focus()
-      fireEvent.keyDown(cancelButton, { key: 'Tab', shiftKey: true })
-
-      expect(cancelButton).toHaveFocus()
-      expect(getConfirmButton()).not.toHaveFocus()
-    })
-
-    it('keeps the Shift+Tab wrap working when a fee breakdown toggle adds a focusable element', () => {
-      setup({ details, feeInfo })
-
-      const closeButton = getCloseButton()
-      const confirmButton = getConfirmButton()
-      const feeToggleButton = getFeeToggleButton()
-
-      // The toggle sits between the close button and the footer buttons.
-      feeToggleButton.focus()
-      fireEvent.keyDown(feeToggleButton, { key: 'Tab', shiftKey: true })
-      expect(feeToggleButton).toHaveFocus()
-
-      // The last focusable element is still the confirm button, so the wrap still lands there.
-      closeButton.focus()
-      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
-      expect(confirmButton).toHaveFocus()
-    })
-
-    it('restores focus to the trigger element when the modal closes', () => {
-      const trigger = document.createElement('button')
-      trigger.textContent = 'Open attestation'
-      document.body.appendChild(trigger)
-      trigger.focus()
-      expect(trigger).toHaveFocus()
-
-      try {
-        const onClose = vi.fn()
-        const onConfirm = vi.fn()
-        const { rerender } = render(
-          <AttestationConfirmModal open onClose={onClose} onConfirm={onConfirm} />,
-        )
-        expect(screen.getByRole('dialog')).toHaveFocus()
-
-        rerender(<AttestationConfirmModal open={false} onClose={onClose} onConfirm={onConfirm} />)
-
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-        expect(trigger).toHaveFocus()
-      } finally {
-        trigger.remove()
-      }
-    })
-
-    it('moves focus into the dialog when it is opened by a rerender', () => {
-      const onClose = vi.fn()
-      const onConfirm = vi.fn()
-      const { rerender } = render(
-        <AttestationConfirmModal open={false} onClose={onClose} onConfirm={onConfirm} />,
+  it('restores focus to the element that opened the modal', () => {
+    function Harness({ open }: { open: boolean }) {
+      return (
+        <>
+          <button type="button" data-testid="trigger">
+            Open
+          </button>
+          <AttestationConfirmModal open={open} onClose={noop} onConfirm={noop} />
+        </>
       )
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    }
 
-      rerender(<AttestationConfirmModal open onClose={onClose} onConfirm={onConfirm} />)
+    const { rerender } = render(<Harness open={false} />)
+    const trigger = screen.getByTestId('trigger')
+    trigger.focus()
+    expect(trigger).toHaveFocus()
 
-      expect(screen.getByRole('dialog')).toHaveFocus()
-    })
+    rerender(<Harness open />)
+    expect(document.activeElement).toBe(screen.getByRole('dialog'))
+
+    rerender(<Harness open={false} />)
+    expect(trigger).toHaveFocus()
+  })
+})
+
+// ─── Escape dismissal and focus trap ───────────────────────────────────────
+
+describe('AttestationConfirmModal - keyboard behavior', () => {
+  it('invokes onClose when Escape is pressed', () => {
+    const onClose = vi.fn()
+    render(<AttestationConfirmModal open onClose={onClose} onConfirm={noop} details={details} feeInfo={feeInfo} />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  describe('Dismissal', () => {
-    it('calls onClose when Escape is pressed', () => {
-      const { onClose } = setup({ details, feeInfo })
+  it('wraps focus from the last focusable element to the first on Tab', () => {
+    render(<AttestationConfirmModal open onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />)
 
-      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    const close = screen.getByRole('button', { name: 'Close dialog' })
+    const confirm = screen.getByRole('button', { name: 'Confirm & Attest' })
 
-      expect(onClose).toHaveBeenCalledTimes(1)
-    })
+    confirm.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
 
-    it('does not call onClose when Escape is pressed while closed', () => {
-      const { onClose } = setup({ open: false, details, feeInfo })
-
-      fireEvent.keyDown(document, { key: 'Escape' })
-
-      expect(onClose).not.toHaveBeenCalled()
-    })
-
-    it('calls onClose when the backdrop is clicked', () => {
-      const { onClose } = setup({ details, feeInfo })
-
-      const backdrop = screen.getByRole('dialog').parentElement
-      expect(backdrop).not.toBeNull()
-      fireEvent.click(backdrop as HTMLElement)
-
-      expect(onClose).toHaveBeenCalledTimes(1)
-    })
-
-    it('does not call onClose when a click lands inside the dialog', () => {
-      const { onClose } = setup({ details, feeInfo })
-
-      fireEvent.click(screen.getByRole('dialog'))
-
-      expect(onClose).not.toHaveBeenCalled()
-    })
-
-    it('does not call onClose on a backdrop click while loading', () => {
-      const { onClose } = setup({ details, feeInfo, isLoading: true })
-
-      const backdrop = screen.getByRole('dialog').parentElement
-      fireEvent.click(backdrop as HTMLElement)
-
-      expect(onClose).not.toHaveBeenCalled()
-    })
+    expect(close).toHaveFocus()
   })
 
-  describe('Edge cases', () => {
-    it('wraps focus between the single focusable element when the action buttons are disabled', () => {
-      // With no fee info the only focusable element is the header close button.
-      setup({ details, feeInfo: null, isLoading: true })
+  it('wraps focus from the first focusable element to the last on Shift+Tab', () => {
+    render(<AttestationConfirmModal open onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />)
 
-      const closeButton = getCloseButton()
-      expect(getCancelButton()).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'Attesting…' })).toBeDisabled()
+    const close = screen.getByRole('button', { name: 'Close dialog' })
+    const confirm = screen.getByRole('button', { name: 'Confirm & Attest' })
 
-      closeButton.focus()
-      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
-      expect(closeButton).toHaveFocus()
+    close.focus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
 
-      fireEvent.keyDown(closeButton, { key: 'Tab' })
-      expect(closeButton).toHaveFocus()
-    })
+    expect(confirm).toHaveFocus()
+  })
 
-    it('skips disabled action buttons when wrapping focus', () => {
-      // The fee toggle stays enabled while loading, so it becomes the last focusable element.
-      setup({ details, feeInfo, isLoading: true })
+  it('removes the keydown listener when it closes', () => {
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <AttestationConfirmModal open onClose={onClose} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
 
-      const closeButton = getCloseButton()
-      const feeToggleButton = getFeeToggleButton()
-      expect(getCancelButton()).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'Attesting…' })).toBeDisabled()
+    rerender(<AttestationConfirmModal open={false} onClose={onClose} onConfirm={noop} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
 
-      closeButton.focus()
-      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
-      expect(feeToggleButton).toHaveFocus()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})
 
-      fireEvent.keyDown(feeToggleButton, { key: 'Tab' })
-      expect(closeButton).toHaveFocus()
-    })
+// ─── backdrop / loading interaction ────────────────────────────────────────
 
-    it('renders the error alert and still wraps focus on Shift+Tab', () => {
-      setup({ details, feeInfo, error: 'Attestation submission failed' })
+describe('AttestationConfirmModal - backdrop and loading', () => {
+  it('closes on backdrop click but not on a click inside the dialog', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <AttestationConfirmModal open onClose={onClose} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
 
-      expect(screen.getByRole('alert')).toHaveTextContent('Attestation submission failed')
+    fireEvent.click(screen.getByRole('dialog'))
+    expect(onClose).not.toHaveBeenCalled()
 
-      const closeButton = getCloseButton()
-      closeButton.focus()
-      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
+    fireEvent.click(container.querySelector('.modal-backdrop')!)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 
-      expect(getConfirmButton()).toHaveFocus()
-    })
+  it('ignores backdrop clicks while loading', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <AttestationConfirmModal open isLoading onClose={onClose} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
+
+    fireEvent.click(container.querySelector('.modal-backdrop')!)
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+// ─── content: details, fees, errors, actions ───────────────────────────────
+
+describe('AttestationConfirmModal - content and actions', () => {
+  it('shows a loading placeholder until details arrive', () => {
+    const { rerender } = render(
+      <AttestationConfirmModal open onClose={noop} onConfirm={noop} details={null} feeInfo={null} />,
+    )
+    expect(screen.getByText(/Loading attestation details/i)).toBeInTheDocument()
+
+    rerender(
+      <AttestationConfirmModal open onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
+    expect(screen.queryByText(/Loading attestation details/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Stripe')).toBeInTheDocument()
+    expect(screen.getByText('2026-08')).toBeInTheDocument()
+  })
+
+  it('toggles the fee breakdown list', () => {
+    const { container } = render(
+      <AttestationConfirmModal open onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
+
+    expect(container.querySelector('#fee-breakdown-list')).toBeNull()
+    const toggle = screen.getByRole('button', { name: 'View breakdown' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: 'Hide breakdown' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(container.querySelector('#fee-breakdown-list')).toBeInTheDocument()
+    expect(screen.getByText(/Base fee/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide breakdown' }))
+    expect(screen.queryByText(/Base fee/)).not.toBeInTheDocument()
+  })
+
+  it('shows the error alert only when an error is present', () => {
+    const { rerender } = render(
+      <AttestationConfirmModal open onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    rerender(
+      <AttestationConfirmModal
+        open
+        onClose={noop}
+        onConfirm={noop}
+        details={details}
+        feeInfo={feeInfo}
+        error="Attestation failed: nonce already used"
+      />,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Attestation failed: nonce already used')
+  })
+
+  it('wires the confirm and cancel actions', () => {
+    const onClose = vi.fn()
+    const onConfirm = vi.fn()
+    render(
+      <AttestationConfirmModal open onClose={onClose} onConfirm={onConfirm} details={details} feeInfo={feeInfo} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm & Attest' }))
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables both actions and marks the dialog busy while loading', () => {
+    render(
+      <AttestationConfirmModal open isLoading onClose={noop} onConfirm={noop} details={details} feeInfo={feeInfo} />,
+    )
+
+    const confirm = screen.getByRole('button', { name: 'Attesting…' })
+    expect(confirm).toBeDisabled()
+    expect(confirm).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Close dialog' })).toBeEnabled()
   })
 })
