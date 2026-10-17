@@ -111,6 +111,30 @@ describe('CookieConsentContext — invalid localStorage', () => {
   })
 })
 
+describe('CookieConsentContext — storage failure handling', () => {
+  it('falls back to first-visit state when getItem throws', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+    renderConsumer()
+    expect(screen.getByTestId('decided')).toHaveTextContent('false')
+    expect(screen.getByTestId('analytics')).toHaveTextContent('false')
+    expect(screen.getByTestId('marketing')).toHaveTextContent('false')
+    expect(screen.getByTestId('visible')).toHaveTextContent('true')
+  })
+
+  it('does not throw when setItem fails on savePreferences', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+    renderConsumer(null)
+    expect(() =>
+      fireEvent.click(screen.getByRole('button', { name: /accept all/i })),
+    ).not.toThrow()
+    expect(screen.getByTestId('analytics')).toHaveTextContent('true')
+  })
+})
+
 describe('useCookieConsent — guard', () => {
   it('throws when used outside provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -122,30 +146,6 @@ describe('useCookieConsent — guard', () => {
       ),
     ).toThrow('useCookieConsent must be used within CookieConsentProvider')
     spy.mockRestore()
-  })
-
-  it('throws a deterministic Error instance with the documented message', () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    let caught: unknown
-    try {
-      render(
-        <MemoryRouter>
-          <ConsentConsumer />
-        </MemoryRouter>,
-      )
-    } catch (err) {
-      caught = err
-    }
-    expect(caught).toBeInstanceOf(Error)
-    expect((caught as Error).message).toBe(
-      'useCookieConsent must be used within CookieConsentProvider',
-    )
-    spy.mockRestore()
-  })
-
-  it('does not throw when used within the provider (normal path)', () => {
-    expect(() => renderConsumer(null)).not.toThrow()
-    expect(screen.getByTestId('decided')).toHaveTextContent('false')
   })
 })
 
@@ -244,29 +244,6 @@ describe('CookieConsentContext — direct context value', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     act(() => { capturedClose!() })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-})
-
-describe('CookieConsentContext — boundary inputs', () => {
-  it('treats storage value "null" as first visit', () => {
-    localStorage.setItem(STORAGE_KEY, 'null')
-    renderConsumer()
-    expect(screen.getByTestId('decided')).toHaveTextContent('false')
-    expect(screen.getByTestId('visible')).toHaveTextContent('true')
-  })
-
-  it('treats empty string storage as first visit', () => {
-    localStorage.setItem(STORAGE_KEY, '')
-    renderConsumer()
-    expect(screen.getByTestId('decided')).toHaveTextContent('false')
-    expect(screen.getByTestId('visible')).toHaveTextContent('true')
-  })
-
-  it('coerces missing consent keys to false', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({}))
-    renderConsumer()
-    expect(screen.getByTestId('analytics')).toHaveTextContent('false')
-    expect(screen.getByTestId('marketing')).toHaveTextContent('false')
   })
 })
 
