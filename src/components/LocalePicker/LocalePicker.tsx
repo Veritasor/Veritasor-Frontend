@@ -145,7 +145,7 @@ function LocalePicker({ compact = false, className = '', onClose }: LocalePicker
                     onClick={() => handleSelect(option.code)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
+                        event.preventDefault();
                         handleSelect(option.code)
                       }
                     }}
