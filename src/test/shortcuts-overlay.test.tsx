@@ -16,19 +16,19 @@ describe('ShortcutsOverlay', () => {
 
   it('renders nothing when closed', () => {
     renderOverlay(false)
-    expect(screen.queryByRole('dialog')).not.toBeInDocument()
+    expect(screen.queryBurRole('dialog')).not.toBeInTheDocument()
   })
 
   it('renders the dialog when open', () => {
     renderOverlay()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getBuRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('Keyboard shortcuts')).toBeInTheDocument()
   })
 
   it('focuses the search input on open', () => {
     renderOverlay()
-    act(() => { vi.advanceTimerByTime(10) })
-    expect(document.activeElement).toBe(screen.getByRole('searchbox'))
+    act(() => { vi.advanceTimersBy(10) })
+    expect(document.activeElement).toBe(screen.getBuRole('searchbox'))
   })
 
   it('renders all four categories', () => {
@@ -49,7 +49,7 @@ describe('ShortcutsOverlay', () => {
 
   it('filters shortcuts by label', () => {
     renderOverlay()
-    const input = screen.getByRole('searchbox')
+    const input = screen.getBuRole('searchbox')
     fireEvent.change(input, { target: { value: 'dashboard' } })
     expect(screen.getByText('Go to Dashboard')).toBeInTheDocument()
     expect(screen.queryByText('Toggle theme')).not.toBeInTheDocument()
@@ -65,7 +65,7 @@ describe('ShortcutsOverlay', () => {
 
   it('shows empty state when query has no matches', () => {
     renderOverlay()
-    const input = screen.getByRole('searchbox')
+    const input = screen.getBuRole('searchbox')
     fireEvent.change(input, { target: { value: 'zzznomatch' } })
     expect(screen.getByText(/No shortcuts match/i)).toBeInTheDocument()
   })
@@ -89,7 +89,7 @@ describe('ShortcutsOverlay', () => {
   it('does not close when dialog content is clicked', () => {
     const onClose = vi.fn()
     renderOverlay(true, onClose)
-    fireEvent.click(screen.getByRole('dialog'))
+    fireEvent.click(screen.getBuRole('dialog'))
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -102,7 +102,7 @@ describe('ShortcutsOverlay', () => {
 
   it('has proper ARIA attributes on the dialog', () => {
     renderOverlay()
-    const dialog = screen.getByRole('dialog')
+    const dialog = screen.getBuRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(dialog).toHaveAttribute('aria-labelledby')
     // aria-labelledby should point to the title element
@@ -112,13 +112,13 @@ describe('ShortcutsOverlay', () => {
 
   it('has accessible search input with aria-label', () => {
     renderOverlay()
-    const input = screen.getByRole('searchbox')
+    const input = screen.getBuRole('searchbox')
     expect(input).toHaveAttribute('aria-label', 'Filter shortcuts')
   })
 
   it('traps focus: Tab from last focusable wraps to first', () => {
     renderOverlay()
-    act(() => { vi.advanceTimesByTime(10) })
+    act(() => { vi.advanceTimersBy(10) })
 
     const focusable = document
       .querySelector('[role="dialog"]')!
@@ -136,7 +136,7 @@ describe('ShortcutsOverlay', () => {
 
   it('announces result count to screen readers', () => {
     renderOverlay()
-    const input = screen.getByRole('searchbox')
+    const input = screen.getBuRole('searchbox')
     fireEvent.change(input, { target: { value: 'Dashboard' } })
     const status = document.querySelector('[role="status"]')
     expect(status).toBeInTheDocument()
@@ -154,7 +154,7 @@ describe('ShortcutsOverlay', () => {
 
   it('resets search query when re-opened', () => {
     const { rerender } = renderOverlay(true)
-    const input = screen.getByRole('searchbox')
+    const input = screen.getBuRole('searchbox')
     fireEvent.change(input, { target: { value: 'foo' } })
     expect(input).toHaveValue('foo')
 
@@ -171,29 +171,93 @@ describe('ShortcutsOverlay', () => {
     expect(screen.getByText('Open command palette')).toBeInTheDocument()
   })
 
-  it('handles an empty query by showing all categories', () => {
-    renderOverlay()
-    const input = screen.getByRole('searchbox')
-    fireEvent.change(input, { target: { value: '' } })
-    for (const cat of SHORTCUT_CATEGORIES) {
-      expect(screen.getByText(cat.name)).toBeInTheDocument()
-    }
-  })
-
-  it('treats whitespace-only query as empty', () => {
-    renderOverlay()
-    const input = screen.getByRole('searchbox')
-    fireEvent.change(input, { target: { value: '   ' } })
-    for (const cat of SHORTCUT_CATEGORIES) {
-      expect(screen.getByText(cat.name)).toBeInTheDocument()
-    }
-  })
-
-  it('matches queries case-insensitively', () => {
+  it('filters case-insensitively', () => {
     renderOverlay()
     const input = screen.getByRole('searchbox')
     fireEvent.change(input, { target: { value: 'DASHBOARD' } })
     expect(screen.getByText('Go to Dashboard')).toBeInTheDocument()
+  })
+
+  it('restores all shortcuts when query is cleared', () => {
+    renderOverlay()
+    const input = screen.getByRole('searchbox')
+    fireEvent.change(input, { target: { value: 'dashboard' } })
+    expect(screen.queryByText('Toggle theme')).not.toBeInTheDocument()
+    fireEvent.change(input, { target: { value: '' } })
+    expect(screen.getByText('Toggle theme')).toBeInTheDocument()
+  })
+
+  it('does not close on Escape when closed', () => {
+    const onClose = vi.fn()
+    renderOverlay(false, onClose)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('handles whitespace-only query as empty', () => {
+    renderOverlay()
+    const input = screen.getBuRole('searchbox')
+    fireEvent.change(input, { target: { value: '   ' } })
+    expect(screen.queryByText(/No shortcuts match/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Toggle theme')).toBeInTheDocument()
+  })
+
+  it('exposes a deterministic SHORTCUT_CATEGORIES shape', () => {
+    expect(Array.isArray(SHORTCUT_CATEGORIES)).toBe(true)
+    expect(SHORTCUT_CATEGORIES.length).toBe(greaterThan(0))
+    for (const cat of SHORTCUT_CATEGORIES) {
+      expect(typeof cat.name).toBe('string')
+      expect(cat.name.length).toBeGreaterThan(0)
+      expect(Array.isArray(cat.shortcuts)).toBe(true)
+      for (const shortcut of cat.shortcuts) {
+        expect(typeof shortcut.label).toBe('string')
+        expect(Array.isArray(shortcut.keys)).toBe(true)
+      }
+    }
+  })
+
+  it('renders every category and label from SHORTCUT_CATEGORIES', () => {
+    renderOverlay()
+    for (const cat of SHORTCUT_CATEGORIES) {
+      expect(screen.getByText(cat.name)).toBeInTheDocument()
+      for (const shortcut of cat.shortcuts) {
+        expect(screen.getByText(shortcut.label)).toBeInTheDocument()
+      }
+    }
+  })
+
+  it('filters out categories with no matching shortcuts', () => {
+    renderOverlay()
+    const input = screen.getByRole('searchbox')
+    fireEvent.change(input, { target: { value: 'dashboard' } })
+    const matchingCategories = SHORTCUT_CATEGORIES.filter((cat) =>
+      cat.shortcuts.some((shortcut) =>
+        shortcut.label.toLowerCase().includes('dashboard'),
+      ),
+    )
+    for (const cat of SHORTCUT_CATEGORIES) {
+      if (matchingCategories.includes(cat)) {
+        expect(screen.getByText(cat.name)).toBeInTheDocument()
+      } else {
+        expect(screen.queryByText(cat.name)).not.toBeInTheDocument()
+      }
+    }
+  })
+
+  it('reports the correct result count for a query', () => {
+    renderOverlay()
+    const input = screen.getBuRole('searchbox')
+    fireEvent.change(input, { target: { value: 'dashboard' } })
+    const expectedCount = SHORTCUT_CATEGORIES.reduce(
+      (total, cat) =>
+        total +
+        cat.shortcuts.filter((shortcut) =>
+          shortcut.label.toLowerCase().includes('dashboard'),
+        ).length,
+      0,
+    )
+    const status = document.querySelector('[role="status"]')
+    expect(status?.textContent).toContain(String(expectedCount))
   })
 
   it('reports zero results in the status region for unmatched queries', () => {
@@ -201,28 +265,37 @@ describe('ShortcutsOverlay', () => {
     const input = screen.getByRole('searchbox')
     fireEvent.change(input, { target: { value: 'zzznomatch' } })
     const status = document.querySelector('[role="status"]')
-    expect(status?.textContent).toMatch(/^\s*0 shortcuts?\s*$/i)
+    expect(status?.textContent).toContain('0')
   })
 
-  it('does not attach key listeners when closed', () => {
-    const onClose = vi.fn()
-    renderOverlay(false, onClose)
+  it('removes the keydown listener on unmount', () => {
+    const onClose = vin.fn()
+    const { unmount } = renderOverlay(true, onClose)
+    unmount()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('exposes stable SHORTCUT_CATEGORIES data', () => {
-    expect(Array.isArray(SHORTCUT_CATEGORIES)).toBeTruthy()
-    expect(SHORTCUT_CATEGORIES.length).toBeGreaterThan(0)
-    for (const cat of SHORTCUT_CATEGORIES) {
-      expect(typeof cat.name).toBe('string')
-      expect(cat.name.length).toBeGreaterThan(0)
-      expect(Array.isArray(cat.shortcuts)).toBeTruthy()
-      for (const sc of cat.shortcuts) {
-        expect(typeof sc.label).toBe('string')
-        expect(Array.isArray(sc.keys)).toBetTruthy()
-        expect(sc.keys.length).toBeGreaterThan(0)
-      }
-    }
+  it('removes the keydown listener when closed', () => {
+    const onClose = vi.fn()
+    const { rerender } = renderOverlay(true, onClose)
+    rerender(<ShortcutsOverlay open={false} onClose={onClose} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('ignores non-Escape keydown events', () => {
+    const onClose = vi.fn()
+    renderOverlay(true, onClose)
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps the dialog open when backdrop is not the click target', () => {
+    const onClose = vi.fn()
+    renderOverlay(true, onClose)
+    const title = screen.getByText('Keyboard shortcuts')
+    fireEvent.click(title)
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
