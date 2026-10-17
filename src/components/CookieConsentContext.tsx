@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,23 +25,22 @@ export const STORAGE_KEY = 'veritasor_cookie_consent'
 
 const DEFAULT_CONSENT: ConsentState = { analytics: false, marketing: false, productCommunications: false }
 
-function isConsentState(value: unknown): value is ConsentState {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Record<string, unknown>
-  return (
-    typeof candidate.analytics === 'boolean' &&
-    typeof candidate.marketing === 'boolean' &&
-    typeof candidate.productCommunications === 'boolean'
-  )
+function normalizeConsent(value: unknown): ConsentState {
+  if (!value || typeof value !== 'object') return DEFAULT_CONSENT
+  const candidate = value as Partial<Record<keyof ConsentState, unknown>>
+  return {
+    analytics: candidate.analytics === true,
+    marketing: candidate.marketing === true,
+    productCommunications: candidate.productCommunications === true,
+  }
 }
 
 function readStorage(): { hasDecided: boolean; consent: ConsentState } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return { hasDecided: false, consent: DEFAULT_CONSENT }
-    const parsed: unknown = JSON.parse(raw)
-    if (!isConsentState(parsed)) return { hasDecided: false, consent: DEFAULT_CONSENT }
-    return { hasDecided: true, consent: parsed }
+    const parsed = JSON.parse(raw) as ConsentState
+    return { hasDecided: true, consent: normalizeConsent(parsed) }
   } catch {
     return { hasDecided: false, consent: DEFAULT_CONSENT }
   }
@@ -74,6 +73,20 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
     setBannerVisible(false)
   }, [])
 
+  const contextValue = useMemo<CookieConsentContextValue>(
+    () => ({
+      hasDecided,
+      consent,
+      bannerVisible,
+      acceptAll,
+      rejectAll,
+      savePreferences,
+      openSettings,
+      closeBanner,
+    }),
+    [hasDecided, consent, bannerVisible, acceptAll, rejectAll, savePreferences, openSettings, closeBanner],
+  )
+
   const acceptAll = useCallback(() => decide({ analytics: true, marketing: true, productCommunications: true }), [decide])
   const rejectAll = useCallback(() => decide({ analytics: false, marketing: false, productCommunications: false }), [decide])
   const savePreferences = useCallback((next: ConsentState) => decide(next), [decide])
@@ -84,16 +97,7 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
 
   return (
     <CookieConsentContext.Provider
-      value={{
-        hasDecided,
-        consent,
-        bannerVisible,
-        acceptAll,
-        rejectAll,
-        savePreferences,
-        openSettings,
-        closeBanner,
-      }}
+      value={contextValue}
     >
       {children}
     </CookieConsentContext.Provider>
@@ -105,3 +109,4 @@ export function useCookieConsent(): CookieConsentContextValue {
   if (!ctx) throw new Error('useCookieConsent must be used within CookieConsentProvider')
   return ctx
 }
+
