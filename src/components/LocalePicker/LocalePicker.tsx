@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useIntl } from 'react-intl'
 import { useLocale } from '../../i18n/useLocale'
 import { SUPPORTED_LOCALES } from '../../i18n/config'
+import LocalePickerField from './LocalePickerField'
 
 interface LocalePickerProps {
   compact?: boolean
@@ -12,6 +13,7 @@ interface LocalePickerProps {
 function LocalePicker({ compact = false, className = '', onClose }: LocalePickerProps) {
   const { locale, setLocale, dir } = useLocale()
   const intl = useIntl()
+  const [fieldValue, setFieldValue] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -113,6 +115,13 @@ function LocalePicker({ compact = false, className = '', onClose }: LocalePicker
 
       {open && (
         <div className="mt-2 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
+            <LocalePickerField
+              value={fieldValue}
+              onChange={(next) => setFieldValue(next)}
+              aria-label={intl.formatMessage({ id: 'settings.locale.search.placeholder' })}
+            />
+          </div>
           {SUPPORTED_LOCALES.length > 5 && (
             <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
               <input
