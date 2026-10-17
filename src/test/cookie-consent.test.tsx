@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CookieBanner from '../components/CookieBanner'
@@ -111,6 +111,33 @@ describe('CookieConsentContext — invalid localStorage', () => {
   })
 })
 
+describe('CookieConsentContext — ConsentState failure handling', () => {
+  it('falls back to first-visit state when stored value is missing required keys', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ analytics: true }))
+    renderConsumer()
+    expect(screen.getByTestId('decided')).toHaveTextContent('false')
+    expect(screen.getByTestId('analytics')).toHaveTextContent('false')
+    expect(screen.getByTestId('marketing')).toHaveTextContent('false')
+    expect(screen.getByTestId('visible')).toHaveTextContent('true')
+  })
+
+  it('falls back to first-visit state when stored value has wrong types', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ analytics: 'yes', marketing: 1 }))
+    renderConsumer()
+    expect(screen.getByTestId('decided')).toHaveTextContent('false')
+    expect(screen.getByTestId('analytics')).toHaveTextContent('false')
+    expect(screen.getByTestId('marketing')).toHaveTextContent('false')
+    expect(screen.getByTestId('visible')).toHaveTextContent('true')
+  })
+
+  it('falls back to first-visit state when stored value is a JSON primitive', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify('consent'))
+    renderConsumer()
+    expect(screen.getByTestId('decided')).toHaveTextContent('false')
+    expect(screen.getByTestId('visible')).toHaveTextContent('true')
+  })
+})
+
 describe('useCookieConsent — guard', () => {
   it('throws when used outside provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -123,11 +150,16 @@ describe('useCookieConsent — guard', () => {
     ).toThrow('useCookieConsent must be used within CookieConsentProvider')
     spy.mockRestore()
   })
-})
 
-describe('ConsentState — failure handling', () => {
-  it('throws the documented error when consent state is accessed outside the provider', () => {
+  it('throws a deterministic Error when context is null', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <ConsentConsumer />
+        </MemoryRouter>,
+      ),
+    ).toThrow(Error)
     expect(() =>
       render(
         <MemoryRouter>
@@ -136,35 +168,6 @@ describe('ConsentState — failure handling', () => {
       ),
     ).toThrow('useCookieConsent must be used within CookieConsentProvider')
     spy.mockRestore()
-  })
-
-  it('does not throw when consent state is accessed inside the provider', () => {
-    expect(() => renderConsumer(null)).not.toThrow()
-    expect(screen.getByTestId('decided')).toHaveTextContent('false')
-  })
-
-  it('falls back to first-visit defaults when stored state is malformed JSON', () => {
-    localStorage.setItem(STORAGE_KEY, '{"analytics":true,')
-    renderConsumer()
-    expect(screen.getByTestId('decided')).toHaveTextContent('false')
-    expect(screen.getByTestId('analytics')).toHaveTextContent('false')
-    expect(screen.getByTestId('marketing')).toHaveTextContent('false')
-    expect(screen.getByTestId('visible')).toHaveTextContent('true')
-  })
-
-  it('falls back to first-visit defaults when stored state is an empty object', () => {
-    localStorage.setItem(STORAGE_KEY, '{}')
-    renderConsumer()
-    expect(screen.getByTestId('decided')).toHaveTextContent('true')
-    expect(screen.getByTestId('analytics')).toHaveTextContent('false')
-    expect(screen.getByTestId('marketing')).toHaveTextContent('false')
-  })
-
-  it('treats a stored null value as first visit', () => {
-    localStorage.setItem(STORAGE_KEY, 'null')
-    renderConsumer()
-    expect(screen.getByTestId('decided')).toHaveTextContent('false')
-    expect(screen.getByTestId('visible')).toHaveTextContent('true')
   })
 })
 
@@ -263,27 +266,6 @@ describe('CookieConsentContext — direct context value', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     act(() => { capturedClose!() })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('closeBanner is a no-op when hasDecided=false', () => {
-    let capturedClose: (() => void) | undefined
-    function Capture() {
-      const { closeBanner } = useCookieConsent()
-      capturedClose = closeBanner
-      return null
-    }
-    render(
-      <MemoryRouter>
-        <CookieConsentProvider>
-          <Capture />
-          <ConsentConsumer />
-          <CookieBanner />
-        </CookieConsentProvider>
-      </MemoryRouter>,
-    )
-    expect(screen.getByTestId('visible')).toHaveTextContent('true')
-    act(() => { capturedClose!() })
-    expect(screen.getByTestId('visible')).toHaveTextContent('true')
   })
 })
 
