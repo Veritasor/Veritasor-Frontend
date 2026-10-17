@@ -25,11 +25,18 @@ export const STORAGE_KEY = 'veritasor_cookie_consent'
 
 const DEFAULT_CONSENT: ConsentState = { analytics: false, marketing: false, productCommunications: false }
 
+export function isConsentState(value: unknown): value is ConsentState {
+  return typeof value === 'object' && value !== null
+}
+
 function readStorage(): { hasDecided: boolean; consent: ConsentState } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return { hasDecided: false, consent: DEFAULT_CONSENT }
     const parsed = JSON.parse(raw) as ConsentState
+    if (!isConsentState(parsed)) {
+      return { hasDecided: false, consent: DEFAULT_CONSENT }
+    }
     return { hasDecided: true, consent: parsed }
   } catch {
     return { hasDecided: false, consent: DEFAULT_CONSENT }
@@ -91,6 +98,8 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
 
 export function useCookieConsent(): CookieConsentContextValue {
   const ctx = useContext(CookieConsentContext)
-  if (!ctx) throw new Error('useCookieConsent must be used within CookieConsentProvider')
+  if (!ctx) {
+    throw new Error('useCookieConsent must be used within CookieConsentProvider')
+  }
   return ctx
 }
