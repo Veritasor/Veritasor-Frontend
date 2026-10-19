@@ -39,6 +39,77 @@ describe('OnboardingWizard', () => {
     expect(screen.getByText('Business type is required')).toBeInTheDocument()
   })
 
+  it('recovers from a corrupt stored draft and renders a valid step', () => {
+    localStorage.setItem(
+      'veritasor_onboarding_draft',
+      JSON.stringify({ step: 99, business: null }),
+    )
+
+    render(
+      <MemoryRouter>
+        <OnboardingWizard />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('heading', { name: 'Business details' })).toBeInTheDocument()
+    expect(screen.getByText('1 / 6')).toBeInTheDocument()
+  })
+
+  it('restores a step 5 draft with empty business details to step 1', () => {
+    localStorage.setItem(
+      'veritasor_onboarding_draft',
+      JSON.stringify({ step: 5, business: null }),
+    )
+
+    render(
+      <MemoryRouter>
+        <OnboardingWizard />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('heading', { name: 'Business details' })).toBeInTheDocument()
+    expect(screen.getByText('1 / 6')).toBeInTheDocument()
+  })
+
+  it('starts over from a restored draft and clears storage', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(
+      'veritasor_onboarding_draft',
+      JSON.stringify({
+        step: 3,
+        business: {
+          legalName: 'Acme Corp',
+          registrationNumber: '12345',
+          country: 'USA',
+          businessType: 'LLC',
+          website: '',
+        },
+        owner: {
+          fullName: 'John Doe',
+          dateOfBirth: '1990-01-01',
+          nationality: 'American',
+          addressLine1: '123 Main St',
+          addressLine2: '',
+          city: 'New York',
+          postalCode: '10001',
+        },
+      }),
+    )
+
+    render(
+      <MemoryRouter>
+        <OnboardingWizard />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('heading', { name: 'Selfie verification' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /start over/i }))
+
+    expect(screen.getByRole('heading', { name: 'Business details' })).toBeInTheDocument()
+    expect(localStorage.getItem('veritasor_onboarding_draft')).toBeNull()
+  })
+
   it('can complete the primary state transitions and submit', async () => {
     const user = userEvent.setup()
     const { container } = render(
@@ -59,17 +130,16 @@ describe('OnboardingWizard', () => {
     await user.type(screen.getByLabelText(/Full legal name/i), 'John Doe')
     await user.type(screen.getByLabelText(/Date of birth/i), '1990-01-01')
     await user.type(screen.getByLabelText(/Nationality/i), 'American')
-    await user.type(screen.getByLabelText(/Street address, line 1/i), '123 Main St')
+    await user.type(screen.getByLabelText(/Address line 1/i), '123 Main St')
     await user.type(screen.getByLabelText(/City/i), 'New York')
-    await user.type(screen.getByLabelText(/Postal \/ ZIP code/i), '10001')
+    await user.type(screen.getByLabelText(/Postal code/i), '10001')
     await user.click(screen.getByRole('button', { name: /continue/i }))
 
     // --- STEP 3: Selfie ---
     expect(await screen.findByRole('heading', { name: 'Selfie verification' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /continue/i }))
-    expect(screen.getByText('A selfie is required')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /upload photo instead/i }))
 
-    const selfieInput = screen.getByLabelText(/Take selfie or choose file/i)
+    const selfieInput = screen.getByLabelText(/upload selfie photo/i)
     const selfieFile = new File(['hello'], 'selfie.jpg', { type: 'image/jpeg' })
     await user.upload(selfieInput, selfieFile)
     await user.click(screen.getByRole('button', { name: /continue/i }))
@@ -128,7 +198,7 @@ describe('OnboardingWizard', () => {
 
     await user.type(screen.getByLabelText(/Bank name/i), 'Test Bank')
     await user.type(screen.getByLabelText(/Account number/i), '123456789')
-    await user.type(screen.getByLabelText(/Currency/i), 'USD')
+    await user.selectOptions(screen.getByLabelText(/Settlement currency/i), 'USD')
     await user.type(screen.getByLabelText(/IBAN \/ SWIFT/i), 'US123456')
     await user.click(screen.getByRole('button', { name: /continue/i }))
     

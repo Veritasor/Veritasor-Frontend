@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { useOnboardingDraft } from '../hooks/useOnboardingDraft'
+import { resolveStep, useOnboardingDraft } from '../hooks/useOnboardingDraft'
 import BusinessDetailsStep from './onboarding/BusinessDetailsStep'
 import OwnerDetailsStep from './onboarding/OwnerDetailsStep'
 import SelfieCaptureStep from './onboarding/SelfieCaptureStep'
@@ -34,7 +34,7 @@ export default function OnboardingWizard() {
   const rafIdRef = useRef<number | null>(null)
   const pendingUpdaterRef = useRef<((prev: OnboardingDraft) => OnboardingDraft) | null>(null)
 
-  const step = draft.step
+  const step = resolveStep(draft)
 
   function scheduleDraftUpdate(updater: (prev: OnboardingDraft) => OnboardingDraft) {
     pendingUpdaterRef.current = updater
@@ -54,7 +54,7 @@ export default function OnboardingWizard() {
   }, [])
 
   useEffect(() => {
-    const meta = STEP_META[step - 1]
+    const meta = STEP_META[step - 1] ?? STEP_META[0]
     setStepAnnouncement(`Step ${step} of ${TOTAL_STEPS}: ${meta?.title ?? ''}`)
     // Move focus to the step title so screen readers announce the context.
     titleRef.current?.focus()
@@ -127,6 +127,15 @@ export default function OnboardingWizard() {
 
   function goTo(s: number) {
     setDraft({ step: s })
+  }
+
+  function handleStartOver() {
+    if (rafIdRef.current != null) {
+      window.cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
+    pendingUpdaterRef.current = null
+    clearDraft()
   }
 
   // Step handlers
@@ -207,12 +216,17 @@ export default function OnboardingWizard() {
         {/* Top bar */}
         <div className="ob-topbar">
           <Link to="/" className="ob-brand">Veritasor</Link>
-          {savedAt && (
-            <span className="ob-draft-badge" aria-live="polite">
-              <span className="ob-draft-dot" aria-hidden="true" />
-              Draft saved
-            </span>
-          )}
+          <div className="ob-topbar-actions">
+            {savedAt && (
+              <span className="ob-draft-badge" aria-live="polite">
+                <span className="ob-draft-dot" aria-hidden="true" />
+                Draft saved
+              </span>
+            )}
+            <button type="button" className="ob-start-over" onClick={handleStartOver}>
+              Start over
+            </button>
+          </div>
         </div>
 
         {/* Progress */}
