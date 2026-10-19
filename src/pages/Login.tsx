@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { safeNextPath } from "../auth/RequireAuth";
 import AuthShell from "../components/AuthShell";
 import { useToast } from "../components/ToastContext";
 import MfaMethodChooser, {
@@ -1833,6 +1835,12 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const forcedState = searchParams.get("state");
+  const { signIn } = useAuth();
+  const nextPath = safeNextPath(searchParams.get("next")) ?? "/dashboard";
+  const completeSignIn = () => {
+    signIn();
+    navigate(nextPath, { replace: true });
+  };
 
   const [state, setState] = useState<LoginState>(() => {
     if (forcedState === "mfa") return "mfa-challenge";
@@ -1851,7 +1859,7 @@ export default function Login() {
     return (
       <MfaRecoveryFlowState
         onBack={() => setState("credentials")}
-        onSuccess={() => navigate("/dashboard")}
+        onSuccess={completeSignIn}
       />
     );
   }
@@ -1860,7 +1868,7 @@ export default function Login() {
     return (
       <MfaChallengeState
         onBack={() => setState("credentials")}
-        onSuccess={() => navigate("/dashboard")}
+        onSuccess={completeSignIn}
       />
     );
   }

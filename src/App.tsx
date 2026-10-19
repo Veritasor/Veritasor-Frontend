@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { LocaleProvider } from './i18n/provider'
 import { ToastProvider } from './components/ToastContext'
 import Layout from './components/Layout'
+import { AuthProvider } from './auth/AuthContext'
+import RequireAuth from './auth/RequireAuth'
 import { CookieConsentProvider } from './components/CookieConsentContext'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -34,6 +36,7 @@ export default function App() {
     <LocaleProvider>
       <ToastProvider>
       <CookieConsentProvider>
+      <AuthProvider>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -42,6 +45,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/onboarding" element={<OnboardingWizard />} />
           <Route path="/500" element={<ServerError />} />
+          <Route element={<RequireAuth />}>
           <Route element={<Layout />}>
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="attestations" element={<Attestations />} />
@@ -60,9 +64,11 @@ export default function App() {
               <Route path="confirm" element={<ConfirmSourceStep />} />
             </Route>
           </Route>
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+      </AuthProvider>
       </CookieConsentProvider>
     </ToastProvider>
     </LocaleProvider>
