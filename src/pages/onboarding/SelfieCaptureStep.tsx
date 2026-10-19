@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback } from 'react'
 import type { SelfieCapture } from '../../hooks/useOnboardingDraft'
+import { useObjectUrl } from '../../hooks/useObjectUrl'
 
 type Props = {
   data: SelfieCapture
@@ -28,6 +29,9 @@ export default function SelfieCaptureStep({ onBack, onNext }: Props) {
   const [showUpload, setShowUpload] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const animationRef = useRef<number | null>(null)
+
+  const capturedPreviewUrl = useObjectUrl(capturedFile)
+  const uploadPreviewUrl = useObjectUrl(uploadFile)
 
   const analyzeLighting = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return
@@ -289,10 +293,10 @@ export default function SelfieCaptureStep({ onBack, onNext }: Props) {
           </div>
         )}
 
-        {capturedFile && (
+        {capturedFile && capturedPreviewUrl && (
           <div className="sc-preview-container">
             <img
-              src={URL.createObjectURL(capturedFile)}
+              src={capturedPreviewUrl}
               alt="Captured selfie preview"
               className="sc-preview-img"
             />
@@ -305,10 +309,10 @@ export default function SelfieCaptureStep({ onBack, onNext }: Props) {
           </div>
         )}
 
-        {uploadFile && (
+        {uploadFile && uploadPreviewUrl && (
           <div className="sc-preview-container">
             <img
-              src={URL.createObjectURL(uploadFile)}
+              src={uploadPreviewUrl}
               alt="Uploaded selfie preview"
               className="sc-preview-img"
             />
