@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useIntl } from "react-intl";
-import DensityToggle from "./DensityToggle";
 import LocalePicker from "./LocalePicker/LocalePicker";
 
 export interface WorkspaceMetadata {
@@ -149,7 +148,7 @@ export default function TopAppBar({
       const t = window.setTimeout(() => workspaceSearchRef.current?.focus(), 30);
       return () => window.clearTimeout(t);
     }
-  }, [openWorkspaceSwitcherInSearchMode, onWorkspaceSwitcherOpenChange, workspaceSearch]);
+  }, [openWorkspaceSwitcherInSearchMode, onWorkspaceSwitcherOpenChange]);
 
   useEffect(() => {
     function handleOutsideClick(e: MouseEvent) {
@@ -924,7 +923,6 @@ export default function TopAppBar({
         </button>
 
         <div className="app-bar-actions">
-          <DensityToggle workspace={currentWorkspace.name} />
           <button
             type="button"
             className={`env-badge env-badge-${environment}`}

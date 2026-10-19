@@ -12,7 +12,6 @@ import MfaMethodChooser from '../components/MfaMethodChooser'
 import type { MfaMethod } from '../components/MfaMethodChooser'
 import WebhookRetryPanel, { type WebhookDelivery } from '../components/WebhookRetryPanel'
 import DensityToggle from '../components/DensityToggle'
-import ThemeSwitcher from '../components/ThemeSwitcher'
 import DirtyStateBanner from '../components/DirtyStateBanner'
 import { useDirtyForm, type SaveStatus } from '../hooks/useDirtyForm'
 
@@ -3039,146 +3038,8 @@ function AuditLogPanel() {
           onFetchDetail={handleFetchDetail}
         />
       </div>
-
-      {/* Filter chips + date range — pure UI that writes to the URL */}
-      <div style={{ marginTop: '1rem', display: 'grid', gap: '0.65rem' }}>
-        <div role="group" aria-label="Filter by status" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <button
-            type="button"
-            aria-pressed={filters.activeChips.length === 0}
-            onClick={() => updateParam('status', '')}
-            style={chipStyle(filters.activeChips.length === 0)}
-          >
-            All
-          </button>
-          {AUDIT_LOG_CHIPS.map((chip) => {
-            const active = (filters.activeChips as string[]).includes(chip.id);
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => {
-                  const next = active
-                    ? (filters.activeChips as string[]).filter((c) => c !== chip.id)
-                    : [...(filters.activeChips as string[]), chip.id];
-                  updateParam('status', next.join(','));
-                }}
-                style={chipStyle(active)}
-              >
-                {chip.label}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-          <label style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
-            From
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) => updateParam('from', e.target.value)}
-              style={{
-                padding: '0.35rem 0.5rem',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: 'var(--surface-strong)',
-                color: 'var(--text)',
-                font: 'inherit',
-              }}
-            />
-          </label>
-          <label style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
-            To
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) => updateParam('to', e.target.value)}
-              style={{
-                padding: '0.35rem 0.5rem',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: 'var(--surface-strong)',
-                color: 'var(--text)',
-                font: 'inherit',
-              }}
-            />
-          </label>
-          <input
-            type="search"
-            placeholder="Search audit log…"
-            value={filters.query}
-            onChange={(e) => updateParam('q', e.target.value)}
-            aria-label="Search audit log"
-            style={{
-              flex: '1 1 240px',
-              padding: '0.45rem 0.7rem',
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: 'var(--surface-strong)',
-              color: 'var(--text)',
-              font: 'inherit',
-              minHeight: '2.5rem',
-            }}
-          />
-        </div>
-      </div>
-
-      <p
-        role="status"
-        aria-live="polite"
-        style={{ margin: '1rem 0 0', color: 'var(--muted)', fontSize: '0.9rem' }}
-        data-testid="audit-filter-summary"
-      >
-        {intl.formatMessage(
-          { id: 'auditLog.filters.results.singular', defaultMessage: 'Showing {count} of {total} entries' },
-          { count: entries.length, total: AUDIT_LOG_MOCK_ENTRIES.length },
-        )}
-      </p>
-
-      <div style={{ marginTop: "1rem", maxWidth: 800 }} data-testid="audit-log-timeline">
-        {entries.length === 0 ? (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              padding: '1rem',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px dashed var(--border)',
-              background: 'var(--surface-soft)',
-              color: 'var(--muted)',
-            }}
-          >
-            No entries match the current filters.
-          </div>
-        ) : (
-          <AuditLogTimeline entries={entries} />
-        )}
-      </div>
-
-      <SaveFilterModal
-        isOpen={saveOpen}
-        existingNames={saved.filters.map((f) => f.name)}
-        onSave={handleSave}
-        onClose={() => setSaveOpen(false)}
-      />
     </div>
   );
-}
-
-function chipStyle(active: boolean): React.CSSProperties {
-  return {
-    minHeight: '2.5rem',
-    padding: '0.35rem 0.85rem',
-    borderRadius: 999,
-    border: `1px solid ${active ? 'rgba(94, 234, 212, 0.55)' : 'var(--border)'}`,
-    background: active ? 'rgba(94, 234, 212, 0.18)' : 'var(--surface)',
-    color: active ? '#d8fffa' : 'var(--text)',
-    font: 'inherit',
-    fontSize: '0.85rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-  };
 }
 
 type TeamRole = "owner" | "admin" | "billing" | "member";
@@ -4801,12 +4662,13 @@ function TeamPanel() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [pending, setPending] = useState<PendingBulkAction | null>(null);
   const [activeConflicts, setActiveConflicts] =
-    useState <
-    Map<
-      string,
-      NonNullable<ReturnType<typeof getRoleConflicts>> & {
-        _originalRole?: TeamRole;
-      }
+    useState<
+      Map<
+        string,
+        NonNullable<ReturnType<typeof getRoleConflicts>> & {
+          _originalRole?: TeamRole;
+        }
+      >
     >(new Map());
   const [dismissedConflicts, setDismissedConflicts] = useState<Set<string>>(
     new Set(),
@@ -5415,44 +5277,6 @@ function AppearancePanel() {
         </p>
       </div>
 
-      {/* ── Theme ─────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "grid",
-          gap: "1rem",
-          padding: "1.25rem",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius-sm)",
-          background: "var(--surface)",
-          maxWidth: 600,
-        }}
-      >
-        <div>
-          <h3 style={{ margin: 0, fontSize: "1rem" }}>Theme</h3>
-          <p
-            style={{
-              margin: "0.25rem 0 0",
-              color: "var(--muted)",
-              fontSize: "0.88rem",
-            }}
-          >
-            Choose between System, Light, Dark, or High Contrast mode.
-          </p>
-        </div>
-        <ThemeSwitcher />
-        <p
-          style={{
-            margin: 0,
-            color: "var(--muted)",
-            fontSize: "0.82rem",
-            lineHeight: 1.5,
-          }}
-        >
-          Changes are saved automatically and sync across devices when you are
-          signed in.
-        </p>
-      </div>
-
       {/* ── Density ───────────────────────────────────────── */}
       <div
         style={{
@@ -5506,7 +5330,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   billing: BillingPanel,
   security: SecurityPanel,
   "audit-log": AuditLogPanel,
-  "a11y-audit": A11yPanel,
+  "a11y-audit": () => <A11yAuditPanel />,
 };
 
 // ─── Unsaved Changes Navigation Guard ─────────────────────────────────────────
@@ -5685,7 +5509,7 @@ export default function Settings() {
   );
 
   const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? 'Settings'
-  const draftLabelText = "";
+  const dirtyTabLabels: string[] = [];
   const Panel = PANELS[activeTab]
 
   return (
@@ -5799,141 +5623,6 @@ export default function Settings() {
       )}
 
       {/* Desktop: tablist */}
-      <div
-        role="tablist"
-        aria-label="Settings tabs"
-        className="settings-tablist"
-        style={{
-          display: "flex",
-          gap: "0",
-          borderBottom: "2px solid var(--border)",
-          marginBottom: "1.5rem",
-          overflowX: "auto",
-        }}
-      >
-        {TABS.map((tab, index) => {
-          const isActive = tab.id === activeTab;
-          return (
-            <>
-            <button
-              key={tab.id}
-              ref={(el) => {
-                tabRefs.current[index] = el;
-              }}
-              role="tab"
-              id={`tab-${tab.id}`}
-              aria-controls={`panel-${tab.id}`}
-              aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
-              type="button"
-              onClick={() => selectTab(tab.id)}
-              onKeyDown={(e) => handleKeyDown(e, index)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.6rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  width: "0.55rem",
-                  height: "0.55rem",
-                  borderRadius: "50%",
-                  background: "var(--warning)",
-                  flexShrink: 0,
-                  boxShadow: "0 0 0 4px var(--warning-soft)",
-                }}
-              />
-              <span style={{ fontWeight: 700, color: "var(--warning)" }}>
-                Unsaved changes
-              </span>
-              <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-                Draft{draftLabelText}
-              </span>
-            </button>
-            <div
-              style={{
-                display: "flex",
-                gap: "0.5rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={pageState.saveAll}
-                aria-busy={pageState.aggregateStatus === "saving"}
-                disabled={pageState.aggregateStatus === "saving"}
-                aria-label="Save all unsaved changes across settings"
-                style={{
-                  minHeight: "2.25rem",
-                  padding: "0.4rem 1rem",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "var(--accent)",
-                  color: "#04111f",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  cursor:
-                    pageState.aggregateStatus === "saving" ? "wait" : "pointer",
-                  opacity: pageState.aggregateStatus === "saving" ? 0.7 : 1,
-                }}
-              >
-                {pageState.aggregateStatus === "saving"
-                  ? "Saving all…"
-                  : "Save all"}
-              </button>
-              <button
-                type="button"
-                onClick={pageState.discardAll}
-                aria-label="Discard all unsaved changes across settings"
-                style={{
-                  minHeight: "2.25rem",
-                  padding: "0.4rem 0.85rem",
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  color: "var(--text)",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Discard all
-              </button>
-            </div>
-          </>
-        )})}
-
-        <label htmlFor="settings-tab-select" className="sr-only">
-          Settings section
-        </label>
-        <select
-          id="settings-tab-select"
-          aria-label="Settings section"
-          value={activeTab}
-          onChange={(e) => selectTab(e.target.value as TabId)}
-          style={{
-            width: "100%",
-            padding: "0.6rem 0.8rem",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--surface-strong)",
-            color: "var(--text)",
-            fontSize: "0.95rem",
-            marginBottom: "1.5rem",
-          }}
-          className="settings-tab-select"
-        >
-          {TABS.map((tab) => (
-            <option key={tab.id} value={tab.id}>
-              {tab.label}
-              {registry.entries.get(tab.id)?.isDirty ? " •" : ""}
-            </option>
-          ))}
-        </select>
-
         <div
           role="tablist"
           aria-label="Settings tabs"
@@ -6023,7 +5712,6 @@ export default function Settings() {
             </div>
           );
         })}
-      </div>
       </div>
 
       {pendingLeave !== null && (

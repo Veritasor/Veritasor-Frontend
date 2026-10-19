@@ -47,9 +47,9 @@ function ExpiredLinkState() {
   };
 
   const highlights = [
-    "Expired-link states guide users back to the request flow with a single tap",
-    "The hero icon uses accessible colours so the warning reads in high-contrast mode",
-    "Support contact is always one click away to prevent dead ends",
+    "Expired links take you back to the request step in one tap",
+    "Messages stay readable in high-contrast mode",
+    "Help is always one click away",
   ];
 
   return (
@@ -61,7 +61,7 @@ function ExpiredLinkState() {
       footerLinkLabel="Return to sign in"
       footerLinkHref="/login"
       sideTitle="Quick recovery, no dead ends"
-      sideDescription="Expired-link states reuse the same accessible card, message, and button tokens so the UI stays familiar even when the journey changes."
+      sideDescription="Request a reset link and set a new password in a few steps."
       sideHighlights={highlights}
     >
       {/* Error hero */}
@@ -203,9 +203,9 @@ function NewPasswordState({ token }: { token: string | null }) {
     confirmTouched && confirmPassword.length > 0 && passwordsMatch;
 
   const highlights = [
-    "The shared strength meter gives live feedback before submission",
-    "Show/hide toggles reduce transcription errors without sacrificing security",
-    "Match indicator confirms both fields agree before the form is submitted",
+    "A live strength meter gives feedback as you type",
+    "Show or hide your password to avoid typos",
+    "We confirm both fields match before you submit",
   ];
 
   // Missing or blank token — show incomplete-link error
@@ -276,7 +276,7 @@ function NewPasswordState({ token }: { token: string | null }) {
       footerLinkLabel="Return to sign in"
       footerLinkHref="/login"
       sideTitle="A safer recovery flow"
-      sideDescription="The shared strength meter, match indicator, and show/hide toggles are reused from signup so the pattern stays consistent throughout the product."
+      sideDescription="Choose a strong new password to finish recovering your account."
       sideHighlights={highlights}
     >
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
@@ -409,9 +409,9 @@ function NewPasswordState({ token }: { token: string | null }) {
 // ---------------------------------------------------------------------------
 
 const requestHighlights = [
-  "Recovery actions stay calm and minimal to keep attention on the primary next step",
-  "Success and caution messages use shared semantics and consistent spacing",
-  "Touch targets remain full-width on mobile for dependable tap behavior",
+  "One clear next step at every stage of recovery",
+  "Reset links are signed and expire automatically",
+  "Works comfortably on phones and tablets",
 ];
 
 // ---------------------------------------------------------------------------
@@ -784,7 +784,7 @@ function RequestLinkState({
       footerLinkLabel="Return to sign in"
       footerLinkHref="/login"
       sideTitle="A safer recovery flow"
-      sideDescription="Recovery states reuse the same accessible card, message, and button tokens so the UI feels familiar even when the journey changes."
+      sideDescription="Request a reset link and set a new password in a few steps."
       sideHighlights={requestHighlights}
     >
       <form className="auth-form" onSubmit={handleSubmit}>
@@ -815,16 +815,15 @@ function RequestLinkState({
           <span aria-hidden="true" className="auth-message-icon">
             ✓
           </span>
-          Recent reset attempts are shown on the next screen so users can
-          confirm whether support action is needed.
+          We will confirm on the next screen once the reset link is on its way.
         </div>
 
         <div className="auth-message auth-message-warning">
           <span aria-hidden="true" className="auth-message-icon">
             ⚠
           </span>
-          If your workspace uses SSO, direct password reset should remain a
-          secondary option below SSO assistance.
+          If your workspace signs in through SSO, reset your password with your
+          identity provider instead.
         </div>
 
         <div className="auth-actions">

@@ -511,7 +511,7 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(140px, 220px) minmax(0, 1fr)",
+            gridTemplateColumns: "max-content minmax(0, 1fr)",
             gap: "0.5rem 1rem",
             alignItems: "baseline",
           }}

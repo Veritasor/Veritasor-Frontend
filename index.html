@@ -10,9 +10,7 @@
         var key = 'veritasor-theme';
         var theme;
         try { theme = localStorage.getItem(key); } catch(e) {}
-        if (theme !== 'light' && theme !== 'dark') {
-          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-        }
+        theme = 'dark';
         document.documentElement.setAttribute('data-theme', theme);
       })();
     </script>

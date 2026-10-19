@@ -16,14 +16,13 @@ export default function HelpArticle() {
           </p>
           <h2>1. Create a workspace</h2>
           <p>
-            Navigate to the Workspaces section from the sidebar and select
-            "New Workspace." Fill in the required details and save.
+            Sign up, then complete the onboarding wizard with your business
+            details. Your workspace is created when you finish.
           </p>
           <h2>2. Add an attestation</h2>
           <p>
-            Once your workspace is ready, go to the Attestations page and click
-            "New Attestation." Follow the wizard to complete the attestation
-            process.
+            Once your workspace is ready, connect a revenue source, then open the
+            Attestations page to review runs and confirm the period summary.
           </p>
           <h2>3. Verify and share</h2>
           <p>

@@ -103,50 +103,6 @@ export default function SelfieCaptureStep({ onBack, onNext }: Props) {
     }
   }, [stream])
 
-  const analyzeLighting = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return
-
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    const ovalX = canvas.width * (1 - OVAL_WIDTH_RATIO) / 2
-    const ovalY = canvas.height * OVAL_TOP_RATIO
-    const ovalW = canvas.width * OVAL_WIDTH_RATIO
-    const ovalH = canvas.height * OVAL_HEIGHT_RATIO
-
-    const imageData = ctx.getImageData(ovalX, ovalY, ovalW, ovalH)
-    const data = imageData.data
-    let totalBrightness = 0
-    let pixelCount = 0
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i]
-      const g = data[i + 1]
-      const b = data[i + 2]
-      totalBrightness += (r + g + b) / 3
-      pixelCount++
-    }
-
-    const avgBrightness = pixelCount > 0 ? totalBrightness / pixelCount : 0
-
-    if (avgBrightness < 60) {
-      setLighting('low')
-    } else if (avgBrightness > 200) {
-      setLighting('bright')
-    } else {
-      setLighting('good')
-    }
-
-    animationRef.current = requestAnimationFrame(analyzeLighting)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoRef, canvasRef])
-
   const capturePhoto = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return
 

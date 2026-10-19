@@ -10,15 +10,7 @@ interface BillingContextValue {
 const BillingContext = createContext<BillingContextValue | undefined>(undefined)
 
 export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [failedPayment, setFailedPayment] = useState<FailedPaymentInfo | null>({
-    id: "fp_001",
-    invoiceId: "inv_005",
-    invoicePeriod: "March 2026",
-    amount: 29.0,
-    dueDate: "2026-03-15",
-    failureReason: "Card declined",
-    lastAttemptAt: "2026-07-28T09:00:00Z",
-  })
+  const [failedPayment, setFailedPayment] = useState<FailedPaymentInfo | null>(null)
 
   const dismissFailedPayment = useCallback(() => {
     setFailedPayment(null)
