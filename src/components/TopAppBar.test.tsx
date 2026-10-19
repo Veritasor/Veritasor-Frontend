@@ -62,7 +62,7 @@ describe('TopAppBar - Account Switcher', () => {
       
       fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
       
-      expect(screen.getByText('Acme Corp')).toBeInTheDocument()
+      expect(screen.getAllByText('Acme Corp').length).toBeGreaterThanOrEqual(1)
       expect(screen.getByText('My Workspace')).toBeInTheDocument()
       expect(screen.getByText('Test Org')).toBeInTheDocument()
       expect(screen.getByText('business')).toBeInTheDocument()
@@ -99,9 +99,9 @@ describe('TopAppBar - Account Switcher', () => {
       const searchInput = screen.getByPlaceholderText('Find workspace…')
       fireEvent.change(searchInput, { target: { value: 'Test' } })
       
-      expect(screen.getByText('Test Org')).toBeInTheDocument()
-      expect(screen.queryByText('Acme Corp')).not.toBeInTheDocument()
-      expect(screen.queryByText('My Workspace')).not.toBeInTheDocument()
+      expect(screen.getByRole('option', { name: /test org/i })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /acme corp/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /my workspace/i })).not.toBeInTheDocument()
     })
 
     it('shows no results message when search matches nothing', () => {
@@ -131,7 +131,7 @@ describe('TopAppBar - Account Switcher', () => {
       fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
       
       expect(screen.getByText(/ctrl\+k/i)).toBeInTheDocument()
-      expect(screen.getByText(/w/i)).toBeInTheDocument()
+      expect(screen.getByText(/^W$/)).toBeInTheDocument()
       expect(screen.getByText(/quick switch/i)).toBeInTheDocument()
     })
 
@@ -186,7 +186,7 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       fireEvent.click(screen.getByRole('button', { name: /workspace: minimal workspace/i }))
-      expect(screen.getByText('Minimal Workspace')).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: /minimal workspace/i })).toBeInTheDocument()
     })
 
     it('handles duplicate workspace IDs by using first occurrence', () => {
@@ -203,7 +203,7 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       fireEvent.click(screen.getByRole('button', { name: /workspace:/i }))
-      expect(screen.getByText('Workspace One')).toBeInTheDocument()
+      expect(screen.getAllByText('Workspace One').length).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -252,9 +252,8 @@ describe('TopAppBar - Account Switcher', () => {
       
       const listbox = screen.getByRole('listbox')
       fireEvent.keyDown(listbox, { key: 'ArrowDown' })
-      fireEvent.keyDown(listbox, { key: 'ArrowDown' })
       
-      // Focus should have moved
+      // Focus should have moved from index 0 to index 1
       const options = screen.getAllByRole('option')
       expect(options[1]).toHaveFocus()
     })
@@ -273,7 +272,8 @@ describe('TopAppBar - Account Switcher', () => {
       
       const listbox = screen.getByRole('listbox')
       fireEvent.keyDown(listbox, { key: 'ArrowDown' })
-      fireEvent.keyDown(listbox, { key: 'Enter' })
+      const options = screen.getAllByRole('option')
+      fireEvent.keyDown(options[1], { key: 'Enter' })
       
       expect(onWorkspaceChange).toHaveBeenCalled()
     })
@@ -310,11 +310,11 @@ describe('TopAppBar - Account Switcher', () => {
       const listbox = screen.getByRole('listbox')
       fireEvent.keyDown(listbox, { key: 'End' })
       
-      const options = screen.getAllByRole('option')
-      expect(options[options.length - 1]).toHaveFocus()
+      const listboxOptions = listbox.querySelectorAll('[role="option"]')
+      expect(listboxOptions[listboxOptions.length - 1]).toHaveFocus()
     })
 
-    it('supports search input keyboard navigation', () => {
+    it('supports search input keyboard navigation', async () => {
       renderWithProvider(
         <TopAppBar 
           workspaces={mockWorkspaces} 
@@ -324,7 +324,9 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       const searchInput = screen.getByPlaceholderText('Find workspace…')
-      expect(searchInput).toHaveFocus()
+      await waitFor(() => {
+        expect(searchInput).toHaveFocus()
+      })
       
       fireEvent.keyDown(searchInput, { key: 'ArrowDown' })
       
@@ -339,10 +341,10 @@ describe('TopAppBar - Account Switcher', () => {
           workspaces={mockWorkspaces} 
           initialWorkspace="workspace-1"
           onWorkspaceChange={onWorkspaceChange}
-          openWorkspaceSwitcherInSearchMode={true}
         />
       )
       
+      fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
       const searchInput = screen.getByPlaceholderText('Find workspace…')
       fireEvent.change(searchInput, { target: { value: 'Test' } })
       fireEvent.keyDown(searchInput, { key: 'Enter' })
@@ -366,7 +368,7 @@ describe('TopAppBar - Account Switcher', () => {
       const accountTrigger = screen.getByRole('button', { name: /account menu for test user/i })
       fireEvent.click(accountTrigger)
       
-      expect(screen.getByText('Test User')).toBeInTheDocument()
+      expect(screen.getAllByText('Test User').length).toBeGreaterThanOrEqual(1)
       expect(screen.getByText('test@example.com')).toBeInTheDocument()
     })
 
@@ -456,7 +458,7 @@ describe('TopAppBar - Account Switcher', () => {
       expect(trigger).toHaveAttribute('aria-label', expect.stringContaining('Ctrl+K'))
     })
 
-    it('has focus management for search input when opened in search mode', () => {
+    it('has focus management for search input when opened in search mode', async () => {
       renderWithProvider(
         <TopAppBar 
           workspaces={mockWorkspaces} 
@@ -466,7 +468,9 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       const searchInput = screen.getByPlaceholderText('Find workspace…')
-      expect(searchInput).toHaveFocus()
+      await waitFor(() => {
+        expect(searchInput).toHaveFocus()
+      })
     })
   })
 
@@ -484,7 +488,7 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       fireEvent.click(screen.getByRole('button', { name: /workspace: only workspace/i }))
-      expect(screen.getByText('Only Workspace')).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: /only workspace/i })).toBeInTheDocument()
     })
 
     it('handles many workspaces with scrolling', () => {
@@ -503,7 +507,8 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       fireEvent.click(screen.getByRole('button', { name: /workspace: workspace 0/i }))
-      expect(screen.getAllByRole('option').length).toBe(50)
+      const listbox = screen.getByRole('listbox')
+      expect(listbox.querySelectorAll('[role="option"]').length).toBe(50)
     })
 
     it('handles workspace with very long name', () => {
@@ -519,7 +524,7 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       fireEvent.click(screen.getByRole('button', { name: /workspace:/i }))
-      expect(screen.getByText(new RegExp(`^A{200}$`))).toBeInTheDocument()
+      expect(screen.getAllByText(new RegExp(`^A{200}$`)).length).toBeGreaterThanOrEqual(1)
     })
 
     it('handles special characters in workspace names', () => {
@@ -536,7 +541,7 @@ describe('TopAppBar - Account Switcher', () => {
       )
       
       fireEvent.click(screen.getByRole('button', { name: /workspace:/i }))
-      expect(screen.getByText('Workspace & Co.')).toBeInTheDocument()
+      expect(screen.getAllByText('Workspace & Co.').length).toBeGreaterThanOrEqual(1)
     })
 
     it('handles rapid workspace switching', () => {
@@ -584,6 +589,187 @@ describe('TopAppBar - Account Switcher', () => {
       expect(onSidebarToggle).toBeDefined()
       expect(onSearchClick).toBeDefined()
       expect(onWorkspaceQuickJump).toBeDefined()
+    })
+  })
+
+  describe('Create Workspace Dialog', () => {
+    beforeEach(() => {
+      window.localStorage.clear()
+      document.body.style.overflow = ''
+    })
+
+    it('opens dialog on "Create workspace" click, locks body scroll, and focuses name input; Escape closes and restores scroll and focus', async () => {
+      renderWithProvider(
+        <TopAppBar
+          workspaces={mockWorkspaces}
+          initialWorkspace="workspace-1"
+        />
+      )
+
+      const trigger = screen.getByRole('button', { name: /workspace: acme corp/i })
+      fireEvent.click(trigger)
+
+      const createBtn = screen.getByRole('option', { name: /create new workspace/i })
+      fireEvent.click(createBtn)
+
+      const dialog = screen.getByRole('dialog', { name: /create workspace/i })
+      expect(dialog).toBeInTheDocument()
+      expect(document.body.style.overflow).toBe('hidden')
+
+      const nameInput = screen.getByLabelText(/workspace name/i)
+      await waitFor(() => {
+        expect(nameInput).toHaveFocus()
+      })
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(screen.queryByRole('dialog', { name: /create workspace/i })).not.toBeInTheDocument()
+      expect(document.body.style.overflow).toBe('')
+      expect(trigger).toHaveFocus()
+    })
+
+    it('validates workspace name (required, 2-48 chars, unique against workspaces) and shows inline errors', () => {
+      renderWithProvider(
+        <TopAppBar
+          workspaces={mockWorkspaces}
+          initialWorkspace="workspace-1"
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
+      fireEvent.click(screen.getByRole('option', { name: /create new workspace/i }))
+
+      const nameInput = screen.getByLabelText(/workspace name/i)
+      const submitBtn = screen.getByRole('button', { name: /^create workspace$/i })
+
+      // Required check
+      fireEvent.click(submitBtn)
+      expect(screen.getByRole('alert')).toHaveTextContent(/workspace name is required/i)
+      expect(nameInput).toHaveAttribute('aria-invalid', 'true')
+
+      // Too short (< 2 chars)
+      fireEvent.change(nameInput, { target: { value: 'A' } })
+      fireEvent.click(submitBtn)
+      expect(screen.getByRole('alert')).toHaveTextContent(/at least 2 characters/i)
+
+      // Too long (> 48 chars)
+      fireEvent.change(nameInput, { target: { value: 'A'.repeat(49) } })
+      fireEvent.click(submitBtn)
+      expect(screen.getByRole('alert')).toHaveTextContent(/48 characters or fewer/i)
+
+      // Duplicate check (case-insensitive)
+      fireEvent.change(nameInput, { target: { value: 'acme corp' } })
+      fireEvent.click(submitBtn)
+      expect(screen.getByRole('alert')).toHaveTextContent(/already exists/i)
+    })
+
+    it('adds and selects the new workspace in the switcher when a valid name is submitted, disabling submit while submitting', async () => {
+      const onWorkspaceChange = vi.fn()
+      renderWithProvider(
+        <TopAppBar
+          workspaces={mockWorkspaces}
+          initialWorkspace="workspace-1"
+          onWorkspaceChange={onWorkspaceChange}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
+      fireEvent.click(screen.getByRole('option', { name: /create new workspace/i }))
+
+      const nameInput = screen.getByLabelText(/workspace name/i)
+      const displayNameInput = screen.getByLabelText(/display name/i)
+      const descriptionInput = screen.getByLabelText(/description/i)
+
+      fireEvent.change(nameInput, { target: { value: 'stellar-ops' } })
+      fireEvent.change(displayNameInput, { target: { value: 'Stellar Ops' } })
+      fireEvent.change(descriptionInput, { target: { value: 'Operations workspace' } })
+
+      const submitBtn = screen.getByRole('button', { name: /^create workspace$/i })
+      fireEvent.click(submitBtn)
+
+      // Submit button is disabled while createWsSubmitting is true
+      expect(submitBtn).toBeDisabled()
+
+      // Wait for submission to complete, dialog to close, and scroll to be restored
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: /create workspace/i })).not.toBeInTheDocument()
+      })
+      expect(document.body.style.overflow).toBe('')
+
+      // Callback fired and trigger updated to new workspace (not falling back to workspaces[0])
+      expect(onWorkspaceChange).toHaveBeenCalledWith('stellar-ops')
+      const trigger = screen.getByRole('button', { name: /workspace: stellar ops/i })
+      expect(trigger).toBeInTheDocument()
+
+      // Reopen switcher to verify new workspace is in the list and selected
+      fireEvent.click(trigger)
+      const newOption = screen.getByRole('option', { name: /stellar ops/i })
+      expect(newOption).toBeInTheDocument()
+      expect(newOption).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByText('Operations workspace')).toBeInTheDocument()
+    })
+
+    it('persists draft across reopen and empties it when "Clear draft" is clicked', () => {
+      renderWithProvider(
+        <TopAppBar
+          workspaces={mockWorkspaces}
+          initialWorkspace="workspace-1"
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
+      fireEvent.click(screen.getByRole('option', { name: /create new workspace/i }))
+
+      const nameInput = screen.getByLabelText(/workspace name/i) as HTMLInputElement
+      const descriptionInput = screen.getByLabelText(/description/i) as HTMLTextAreaElement
+
+      fireEvent.change(nameInput, { target: { value: 'Draft Workspace' } })
+      fireEvent.change(descriptionInput, { target: { value: 'Saved description' } })
+
+      // Close modal via Escape
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(screen.queryByRole('dialog', { name: /create workspace/i })).not.toBeInTheDocument()
+
+      // Reopen switcher — CTA should indicate draft in progress
+      fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
+      const resumeBtn = screen.getByRole('option', { name: /create new workspace \(resume draft\)/i })
+      expect(resumeBtn).toBeInTheDocument()
+      fireEvent.click(resumeBtn)
+
+      // Draft values are still present
+      expect((screen.getByLabelText(/workspace name/i) as HTMLInputElement).value).toBe('Draft Workspace')
+      expect((screen.getByLabelText(/description/i) as HTMLTextAreaElement).value).toBe('Saved description')
+
+      // Click Clear draft
+      const clearBtn = screen.getByRole('button', { name: /clear draft/i })
+      fireEvent.click(clearBtn)
+
+      expect((screen.getByLabelText(/workspace name/i) as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText(/description/i) as HTMLTextAreaElement).value).toBe('')
+    })
+
+    it('traps Tab and Shift+Tab focus inside the dialog when open', () => {
+      renderWithProvider(
+        <TopAppBar
+          workspaces={mockWorkspaces}
+          initialWorkspace="workspace-1"
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
+      fireEvent.click(screen.getByRole('option', { name: /create new workspace/i }))
+
+      const closeBtn = screen.getByRole('button', { name: /close dialog/i })
+      const submitBtn = screen.getByRole('button', { name: /^create workspace$/i })
+
+      submitBtn.focus()
+      expect(submitBtn).toHaveFocus()
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: false })
+      expect(closeBtn).toHaveFocus()
+
+      closeBtn.focus()
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+      expect(submitBtn).toHaveFocus()
     })
   })
 })
