@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
 import AttestationConfirmModal, { AttestationDetails, FeeInfo } from '../components/AttestationConfirmModal'
 import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
-
-// ─── Types ────────────────────────────────────────────────────────────────
+import SearchFilter, { parseFilterState } from '../components/SearchFilter'
+import type { ChipDef, FilterState } from '../components/SearchFilter'
+import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -273,6 +274,89 @@ function EmptyState() {
     </section>
   );
 }
+
+// ─── Filter chips ─────────────────────────────────────────────────────────
+
+const STATUS_CHIPS: ChipDef[] = [
+  { id: 'verified', label: 'Verified', color: 'success' },
+  { id: 'pending', label: 'Pending', color: 'warning' },
+  { id: 'failed', label: 'Failed', color: 'danger' },
+]
+
+// ─── Filtering ────────────────────────────────────────────────────────────
+
+function applyFilters(
+  items: AttestationListItem[],
+  filters: FilterState,
+): AttestationListItem[] {
+  return items.filter((item) => {
+    // Text search: matches ID or Merkle root (case-insensitive)
+    if (filters.query) {
+      const q = filters.query.toLowerCase()
+      if (
+        !item.id.toLowerCase().includes(q) &&
+        !item.merkleRoot.toLowerCase().includes(q)
+      ) {
+        return false
+      }
+    }
+
+    // Status chips: show item only when its status is in the active set
+    if (
+      filters.activeChips.length > 0 &&
+      !filters.activeChips.includes(item.status)
+    ) {
+      return false
+    }
+
+    // Date range: lexicographic comparison of YYYY-MM-DD prefix
+    const day = item.createdAt.slice(0, 10)
+    if (filters.dateFrom && day < filters.dateFrom) return false
+    if (filters.dateTo && day > filters.dateTo) return false
+
+    return true
+  })
+}
+
+function NoResults({ onClearAll }: { onClearAll: () => void }) {
+  return (
+    <section
+      aria-label="No matching attestations"
+      style={{
+        marginTop: '1.75rem',
+        padding: '2rem 1.6rem',
+        background: 'var(--surface)',
+        borderRadius: 12,
+        border: '1px dashed var(--border)',
+        textAlign: 'center',
+      }}
+    >
+      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
+        No attestations match your filters
+      </p>
+      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
+        Try adjusting your search term, removing a status filter, or widening
+        the date range.
+      </p>
+      <button
+        type="button"
+        onClick={onClearAll}
+        style={{
+          padding: '0.6rem 1.25rem',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)',
+          background: 'rgba(148, 163, 184, 0.08)',
+          color: 'var(--text)',
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Clear all filters
+      </button>
+    </section>
+  )
+}
+
 function AttestationTrendChart({ attestations }: { attestations: AttestationListItem[] }) {
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
@@ -302,7 +386,17 @@ function AttestationTrendChart({ attestations }: { attestations: AttestationList
   }
 
   return (
-    <section aria-label="Attestation activity trend" style={{ marginTop: '1.5rem', padding: 'var(--density-padding)', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)' }}>
+    <figure
+      aria-label="Attestation history"
+      style={{
+        margin: 0,
+        marginTop: '1.5rem',
+        padding: 'var(--density-padding)',
+        borderRadius: 12,
+        border: '1px solid var(--border)',
+        background: 'var(--surface)',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Attestation activity</h2>
@@ -315,8 +409,8 @@ function AttestationTrendChart({ attestations }: { attestations: AttestationList
 
       {view === 'table' ? (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-            <caption style={{ textAlign: 'left', marginBottom: '0.5rem', color: 'var(--muted)' }}>Attestation volume by date and status</caption>
+          <table aria-label="Attestation history" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+            <caption style={{ textAlign: 'left', marginBottom: '0.5rem', color: 'var(--muted)' }}>Attestation history volume by date and status</caption>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)', textAlign: 'left' }}>
                 <th scope="col" style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>Date</th>
@@ -437,7 +531,7 @@ function AttestationTrendChart({ attestations }: { attestations: AttestationList
           </div>
         </>
       )}
-    </section>
+    </figure>
   );
 }
 
@@ -550,6 +644,7 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
         <Link
           to={`/attestations/${item.id}`}
           style={{ fontSize: '0.85rem', color: 'var(--accent)', fontWeight: 600 }}
+          aria-label={`View proof details for attestation ${item.id}`}
         >
           View details →
         </Link>
@@ -561,6 +656,9 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function Attestations() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filters = parseFilterState(searchParams)
+
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -579,7 +677,37 @@ export default function Attestations() {
       createdAt: '2026-05-15T09:10:00Z',
       merkleRoot: '0x9f8e7d6c5b4a3928170605040302010f0e0d0c0b0a090807060504030201000f',
     },
+    {
+      id: 'att-003',
+      status: 'verified',
+      createdAt: '2026-04-30T11:00:00Z',
+      merkleRoot: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2',
+    },
+    {
+      id: 'att-004',
+      status: 'failed',
+      createdAt: '2026-04-15T08:20:00Z',
+      merkleRoot: '0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6',
+    },
+    {
+      id: 'att-005',
+      status: 'verified',
+      createdAt: '2026-03-31T16:45:00Z',
+      merkleRoot: '0x2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
+    },
+    {
+      id: 'att-006',
+      status: 'pending',
+      createdAt: '2026-03-10T10:30:00Z',
+      merkleRoot: '0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8',
+    },
   ]
+
+  const filtered = applyFilters(attestations, filters)
+
+  function clearAll() {
+    setSearchParams({}, { replace: true })
+  }
 
   // Mock scheduled runs for calendar indicators.
   const scheduledDates = [
@@ -651,19 +779,36 @@ export default function Attestations() {
 
         <AttestationCalendar scheduledDates={scheduledDates} />
 
-        {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
+        <AttestationTrendChart attestations={filtered} />
 
-        <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
-          {attestations.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <ol style={{ margin: 0, padding: 0 }}>
-              {attestations.map((item) => (
-                <TimelineRow key={item.id} item={item} />
-              ))}
-            </ol>
-          )}
-        </section>
+        {attestations.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <>
+            <div style={{ marginTop: '1.5rem' }}>
+              <SearchFilter
+                placeholder="Search by Merkle root or ID…"
+                chips={STATUS_CHIPS}
+                showDateRange
+                resultCount={filtered.length}
+                totalCount={attestations.length}
+                entityLabel="attestation"
+              />
+            </div>
+
+            {filtered.length === 0 ? (
+              <NoResults onClearAll={clearAll} />
+            ) : (
+              <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
+                <ol style={{ margin: 0, padding: 0 }}>
+                  {filtered.map((item) => (
+                    <TimelineRow key={item.id} item={item} />
+                  ))}
+                </ol>
+              </section>
+            )}
+          </>
+        )}
       </div>
 
       {/* Mobile FAB - triggers attestation modal */}
