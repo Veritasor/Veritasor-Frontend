@@ -346,10 +346,10 @@ describe('TopAppBar - Account Switcher', () => {
           workspaces={mockWorkspaces} 
           initialWorkspace="workspace-1"
           onWorkspaceChange={onWorkspaceChange}
-          openWorkspaceSwitcherInSearchMode={true}
         />
       )
       
+      fireEvent.click(screen.getByRole('button', { name: /workspace: acme corp/i }))
       const searchInput = screen.getByPlaceholderText('Find workspace…')
       fireEvent.change(searchInput, { target: { value: 'Test' } })
       fireEvent.keyDown(searchInput, { key: 'Enter' })
