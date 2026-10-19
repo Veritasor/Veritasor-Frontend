@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
@@ -8,6 +8,7 @@ import { BillingProvider, useBilling } from "./BillingContext";
 import ToastContainer from "./ToastContainer";
 import ShortcutsOverlay from "./ShortcutsOverlay";
 import ContextualHelpSearch from "./ContextualHelpSearch";
+import CommandPalette from "./CommandPalette";
 
 function BillingBannerSlot() {
   const { failedPayment, dismissFailedPayment } = useBilling();
@@ -63,6 +64,22 @@ function LayoutInner() {
   const [helpSearchOpen, setHelpSearchOpen] = useState(false);
   const [openWsSwitcherInSearchMode, setOpenWsSwitcherInSearchMode] = useState(false);
 
+  const cmdTriggerRef = useRef<HTMLElement | null>(null);
+
+  const openCommandPalette = useCallback(() => {
+    cmdTriggerRef.current = document.activeElement as HTMLElement | null;
+    setCmdOpen(true);
+  }, []);
+
+  const closeCommandPalette = useCallback(() => {
+    setCmdOpen(false);
+    cmdTriggerRef.current?.focus();
+  }, []);
+
+  const handleWorkspaceJump = useCallback(() => {
+    setOpenWsSwitcherInSearchMode(true);
+  }, []);
+
   /**
    * Sequential key chord tracker for multi-key shortcuts.
    * Tracks the last key pressed so we can detect Ctrl+K → W.
@@ -84,8 +101,8 @@ function LayoutInner() {
         return;
       }
 
-      // Ctrl/Cmd+K — placeholder for command palette (not in editable fields)
-      if ((e.ctrlKey || e.metaKey) && e.key === "k" && !isEditable) {
+      // Ctrl/Cmd+K — open command palette (not in editable fields)
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K") && !isEditable) {
         e.preventDefault();
 
         // Record this chord step so we can detect Ctrl+K → W next
@@ -95,19 +112,22 @@ function LayoutInner() {
           lastKeyRef.current = null;
         }, 1500);
 
+        openCommandPalette();
         return;
       }
 
       // W — if the previous chord was Ctrl/Cmd+K, open workspace switcher in search mode
       if (
         !isEditable &&
-        e.key === "w" &&
+        (e.key === "w" || e.key === "W") &&
         lastKeyRef.current?.key === "k" &&
         lastKeyRef.current?.ctrlOrMeta
       ) {
         e.preventDefault();
         if (chordTimerRef.current) clearTimeout(chordTimerRef.current);
         lastKeyRef.current = null;
+        setCmdOpen(false);
+        setOpenWsSwitcherInSearchMode(true);
         return;
       }
     }
@@ -117,7 +137,7 @@ function LayoutInner() {
       document.removeEventListener("keydown", handleKeyDown);
       if (chordTimerRef.current) clearTimeout(chordTimerRef.current);
     };
-  }, []);
+  }, [openCommandPalette]);
 
   function toggleSidebar() {
     setSidebarOpen((o) => !o);
@@ -130,7 +150,17 @@ function LayoutInner() {
   return (
     <div className="vt-shell">
       <OfflineBanner />
-      <TopAppBar onSidebarToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
+      <TopAppBar
+        onSidebarToggle={toggleSidebar}
+        sidebarOpen={sidebarOpen}
+        onSearchClick={openCommandPalette}
+        openWorkspaceSwitcherInSearchMode={openWsSwitcherInSearchMode}
+        onWorkspaceSwitcherOpenChange={(open) => {
+          if (!open) {
+            setOpenWsSwitcherInSearchMode(false);
+          }
+        }}
+      />
 
       <div className="app-body">
         <aside
@@ -212,6 +242,11 @@ function LayoutInner() {
       <ToastContainer />
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <ContextualHelpSearch open={helpSearchOpen} onClose={() => setHelpSearchOpen(false)} />
+      <CommandPalette
+        isOpen={cmdOpen}
+        onClose={closeCommandPalette}
+        onWorkspaceJump={handleWorkspaceJump}
+      />
     </div>
   );
 }
