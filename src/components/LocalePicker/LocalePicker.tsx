@@ -90,7 +90,7 @@ function LocalePicker({ compact = false, className = '', onClose }: LocalePicker
   }
 
   return (
-    <div className={className} dir={dir} lang={lang}>
+    <div className={`lp ${className}`} dir={dir} lang={lang}>
       <button
         ref={triggerRef}
         type="button"

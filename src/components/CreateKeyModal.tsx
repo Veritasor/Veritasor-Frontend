@@ -40,7 +40,9 @@ export const CreateKeyModal: React.FC<CreateKeyModalProps> = ({ isOpen, onClose,
       scopes,
       status: 'active',
       createdAt: new Date().toISOString().split('T')[0],
-      lastUsedAt: 'Never'
+      lastUsedAt: 'Never',
+      recentIps: [],
+      callVolume: [],
     };
 
     onCreated(spawnedKey);

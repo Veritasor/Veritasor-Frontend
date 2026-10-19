@@ -1,11 +1,171 @@
+import { useState, useRef } from 'react'
 import { useDensityMode } from '../../hooks/useDensityMode'
 import type { CSSProperties } from 'react'
+import AuditLogDetailDrawer from './AuditLogDetailDrawer'
+import type { AuditLogEntryDetail } from './AuditLogDetailDrawer'
+
+export type SeverityLevel = 'info' | 'warn' | 'error' | 'critical'
 
 export interface AuditLogEntry {
   id: string
   timestamp: string
   event: string
   details?: string
+  severity?: SeverityLevel
+}
+
+// Colorblind-safe severity palette using shape + color + icon
+// Uses blue, orange, red, and purple (no red-green dependency)
+const SEVERITY_META: Record<SeverityLevel, {
+  label: string
+  icon: string
+  /** Accessible dot color */
+  dot: string
+  /** Background tint */
+  bg: string
+  /** Border tint */
+  border: string
+}> = {
+  info: {
+    label: 'Info',
+    icon: 'ℹ️',
+    dot: '#60a5fa',
+    bg: 'rgba(96,165,250,0.10)',
+    border: 'rgba(96,165,250,0.30)',
+  },
+  warn: {
+    label: 'Warning',
+    icon: '⚠️',
+    dot: '#fb923c',
+    bg: 'rgba(251,146,60,0.10)',
+    border: 'rgba(251,146,60,0.30)',
+  },
+  error: {
+    label: 'Error',
+    icon: '❌',
+    dot: '#f87171',
+    bg: 'rgba(248,113,113,0.10)',
+    border: 'rgba(248,113,113,0.30)',
+  },
+  critical: {
+    label: 'Critical',
+    icon: '🚨',
+    dot: '#c084fc',
+    bg: 'rgba(192,132,252,0.10)',
+    border: 'rgba(192,132,252,0.30)',
+  },
+}
+
+function SeverityChip({ severity }: { severity: SeverityLevel }) {
+  const meta = SEVERITY_META[severity]
+  return (
+    <span
+      aria-label={`Severity: ${meta.label}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.25rem',
+        padding: '0.1rem 0.45rem',
+        borderRadius: 4,
+        fontSize: '0.72rem',
+        fontWeight: 700,
+        background: meta.bg,
+        border: `1px solid ${meta.border}`,
+        color: meta.dot,
+        whiteSpace: 'nowrap',
+        lineHeight: 1.4,
+      }}
+    >
+      <span aria-hidden="true" style={{ fontSize: '0.75rem' }}>{meta.icon}</span>
+      {meta.label}
+    </span>
+  )
+}
+
+interface SeverityLegendProps {
+  open: boolean
+  onToggle: () => void
+}
+
+function SeverityLegend({ open, onToggle }: SeverityLegendProps) {
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label="Toggle severity legend"
+        aria-expanded={open}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+          padding: '0.25rem 0.6rem',
+          borderRadius: 6,
+          border: '1px solid var(--border)',
+          background: 'var(--surface-strong)',
+          color: 'var(--muted)',
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'background 120ms',
+        }}
+      >
+        <span aria-hidden="true">📋</span>
+        Legend
+      </button>
+      {open && (
+        <div
+          role="tooltip"
+          aria-label="Severity legend"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            marginTop: '0.35rem',
+            zIndex: 10,
+            display: 'grid',
+            gap: '0.35rem',
+            padding: '0.75rem',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--surface-strong)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 8px 24px rgba(2,6,23,0.4)',
+            minWidth: 160,
+          }}
+        >
+          {(['info', 'warn', 'error', 'critical'] as const).map((level) => {
+            const meta = SEVERITY_META[level]
+            return (
+              <div
+                key={level}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <span aria-hidden="true" style={{ fontSize: '0.9rem', width: '1.2rem', textAlign: 'center' }}>
+                  {meta.icon}
+                </span>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: '0.5rem',
+                    height: '0.5rem',
+                    borderRadius: '50%',
+                    background: meta.dot,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontWeight: 600 }}>{meta.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 interface GroupedDay {
@@ -80,6 +240,8 @@ function collapseBursts(entries: AuditLogEntry[], threshold: number): (AuditLogE
 interface AuditLogTimelineProps {
   entries: AuditLogEntry[]
   burstThreshold?: number
+  /** Provide enriched entry detail on demand; falls back to base entry if omitted */
+  onFetchDetail?: (id: string) => AuditLogEntryDetail | Promise<AuditLogEntryDetail>
 }
 
 const burstThresholdDefault = 3
@@ -157,9 +319,42 @@ const badgeStyle: CSSProperties = {
 export default function AuditLogTimeline({
   entries,
   burstThreshold = burstThresholdDefault,
+  onFetchDetail,
 }: AuditLogTimelineProps) {
   const { density } = useDensityMode('default')
   const isCompact = density === 'compact'
+  const [legendOpen, setLegendOpen] = useState(false)
+
+  const [activeDetail, setActiveDetail] = useState<AuditLogEntryDetail | null>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  async function openDrawer(entry: AuditLogEntry, triggerEl: HTMLElement) {
+    triggerRef.current = triggerEl
+    if (onFetchDetail) {
+      const detail = await Promise.resolve(onFetchDetail(entry.id))
+      setActiveDetail(detail)
+    } else {
+      setActiveDetail(entry)
+    }
+  }
+
+  function closeDrawer() {
+    setActiveDetail(null)
+  }
+
+  // Shared style for entry row button wrapper
+  const rowButtonStyle: CSSProperties = {
+    all: 'unset',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-1) 0',
+    borderBottom: '1px solid var(--border)',
+    width: '100%',
+    cursor: 'pointer',
+    borderRadius: 4,
+    transition: 'background 100ms ease',
+  }
 
   if (entries.length === 0) {
     return (
@@ -172,64 +367,102 @@ export default function AuditLogTimeline({
   if (isCompact) {
     const days = groupByDay(entries)
     return (
-      <div role="log" aria-label="Audit log timeline" aria-live="polite">
-        {days.map((day) => {
-          const bursts = collapseBursts(day.entries, burstThreshold)
-          return (
-            <section key={day.date} style={groupStyle} aria-labelledby={`day-heading-${day.date}`}>
-              <h3 id={`day-heading-${day.date}`} style={dayHeaderStyle}>
-                {day.date}
-              </h3>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label={`Events for ${day.date}`}>
-                {bursts.map((item, index) => {
-                  if ('count' in item) {
-                    const burst = item as BurstGroup
+      <>
+        <div role="log" aria-label="Audit log timeline" aria-live="polite">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+            <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
+          </div>
+          {days.map((day) => {
+            const bursts = collapseBursts(day.entries, burstThreshold)
+            return (
+              <section key={day.date} style={groupStyle} aria-labelledby={`day-heading-${day.date}`}>
+                <h3 id={`day-heading-${day.date}`} style={dayHeaderStyle}>
+                  {day.date}
+                </h3>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label={`Events for ${day.date}`}>
+                  {bursts.map((item, index) => {
+                    if ('count' in item) {
+                      const burst = item as BurstGroup
+                      return (
+                        <li key={`burst-${index}`} style={burstStyle} role="listitem">
+                          <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
+                          <span style={eventStyle}>{burst.event}</span>
+                          <span style={{ ...detailStyle, marginLeft: 'auto' }}>
+                            {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
+                          </span>
+                        </li>
+                      )
+                    }
+                    const entry = item as AuditLogEntry
                     return (
-                      <li key={`burst-${index}`} style={burstStyle} role="listitem">
-                        <span style={badgeStyle} aria-label={`${burst.count} events`}>{burst.count}</span>
-                        <span style={eventStyle}>{burst.event}</span>
-                        <span style={{ ...detailStyle, marginLeft: 'auto' }}>
-                          {formatTime(burst.firstTimestamp)} – {formatTime(burst.lastTimestamp)}
-                        </span>
+                      <li key={entry.id} role="listitem" style={{ listStyle: 'none' }}>
+                        <button
+                          type="button"
+                          aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
+                          onClick={(e) => openDrawer(entry, e.currentTarget)}
+                          style={rowButtonStyle}
+                        >
+                          <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
+                          {entry.severity && (
+                            <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+                              <SeverityChip severity={entry.severity} />
+                            </span>
+                          )}
+                          <div>
+                            <span style={eventStyle}>{entry.event}</span>
+                            {entry.details && (
+                              <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+                            )}
+                          </div>
+                          <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.75rem', paddingTop: '0.05rem', flexShrink: 0 }}>›</span>
+                        </button>
                       </li>
                     )
-                  }
-                  const entry = item as AuditLogEntry
-                  return (
-                    <li key={entry.id} style={entryStyle} role="listitem">
-                      <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
-                      <div>
-                        <span style={eventStyle}>{entry.event}</span>
-                        {entry.details && (
-                          <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
-                        )}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-          )
-        })}
-      </div>
+                  })}
+                </ul>
+              </section>
+            )
+          })}
+        </div>
+        <AuditLogDetailDrawer
+          entry={activeDetail}
+          onClose={closeDrawer}
+          triggerRef={triggerRef}
+        />
+      </>
     )
   }
 
   return (
-    <div role="log" aria-label="Audit log timeline" aria-live="polite">
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {entries.map((entry) => (
-          <li key={entry.id} style={entryStyle} role="listitem">
-            <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
-            <div>
-              <span style={eventStyle}>{entry.event}</span>
-              {entry.details && (
-                <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+    <>
+      <div role="log" aria-label="Audit log timeline" aria-live="polite">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+          <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
+        </div>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {entries.map((entry) => (
+            <li key={entry.id} style={entryStyle} role="listitem">
+              <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
+              {entry.severity && (
+                <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+                  <SeverityChip severity={entry.severity} />
+                </span>
               )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+              <div>
+                <span style={eventStyle}>{entry.event}</span>
+                {entry.details && (
+                  <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <AuditLogDetailDrawer
+        entry={activeDetail}
+        onClose={closeDrawer}
+        triggerRef={triggerRef}
+      />
+    </>
   )
 }

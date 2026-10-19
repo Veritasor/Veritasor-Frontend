@@ -6,10 +6,15 @@ const OPTIONS: { value: Theme; label: string; icon: string }[] = [
   { value: 'system', label: 'System', icon: '🖥' },
   { value: 'light', label: 'Light', icon: '☀' },
   { value: 'dark', label: 'Dark', icon: '☾' },
+  { value: 'high-contrast', label: 'High Contrast', icon: '◑' },
 ]
 
-export default function ThemeSwitcher() {
-  const { theme, setTheme } = useTheme()
+interface ThemeSwitcherProps {
+  userId?: string
+}
+
+export default function ThemeSwitcher({ userId }: ThemeSwitcherProps = {}) {
+  const { theme, setTheme } = useTheme(userId)
   const groupId = useId()
   const labelId = `${groupId}-label`
 
@@ -24,6 +29,7 @@ export default function ThemeSwitcher() {
             key={opt.value}
             className={`theme-option${checked ? ' theme-option-active' : ''}`}
             data-value={opt.value}
+            htmlFor={id}
           >
             <input
               type="radio"

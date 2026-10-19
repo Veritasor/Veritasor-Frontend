@@ -1,12 +1,66 @@
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import AuthShell from "../components/AuthShell";
+import TermsOfServiceChangelogModal from "../components/TermsOfServiceChangelogModal";
+import SubmitButton, { SUBMIT_DEMO_MS } from "../components/SubmitButton";
 
 const highlights = [
-  "Clear field grouping keeps legal, team, and security details easy to scan",
-  "Password requirements are visible before submission to reduce recovery loops",
-  "Responsive spacing keeps the full flow usable without horizontal scrolling",
+  "Set up your business account in a minute",
+  "Password requirements are shown up front",
+  "Works on phones, tablets, and desktops",
+];
+
+const CURRENT_TOS_VERSION = "v2.4.0";
+const PREVIOUS_TOS_VERSION = "v2.3.0";
+const TOS_EFFECTIVE_DATE = "2026-07-29";
+const TOS_SUMMARY =
+  "We updated the Terms of Service to make version history explicit, surface the most relevant policy diffs, and make it easier to review the full agreement before continuing.";
+
+const TOS_CHANGES = [
+  {
+    kind: "Added" as const,
+    title: "Versioned changelog and comparison view",
+    detail:
+      "Every update now includes a release label plus a human-readable diff summary so legal and compliance reviewers can spot policy changes faster.",
+  },
+  {
+    kind: "Updated" as const,
+    title: "Data retention and export language",
+    detail:
+      "Retention timing now states how long profile, audit, and support records are kept before deletion or anonymization.",
+  },
+  {
+    kind: "Removed" as const,
+    title: "Ambiguous third-party sharing wording",
+    detail:
+      "The policy no longer uses broad phrasing around sharing and instead names the operational disclosures that actually apply.",
+  },
 ];
 
 export default function Signup() {
+  const [tosModalOpen, setTosModalOpen] = useState(false);
+  const [acknowledgedVersion, setAcknowledgedVersion] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitTimerRef = useRef<number | null>(null);
+
+  const hasAcknowledgedCurrentTerms = acknowledgedVersion === CURRENT_TOS_VERSION;
+
+  useEffect(() => {
+    return () => {
+      if (submitTimerRef.current !== null) {
+        window.clearTimeout(submitTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!hasAcknowledgedCurrentTerms || isSubmitting) return;
+    setIsSubmitting(true);
+    submitTimerRef.current = window.setTimeout(() => {
+      submitTimerRef.current = null;
+      setIsSubmitting(false);
+    }, SUBMIT_DEMO_MS);
+  };
 
   return (
     <AuthShell
@@ -16,11 +70,26 @@ export default function Signup() {
       footerPrompt="Already have access?"
       footerLinkLabel="Sign in"
       footerLinkHref="/login"
-      sideTitle="Fast onboarding without visual guesswork"
-      sideDescription="Typography, spacing, and button hierarchy are shared across all authentication screens so engineers can extend the flow without inventing new patterns."
+      sideTitle="Get started in minutes"
+      sideDescription="Create a business account, connect your revenue sources, and start sharing verifiable proof. Demo build: no real accounts are created."
       sideHighlights={highlights}
     >
-      <form className="auth-form">
+      <TermsOfServiceChangelogModal
+        open={tosModalOpen}
+        currentVersion={CURRENT_TOS_VERSION}
+        previousVersion={PREVIOUS_TOS_VERSION}
+        effectiveDate={TOS_EFFECTIVE_DATE}
+        summary={TOS_SUMMARY}
+        changes={TOS_CHANGES}
+        fullTextHref="/legal/terms-of-service-v2-4-0.txt"
+        pdfHref="/legal/terms-of-service-v2-4-0.pdf"
+        onAcknowledge={(version) => {
+          setAcknowledgedVersion(version);
+          setTosModalOpen(false);
+        }}
+        onClose={() => setTosModalOpen(false)}
+      />
+      <form className="auth-form" onSubmit={handleSubmit} noValidate>
         <div className="auth-grid">
           <div className="auth-input-group">
             <label className="auth-label" htmlFor="signup-name">
@@ -87,21 +156,31 @@ export default function Signup() {
           <p className="auth-strength-copy">Strong enough for a production workspace</p>
         </div>
 
-        <label className="auth-checkbox">
-          <input type="checkbox" />
-          <span>
-            I agree to the terms, privacy policy, and audit logging
-            requirements.
-          </span>
-        </label>
+        <div className="auth-message auth-message-warning tos-acknowledgement" role="note">
+          <div className="tos-acknowledgement-copy">
+            <strong>Updated terms need review</strong>
+            <span>
+              Version {CURRENT_TOS_VERSION} replaces {PREVIOUS_TOS_VERSION}. Acknowledge the changelog before creating your account.
+            </span>
+          </div>
+          <button type="button" className="auth-button auth-button-secondary tos-review-button" onClick={() => setTosModalOpen(true)}>
+            Review changes
+          </button>
+        </div>
+
+        {hasAcknowledgedCurrentTerms && (
+          <div className="auth-message auth-message-success" role="status" aria-live="polite">
+            Terms {CURRENT_TOS_VERSION} acknowledged.
+          </div>
+        )}
 
         <div className="auth-actions">
-          <button type="submit" className="auth-button auth-button-primary">
-            Create account
-          </button>
-          <button type="button" className="auth-button auth-button-secondary">
-            Book onboarding call
-          </button>
+          <SubmitButton
+            idleLabel="Create account"
+            busyLabel="Creating account…"
+            busy={isSubmitting}
+            disabled={!hasAcknowledgedCurrentTerms}
+          />
         </div>
       </form>
     </AuthShell>

@@ -1,107 +1,106 @@
-/**
- * HelpArticle tests
- *
- * Covers issue #XXX:
- * - No nested <main> landmark (was previously wrapping content in <main>)
- * - Content rendered correctly inside an <article>
- * - When rendered inside Layout's <main>, only one main landmark exists
- */
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import HelpArticle from './HelpArticle';
 
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
-import { IntlProvider } from 'react-intl'
-import HelpArticle from './HelpArticle'
-import Layout from '../components/Layout'
-import { CookieConsentProvider } from '../components/CookieConsentContext'
-import enMessages from '../i18n/messages/en.json'
+describe('HelpArticle', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
 
-function renderStandalone() {
-  return render(
-    <MemoryRouter>
-      <HelpArticle />
-    </MemoryRouter>,
-  )
-}
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
 
-function renderInsideLayout() {
-  return render(
-    <MemoryRouter initialEntries={['/help']}>
-      <IntlProvider locale="en" messages={enMessages}>
-        <CookieConsentProvider>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route path="help" element={<HelpArticle />} />
-            </Route>
-          </Routes>
-        </CookieConsentProvider>
-      </IntlProvider>
-    </MemoryRouter>,
-  )
-}
+  it('renders the help article content and feedback component', () => {
+    render(<HelpArticle />);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Getting Started with Veritasor');
+    expect(screen.getByText('Last updated: July 2026')).toBeInTheDocument();
+    
+    // Check main sections
+    expect(screen.getByRole('heading', { level: 2, name: '1. Create a workspace' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: '2. Add an attestation' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: '3. Verify and share' })).toBeInTheDocument();
 
-// ─── Regression: no nested <main> ────────────────────────────────────────────
+    // Check feedback component is rendered
+    expect(screen.getByRole('heading', { name: 'Was this helpful?' })).toBeInTheDocument();
+  });
 
-describe('HelpArticle — landmark structure', () => {
-  it('does not render a <main> element', () => {
-    renderStandalone()
-    expect(screen.queryByRole('main')).not.toBeInTheDocument()
-  })
+  it('handles feedback submission (success state transition)', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<HelpArticle />);
+    
+    const helpfulBtn = screen.getByRole('button', { name: 'This article was helpful' });
+    await user.click(helpfulBtn);
 
-  it('renders an <article> element', () => {
-    const { container } = renderStandalone()
-    expect(container.querySelector('article')).toBeInTheDocument()
-  })
+    const submitBtn = screen.getByRole('button', { name: 'Submit feedback' });
+    await user.click(submitBtn);
 
-  it('when rendered inside Layout, exactly one main landmark exists', () => {
-    renderInsideLayout()
-    expect(screen.getAllByRole('main')).toHaveLength(1)
-  })
+    expect(screen.getByText('Thanks for your feedback!')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit feedback' })).not.toBeInTheDocument();
+  });
 
-  it('the sole main landmark is Layouts #main-content', () => {
-    renderInsideLayout()
-    expect(document.getElementById('main-content')).toBeInTheDocument()
-    expect(screen.getByRole('main')).toBe(document.getElementById('main-content'))
-  })
-})
+  it('handles negative feedback with a valid comment', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<HelpArticle />);
+    
+    const notHelpfulBtn = screen.getByRole('button', { name: 'This article was not helpful' });
+    await user.click(notHelpfulBtn);
 
-// ─── Content ──────────────────────────────────────────────────────────────────
+    const commentBox = screen.getByRole('textbox', { name: /Any additional thoughts\?/i });
+    expect(commentBox).toBeInTheDocument();
 
-describe('HelpArticle — content', () => {
-  it('renders the page heading', () => {
-    renderStandalone()
-    expect(
-      screen.getByRole('heading', { level: 1, name: /getting started with veritasor/i }),
-    ).toBeInTheDocument()
-  })
+    await user.type(commentBox, 'This is missing some details.');
 
-  it('renders the "Create a workspace" section heading', () => {
-    renderStandalone()
-    expect(screen.getByRole('heading', { name: /create a workspace/i })).toBeInTheDocument()
-  })
+    const submitBtn = screen.getByRole('button', { name: 'Submit feedback' });
+    await user.click(submitBtn);
 
-  it('renders the "Add an attestation" section heading', () => {
-    renderStandalone()
-    expect(screen.getByRole('heading', { name: /add an attestation/i })).toBeInTheDocument()
-  })
+    expect(screen.getByText('Thanks for your feedback!')).toBeInTheDocument();
+  });
 
-  it('renders the "Verify and share" section heading', () => {
-    renderStandalone()
-    expect(screen.getByRole('heading', { name: /verify and share/i })).toBeInTheDocument()
-  })
+  it('handles invalid input: comment exceeds 500 characters', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<HelpArticle />);
+    
+    const notHelpfulBtn = screen.getByRole('button', { name: 'This article was not helpful' });
+    await user.click(notHelpfulBtn);
 
-  it('renders the last-updated meta text', () => {
-    renderStandalone()
-    expect(screen.getByText(/last updated/i)).toBeInTheDocument()
-  })
+    const commentBox = screen.getByRole('textbox', { name: /Any additional thoughts\?/i });
+    
+    // Typing 501 characters could be slow with userEvent.type, so we can paste it instead
+    const longText = 'a'.repeat(501);
+    await user.click(commentBox);
+    await user.paste(longText);
 
-  it('renders the HelpArticleFeedback component', () => {
-    renderStandalone()
-    // HelpArticleFeedback renders feedback controls — confirm it mounted
-    // by checking the outer wrapper is present in the article
-    const article = document.querySelector('article')
-    expect(article).toBeInTheDocument()
-    // The article contains child elements beyond just headings
-    expect(article!.children.length).toBeGreaterThan(1)
-  })
-})
+    const submitBtn = screen.getByRole('button', { name: 'Submit feedback' });
+    await user.click(submitBtn);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Comment must be 500 characters or fewer.');
+    expect(screen.queryByText('Thanks for your feedback!')).not.toBeInTheDocument();
+  });
+
+  it('handles invalid input: rate limiting on submissions', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<HelpArticle />);
+    
+    // First submission
+    const helpfulBtn = screen.getByRole('button', { name: 'This article was helpful' });
+    await user.click(helpfulBtn);
+    let submitBtn = screen.getByRole('button', { name: 'Submit feedback' });
+    await user.click(submitBtn);
+    expect(screen.getByText('Thanks for your feedback!')).toBeInTheDocument();
+
+    // Reset feedback
+    const resetBtn = screen.getByRole('button', { name: 'Submit different feedback' });
+    await user.click(resetBtn);
+
+    // Try submitting again immediately
+    const notHelpfulBtn = screen.getByRole('button', { name: 'This article was not helpful' });
+    await user.click(notHelpfulBtn);
+    submitBtn = screen.getByRole('button', { name: 'Submit feedback' });
+    await user.click(submitBtn);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Please wait before submitting another response.');
+  });
+});

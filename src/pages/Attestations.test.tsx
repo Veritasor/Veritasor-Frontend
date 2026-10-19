@@ -43,4 +43,29 @@ describe('Attestations Page', () => {
     const articles = screen.getAllByRole('article')
     expect(articles.length).toBeGreaterThanOrEqual(2)
   })
+
+  it('renders a chart with success and failure trends', () => {
+    renderPage()
+    const chart = screen.getByRole('figure', { name: /attestation history/i })
+    expect(chart).toBeInTheDocument()
+    expect(screen.getAllByText(/success/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/failure/i).length).toBeGreaterThan(0)
+  })
+
+  it('exposes tabular data via the "View as table" toggle', () => {
+    renderPage()
+    const toggle = screen.getByRole('button', { name: /view as table/i })
+    expect(toggle).toBeInTheDocument()
+    toggle.click()
+    expect(screen.getByRole('table', { name: /attestation history/i })).toBeInTheDocument()
+  })
+
+  it('supports keyboard navigation on chart data points', () => {
+    renderPage()
+    const chart = screen.getByRole('figure', { name: /attestation history/i })
+    const focusable = chart.querySelectorAll('button, [tabindex], a')
+    expect(focusable.length).toBeGreaterThan(0)
+    focusable[0].focus()
+    expect(focusable[0]).toHaveFocus()
+  })
 })

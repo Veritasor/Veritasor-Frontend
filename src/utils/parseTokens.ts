@@ -1,6 +1,4 @@
-import { readFileSync } from 'fs'
-import { fileURLToPath } from 'url'
-import { dirname, resolve } from 'path'
+import tokensCss from '../index.css?raw'
 
 export interface TokenBlock {
   selector: string
@@ -20,10 +18,6 @@ export type ThemeVariant =
 
 const VERSION = '0.1.0'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const cssPath = resolve(__dirname, '../index.css')
-const tokensCss = readFileSync(cssPath, 'utf-8')
 
 function extractBlocks(cssText: string): TokenBlock[] {
   const blocks: TokenBlock[] = []

@@ -1,19 +1,13 @@
 /**
  * Tests for drag-and-drop reorder affordances in RevenueSources.
- *
- * Coverage areas:
- * - Drag handles rendered and accessible
- * - Pointer drag reorder (pointerdown → pointerenter → pointerup)
- * - Keyboard reorder mode (grab → ArrowUp/Down → Enter/Space/Escape)
- * - aria-live announcements
- * - aria attributes (aria-grabbed, aria-label with position, role)
- * - Edge cases: first/last item boundary, single item, cancel
  */
 
 import { MemoryRouter } from 'react-router-dom'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { describe, expect, it, afterEach, beforeEach } from 'vitest'
+import { ToastProvider } from '../components/ToastContext'
 import RevenueSources from '../pages/RevenueSources'
+import { LocaleProvider } from '../i18n/provider'
 import { sourcesStore } from '../store/sourcesStore'
 
 afterEach(() => cleanup())
@@ -26,25 +20,21 @@ beforeEach(() => {
 function renderPage() {
   return render(
     <MemoryRouter>
-      <RevenueSources />
+      <LocaleProvider>
+        <ToastProvider>
+          <RevenueSources />
+        </ToastProvider>
+      </LocaleProvider>
     </MemoryRouter>,
   )
 }
 
-function getHandles() {
-  return screen.getAllByTestId('drag-handle')
-}
-
-function getItems() {
-  return screen.getAllByRole('listitem')
-}
-
-function getAnnouncement() {
-  return screen.getByTestId('dnd-announcement')
-}
+function getHandles() { return screen.getAllByTestId('drag-handle') }
+function getItems() { return screen.getAllByRole('listitem') }
+function getAnnouncement() { return screen.getByTestId('dnd-announcement') }
 
 // ---------------------------------------------------------------------------
-// Pre-existing page structure (regression)
+// Page structure
 // ---------------------------------------------------------------------------
 
 describe('RevenueSources — page structure', () => {
@@ -61,9 +51,9 @@ describe('RevenueSources — page structure', () => {
 
   it('renders all three mock sources', () => {
     renderPage()
-    expect(screen.getByText('Stripe')).toBeInTheDocument()
-    expect(screen.getByText('Shopify')).toBeInTheDocument()
-    expect(screen.getByText('QuickBooks')).toBeInTheDocument()
+    expect(screen.getAllByText('Stripe').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Shopify').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('QuickBooks').length).toBeGreaterThanOrEqual(1)
   })
 })
 
@@ -86,8 +76,7 @@ describe('RevenueSources — drag handles', () => {
 
   it('handle aria-pressed is false when not grabbed', () => {
     renderPage()
-    const handle = screen.getByRole('button', { name: /reorder stripe/i })
-    expect(handle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /reorder stripe/i })).toHaveAttribute('aria-pressed', 'false')
   })
 })
 
@@ -105,10 +94,7 @@ describe('RevenueSources — row aria attributes', () => {
 
   it('rows do not have aria-grabbed when idle', () => {
     renderPage()
-    const items = getItems()
-    for (const item of items) {
-      expect(item).not.toHaveAttribute('aria-grabbed')
-    }
+    for (const item of getItems()) expect(item).not.toHaveAttribute('aria-grabbed')
   })
 })
 
@@ -117,7 +103,7 @@ describe('RevenueSources — row aria attributes', () => {
 // ---------------------------------------------------------------------------
 
 describe('RevenueSources — aria-live region', () => {
-  it('renders the announcement region with role="status" and aria-live="polite"', () => {
+  it('renders the announcement region', () => {
     renderPage()
     const region = getAnnouncement()
     expect(region).toHaveAttribute('role', 'status')
@@ -125,12 +111,9 @@ describe('RevenueSources — aria-live region', () => {
     expect(region).toHaveAttribute('aria-atomic', 'true')
   })
 
-  it('announcement region is visually hidden but present in DOM', () => {
+  it('announcement region is visually hidden', () => {
     renderPage()
-    const region = getAnnouncement()
-    // It should be in the document (for screen readers) but clipped
-    expect(region).toBeInTheDocument()
-    expect(region).toHaveStyle({ position: 'absolute' })
+    expect(getAnnouncement()).toHaveStyle({ position: 'absolute' })
   })
 
   it('is empty initially', () => {
@@ -140,16 +123,14 @@ describe('RevenueSources — aria-live region', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Keyboard reorder mode
+// Keyboard reorder
 // ---------------------------------------------------------------------------
 
 describe('RevenueSources — keyboard grab/release', () => {
-  it('clicking handle activates keyboard grab and announces it', () => {
+  it('clicking handle activates grab and announces it', () => {
     renderPage()
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
     fireEvent.click(stripeHandle)
-
-    // Handle becomes "Release Stripe" when grabbed
     expect(screen.getByRole('button', { name: /release stripe/i })).toBeInTheDocument()
     expect(stripeHandle).toHaveAttribute('aria-pressed', 'true')
     expect(getAnnouncement().textContent).toMatch(/stripe.*grabbed/i)
@@ -158,9 +139,7 @@ describe('RevenueSources — keyboard grab/release', () => {
 
   it('clicking handle again drops it in place', () => {
     renderPage()
-    const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
-    fireEvent.click(stripeHandle)
-    // click again (now "Release Stripe")
+    fireEvent.click(screen.getByRole('button', { name: /reorder stripe/i }))
     fireEvent.click(screen.getByRole('button', { name: /release stripe/i }))
     expect(screen.getByRole('button', { name: /reorder stripe/i })).toBeInTheDocument()
     expect(getAnnouncement().textContent).toMatch(/dropped in place/i)
@@ -168,41 +147,29 @@ describe('RevenueSources — keyboard grab/release', () => {
 })
 
 describe('RevenueSources — keyboard ArrowDown reorder', () => {
-  it('ArrowDown moves the grabbed item down by one position', () => {
+  it('ArrowDown moves the grabbed item down', () => {
     renderPage()
-    // Grab Stripe (index 0)
     fireEvent.click(screen.getByRole('button', { name: /reorder stripe/i }))
-    // Press ArrowDown
     fireEvent.keyDown(screen.getByRole('button', { name: /release stripe/i }), { key: 'ArrowDown' })
-
-    // Stripe should now be at position 2
     expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
-    // Shopify should now be at position 1
     expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
     expect(getAnnouncement().textContent).toMatch(/moved to position 2/i)
   })
 
   it('ArrowDown is no-op at the last position', () => {
     renderPage()
-    // Grab QuickBooks (index 2, last)
     fireEvent.click(screen.getByRole('button', { name: /reorder quickbooks/i }))
     fireEvent.keyDown(screen.getByRole('button', { name: /release quickbooks/i }), { key: 'ArrowDown' })
-
-    // Still at position 3
     expect(screen.getByRole('listitem', { name: /quickbooks, priority 3 of 3/i })).toBeInTheDocument()
   })
 })
 
 describe('RevenueSources — keyboard ArrowUp reorder', () => {
-  it('ArrowUp moves the grabbed item up by one position', () => {
+  it('ArrowUp moves the grabbed item up', () => {
     renderPage()
-    // Grab Shopify (index 1)
     fireEvent.click(screen.getByRole('button', { name: /reorder shopify/i }))
     fireEvent.keyDown(screen.getByRole('button', { name: /release shopify/i }), { key: 'ArrowUp' })
-
-    // Shopify should now be at position 1
     expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
-    // Stripe should now be at position 2
     expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
     expect(getAnnouncement().textContent).toMatch(/moved to position 1/i)
   })
@@ -216,7 +183,7 @@ describe('RevenueSources — keyboard ArrowUp reorder', () => {
 })
 
 describe('RevenueSources — keyboard Enter/Space drop', () => {
-  it('Enter drops the item and clears grab state', () => {
+  it('Enter drops the item', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /reorder stripe/i }))
     fireEvent.keyDown(screen.getByRole('button', { name: /release stripe/i }), { key: 'Enter' })
@@ -224,7 +191,7 @@ describe('RevenueSources — keyboard Enter/Space drop', () => {
     expect(getAnnouncement().textContent).toMatch(/dropped at position/i)
   })
 
-  it('Space drops the item and clears grab state', () => {
+  it('Space drops the item', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /reorder shopify/i }))
     fireEvent.keyDown(screen.getByRole('button', { name: /release shopify/i }), { key: ' ' })
@@ -234,23 +201,19 @@ describe('RevenueSources — keyboard Enter/Space drop', () => {
 })
 
 describe('RevenueSources — keyboard Escape cancel', () => {
-  it('Escape cancels reorder and announces cancellation', () => {
+  it('Escape cancels reorder', () => {
     renderPage()
-    // Grab Stripe and move it down, then Escape
     fireEvent.click(screen.getByRole('button', { name: /reorder stripe/i }))
     fireEvent.keyDown(screen.getByRole('button', { name: /release stripe/i }), { key: 'Escape' })
-    // Grab is released
     expect(screen.getByRole('button', { name: /reorder stripe/i })).toBeInTheDocument()
     expect(getAnnouncement().textContent).toMatch(/cancel/i)
   })
 })
 
-describe('RevenueSources — keyboard: non-grab keys are no-ops', () => {
-  it('arrow keys do nothing when no item is grabbed', () => {
+describe('RevenueSources — keyboard non-grab keys are no-ops', () => {
+  it('arrow keys do nothing without grab', () => {
     renderPage()
-    // fire keydown on handle without grabbing
     fireEvent.keyDown(screen.getByRole('button', { name: /reorder stripe/i }), { key: 'ArrowDown' })
-    // Order unchanged
     expect(screen.getByRole('listitem', { name: /stripe, priority 1 of 3/i })).toBeInTheDocument()
   })
 })
@@ -260,11 +223,10 @@ describe('RevenueSources — keyboard: non-grab keys are no-ops', () => {
 // ---------------------------------------------------------------------------
 
 describe('RevenueSources — pointer drag reorder', () => {
-  it('pointerdown on handle sets grabbed state and announces it', () => {
+  it('pointerdown on handle sets grabbed state', () => {
     renderPage()
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
     fireEvent.pointerDown(stripeHandle)
-
     expect(stripeHandle).toHaveAttribute('aria-pressed', 'true')
     expect(getAnnouncement().textContent).toMatch(/grabbed stripe/i)
   })
@@ -273,40 +235,31 @@ describe('RevenueSources — pointer drag reorder', () => {
     renderPage()
     const list = screen.getByRole('list', { name: /connected revenue sources/i })
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
-
     fireEvent.pointerDown(stripeHandle)
     fireEvent.pointerUp(list)
-
-    expect(screen.getByRole('button', { name: /reorder stripe/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(stripeHandle).toHaveAttribute('aria-pressed', 'false')
     expect(getAnnouncement().textContent).toMatch(/drop cancelled/i)
   })
 
-  it('pointerdown → pointerenter second item → pointerup reorders', () => {
+  it('pointerdown → pointerenter → pointerup reorders', () => {
     renderPage()
     const list = screen.getByRole('list', { name: /connected revenue sources/i })
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
-    // Drag Stripe onto Shopify row (index 1)
     const shopifyRow = screen.getByRole('listitem', { name: /shopify, priority 2 of 3/i })
-
     fireEvent.pointerDown(stripeHandle)
     fireEvent.pointerEnter(shopifyRow)
     fireEvent.pointerUp(list)
-
-    // After drop: Shopify at 1, Stripe at 2
     expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
     expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
     expect(getAnnouncement().textContent).toMatch(/moved to position 2/i)
   })
 
-  it('drop-target row gets the drop-target visual while dragging', () => {
+  it('drop-target row gets drop-target visual while dragging', () => {
     renderPage()
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
     const shopifyRow = screen.getByRole('listitem', { name: /shopify, priority 2 of 3/i })
-
     fireEvent.pointerDown(stripeHandle)
     fireEvent.pointerEnter(shopifyRow)
-
-    // Drop-target row should have dashed border style set
     expect(shopifyRow).toHaveStyle({ border: '2px dashed rgba(94,234,212,0.6)' })
   })
 
@@ -314,11 +267,8 @@ describe('RevenueSources — pointer drag reorder', () => {
     renderPage()
     const list = screen.getByRole('list', { name: /connected revenue sources/i })
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
-
     fireEvent.pointerDown(stripeHandle)
     fireEvent.pointerLeave(list)
-
-    // Stripe should still be at position 1 (no reorder)
     expect(screen.getByRole('listitem', { name: /stripe, priority 1 of 3/i })).toBeInTheDocument()
   })
 })
@@ -328,48 +278,47 @@ describe('RevenueSources — pointer drag reorder', () => {
 // ---------------------------------------------------------------------------
 
 describe('RevenueSources — status badges', () => {
-  it('shows Healthy badge for Stripe', () => {
-    renderPage()
-    expect(screen.getByLabelText('Health status: Healthy')).toBeInTheDocument()
-  })
-
-  it('shows Warning badge for Shopify', () => {
-    renderPage()
-    expect(screen.getByLabelText('Health status: Warning')).toBeInTheDocument()
-  })
-
-  it('shows Error badge for QuickBooks', () => {
-    renderPage()
-    expect(screen.getByLabelText('Health status: Error')).toBeInTheDocument()
-  })
+  it('shows Healthy badge for Stripe', () => { renderPage(); expect(screen.getByLabelText('Health status: Healthy')).toBeInTheDocument() })
+  it('shows Warning badge for Shopify', () => { renderPage(); expect(screen.getByLabelText('Health status: Warning')).toBeInTheDocument() })
+  it('shows Error badge for QuickBooks', () => { renderPage(); expect(screen.getByLabelText('Health status: Error')).toBeInTheDocument() })
 })
 
 // ---------------------------------------------------------------------------
-// Actions (regression)
+// Actions
 // ---------------------------------------------------------------------------
 
 describe('RevenueSources — actions', () => {
+  function getSourcesList() { return screen.getByRole('list', { name: /connected revenue sources/i }) }
+
   it('renders Disconnect buttons for all sources', () => {
     renderPage()
-    expect(screen.getAllByRole('button', { name: /disconnect/i }).length).toBe(3)
+    expect(within(getSourcesList()).getAllByRole('button', { name: /disconnect/i }).length).toBe(3)
   })
 
   it('renders Reconnect buttons only for non-healthy sources', () => {
     renderPage()
-    expect(screen.getAllByRole('button', { name: /reconnect/i }).length).toBe(2)
+    expect(within(getSourcesList()).getAllByRole('button', { name: /reconnect/i }).length).toBe(2)
   })
 
   it('reconnect updates status to Healthy', () => {
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: /reconnect shopify/i }))
-    expect(screen.queryByRole('button', { name: /reconnect shopify/i })).toBeNull()
-    expect(screen.getAllByRole('button', { name: /reconnect/i }).length).toBe(1)
+    const list = getSourcesList()
+    fireEvent.click(within(list).getByRole('button', { name: /reconnect shopify/i }))
+    expect(within(list).queryByRole('button', { name: /reconnect shopify/i })).toBeNull()
+    expect(within(list).getAllByRole('button', { name: /reconnect/i }).length).toBe(1)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Disconnect confirmation dialog (regression)
+// Disconnect confirmation dialog
 // ---------------------------------------------------------------------------
+
+function confirmDisconnect(provider: string) {
+  const dialog = screen.getByRole('dialog')
+  const input = within(dialog).getByRole('textbox')
+  fireEvent.change(input, { target: { value: provider } })
+  fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^disconnect ${provider}$`, 'i') }))
+}
 
 describe('RevenueSources — disconnect confirmation', () => {
   it('opens confirmation dialog when Disconnect is clicked', () => {
@@ -390,29 +339,23 @@ describe('RevenueSources — disconnect confirmation', () => {
     fireEvent.click(screen.getByRole('button', { name: /disconnect stripe/i }))
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByText('Stripe')).toBeInTheDocument()
+    expect(screen.getAllByText('Stripe').length).toBeGreaterThanOrEqual(1)
   })
 
   it('Disconnect confirm removes the source from the list', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /disconnect stripe/i }))
-    const dialogDisconnect = screen.getAllByRole('button', { name: /disconnect/i }).find(
-      (btn) => btn.closest('[role="dialog"]'),
-    )!
-    fireEvent.click(dialogDisconnect)
+    confirmDisconnect('Stripe')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByText('Stripe')).toBeNull()
-    expect(screen.getByText('Shopify')).toBeInTheDocument()
+    expect(screen.getAllByText('Shopify').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows empty state when all sources are disconnected', () => {
     renderPage()
     for (const provider of ['Stripe', 'Shopify', 'QuickBooks']) {
       fireEvent.click(screen.getByRole('button', { name: new RegExp(`disconnect ${provider}`, 'i') }))
-      const dialogDisconnect = screen.getAllByRole('button', { name: /disconnect/i }).find(
-        (btn) => btn.closest('[role="dialog"]'),
-      )!
-      fireEvent.click(dialogDisconnect)
+      confirmDisconnect(provider)
     }
     expect(screen.getByRole('region', { name: /no sources connected/i })).toBeInTheDocument()
   })
@@ -434,22 +377,17 @@ describe('RevenueSources — accessibility attributes', () => {
 
   it('last sync uses a <time> element', () => {
     renderPage()
-    const times = document.querySelectorAll('time')
-    expect(times.length).toBeGreaterThanOrEqual(1)
+    expect(document.querySelectorAll('time').length).toBeGreaterThanOrEqual(1)
   })
 
   it('drag handles have touchAction none for touch devices', () => {
     renderPage()
-    // Check the list has touchAction: none (prevents scroll-conflict on mobile)
-    const list = screen.getByRole('list', { name: /connected revenue sources/i })
-    expect(list).toHaveStyle({ touchAction: 'none' })
+    expect(screen.getByRole('list', { name: /connected revenue sources/i })).toHaveStyle({ touchAction: 'none' })
   })
 
-  it('handles have type="button" to prevent form submission', () => {
+  it('handles have type="button"', () => {
     renderPage()
-    for (const handle of getHandles()) {
-      expect(handle).toHaveAttribute('type', 'button')
-    }
+    for (const handle of getHandles()) expect(handle).toHaveAttribute('type', 'button')
   })
 })
 
@@ -460,22 +398,69 @@ describe('RevenueSources — accessibility attributes', () => {
 describe('RevenueSources — single item edge case', () => {
   it('ArrowUp and ArrowDown are no-ops with a single item remaining', () => {
     renderPage()
-    // Disconnect Shopify and QuickBooks
     for (const provider of ['Shopify', 'QuickBooks']) {
       fireEvent.click(screen.getByRole('button', { name: new RegExp(`disconnect ${provider}`, 'i') }))
-      const btn = screen.getAllByRole('button', { name: /disconnect/i }).find(
-        (b) => b.closest('[role="dialog"]'),
-      )!
-      fireEvent.click(btn)
+      confirmDisconnect(provider)
     }
-
-    // Only Stripe remains
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
     fireEvent.click(stripeHandle)
     fireEvent.keyDown(screen.getByRole('button', { name: /release stripe/i }), { key: 'ArrowDown' })
     expect(screen.getByRole('listitem', { name: /stripe, priority 1 of 1/i })).toBeInTheDocument()
-
     fireEvent.keyDown(screen.getByRole('button', { name: /release stripe/i }), { key: 'ArrowUp' })
     expect(screen.getByRole('listitem', { name: /stripe, priority 1 of 1/i })).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Per-row move-up/move-down controls
+// ---------------------------------------------------------------------------
+
+describe('RevenueSources — move-up button', () => {
+  it('move-up is hidden on first item, visible on others', () => {
+    renderPage()
+    expect(screen.getByTestId('move-up-0')).toHaveStyle({ visibility: 'hidden' })
+    expect(screen.getByTestId('move-up-1')).toHaveStyle({ visibility: 'visible' })
+    expect(screen.getByTestId('move-up-2')).toHaveStyle({ visibility: 'visible' })
+  })
+
+  it('clicking move-up on Shopify moves it above Stripe', () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('move-up-1'))
+    expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
+    expect(getAnnouncement().textContent).toMatch(/moved up/i)
+  })
+})
+
+describe('RevenueSources — move-down button', () => {
+  it('move-down is visible on first items, hidden on last', () => {
+    renderPage()
+    expect(screen.getByTestId('move-down-0')).toHaveStyle({ visibility: 'visible' })
+    expect(screen.getByTestId('move-down-1')).toHaveStyle({ visibility: 'visible' })
+    expect(screen.getByTestId('move-down-2')).toHaveStyle({ visibility: 'hidden' })
+  })
+
+  it('clicking move-down on Stripe moves it below Shopify', () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('move-down-0'))
+    expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
+    expect(getAnnouncement().textContent).toMatch(/moved down/i)
+  })
+})
+
+describe('RevenueSources — move buttons respect list boundaries after reorder', () => {
+  it('move-up becomes available on former first item after it is moved down', () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('move-down-0'))
+    expect(screen.getByTestId('move-up-1')).toHaveStyle({ visibility: 'visible' })
+    expect(screen.getByTestId('move-up-0')).toHaveStyle({ visibility: 'hidden' })
+  })
+
+  it('move-down becomes visible on former last item after it is moved up', () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('move-up-2'))
+    expect(screen.getByTestId('move-down-1')).toHaveStyle({ visibility: 'visible' })
+    expect(screen.getByTestId('move-down-2')).toHaveStyle({ visibility: 'hidden' })
   })
 })

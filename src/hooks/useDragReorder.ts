@@ -18,6 +18,10 @@ export interface DragReorderHandlers {
   handleKeyboardGrab: (index: number) => void
   /** Handle ArrowUp/ArrowDown/Enter/Space/Escape in keyboard mode */
   handleKeyDown: (e: { key: string; preventDefault(): void }) => void
+  /** Move item at index up one position (per-row button alternative) */
+  moveUp: (index: number) => void
+  /** Move item at index down one position (per-row button alternative) */
+  moveDown: (index: number) => void
 }
 
 export interface UseDragReorderReturn extends DragReorderState, DragReorderHandlers {
@@ -133,6 +137,24 @@ export function useDragReorder<T>(
     [grabbedIndex, items, getLabel, reorder],
   )
 
+  const moveUp = useCallback(
+    (index: number) => {
+      if (index <= 0) return
+      reorder(index, index - 1)
+      setAnnouncement(`${getLabel(items[index])} moved up to position ${index} of ${items.length}.`)
+    },
+    [items, getLabel, reorder],
+  )
+
+  const moveDown = useCallback(
+    (index: number) => {
+      if (index >= items.length - 1) return
+      reorder(index, index + 1)
+      setAnnouncement(`${getLabel(items[index])} moved down to position ${index + 2} of ${items.length}.`)
+    },
+    [items, getLabel, reorder],
+  )
+
   return {
     grabbedIndex,
     dropTargetIndex,
@@ -142,5 +164,7 @@ export function useDragReorder<T>(
     handlePointerUp,
     handleKeyboardGrab,
     handleKeyDown,
+    moveUp,
+    moveDown,
   }
 }

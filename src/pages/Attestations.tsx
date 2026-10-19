@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useSearchParams } from 'react-router-dom'
-import SearchFilter, { parseFilterState } from '../components/SearchFilter'
-import type { ChipDef, FilterState } from '../components/SearchFilter'
+import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
+import AttestationConfirmModal, { AttestationDetails, FeeInfo } from '../components/AttestationConfirmModal'
+import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -57,9 +58,6 @@ const STATUS_META: Record<AttestationStatus, AttestationStatusMeta> = {
       </svg>
     ),
   },
-}
-
-const STATUS_STYLE: Record<AttestationStatus, { background: string; color: string; border: string }> = {
   verified: {
     label: "Verified",
     background: "var(--success-soft)",
@@ -132,6 +130,49 @@ function middleEllipsis(value: string, start = 10, end = 10) {
   if (value.length <= start + end + 3) return value;
   return `${value.slice(0, start)}…${value.slice(-end)}`;
 }
+type TrendBucket = {
+  dateKey: string
+  label: string
+  counts: Record<AttestationStatus, number>
+  total: number
+}
+
+const TREND_STATUS_ORDER: AttestationStatus[] = ['verified', 'pending', 'failed']
+
+function getDateKey(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatTrendLabel(dateKey: string): string {
+  if (dateKey === 'Unknown') return 'Unknown'
+  const [year, month, day] = dateKey.split('-').map(Number)
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(year, month - 1, day))
+}
+
+function buildTrendBuckets(attestations: AttestationListItem[]): TrendBucket[] {
+  const buckets = new Map<string, Record<AttestationStatus, number>>()
+
+  for (const attestation of attestations) {
+    const key = getDateKey(attestation.createdAt)
+    const counts = buckets.get(key) ?? { verified: 0, pending: 0, failed: 0 }
+    counts[attestation.status] += 1
+    buckets.set(key, counts)
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateKey, counts]) => ({
+      dateKey,
+      label: formatTrendLabel(dateKey),
+      counts,
+      total: counts.verified + counts.pending + counts.failed,
+    }))
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────
 
@@ -178,6 +219,7 @@ function EmptyState() {
         boxShadow: "0 20px 50px rgba(2, 6, 23, 0.22)",
       }}
     >
+      <EmptyStateIllustration type="attestations" />
       <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 720 }}>
         <h2 style={{ margin: 0, fontSize: '1.15rem' }}>No attestations yet</h2>
         <p style={{ margin: 0, color: 'var(--muted)', lineHeight: 1.65 }}>
@@ -231,83 +273,172 @@ function EmptyState() {
     </section>
   );
 }
+function AttestationTrendChart({ attestations }: { attestations: AttestationListItem[] }) {
+  const [view, setView] = useState<'chart' | 'table'>('chart');
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const buckets = buildTrendBuckets(attestations);
 
-function NoResults({ onClearAll }: { onClearAll: () => void }) {
-  return (
-    <section
-      aria-label="No matching attestations"
-      style={{
-        marginTop: '1.75rem',
-        padding: '2rem 1.6rem',
-        background: 'var(--surface)',
-        borderRadius: 12,
-        border: '1px dashed var(--border)',
-        textAlign: 'center',
-      }}
-    >
-      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
-        No attestations match your filters
-      </p>
-      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
-        Try adjusting your search term, removing a status filter, or widening
-        the date range.
-      </p>
-      <button
-        type="button"
-        onClick={onClearAll}
-        style={{
-          padding: '0.6rem 1.25rem',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-          background: 'rgba(148, 163, 184, 0.08)',
-          color: 'var(--text)',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        Clear all filters
-      </button>
-    </section>
-  )
-}
+  if (buckets.length === 0) {
+    return (
+      <section aria-label="Attestation activity trend" style={{ marginTop: '1.5rem', padding: 'var(--density-padding)', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Attestation activity</h2>
+        <p style={{ margin: '0.5rem 0 0', color: 'var(--muted)' }}>No attestation history is available to chart.</p>
+      </section>
+    );
+  }
 
-function NoResults({ onClearAll }: { onClearAll: () => void }) {
+  const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.total));
+  const chartWidth = 640;
+  const chartHeight = 160;
+  const barWidth = Math.max(12, Math.min(48, (chartWidth - 48) / Math.max(buckets.length, 1) - 12));
+  const availableWidth = chartWidth - 48;
+  const step = buckets.length > 1 ? availableWidth / (buckets.length - 1) : 0;
+  const selected = focusedIndex === null ? null : buckets[focusedIndex];
+
+  function focusBar(index: number) {
+    const next = Math.max(0, Math.min(buckets.length - 1, index));
+    document.getElementById(`attestation-trend-bar-${next}`)?.focus();
+    setFocusedIndex(next);
+  }
+
   return (
-    <section
-      aria-label="No matching attestations"
-      style={{
-        marginTop: '1.75rem',
-        padding: '2rem 1.6rem',
-        background: 'var(--surface)',
-        borderRadius: 12,
-        border: '1px dashed var(--border)',
-        textAlign: 'center',
-      }}
-    >
-      <p style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>
-        No attestations match your filters
-      </p>
-      <p style={{ margin: '0 0 1.25rem', color: 'var(--muted)', lineHeight: 1.6 }}>
-        Try adjusting your search term, removing a status filter, or widening
-        the date range.
-      </p>
-      <button
-        type="button"
-        onClick={onClearAll}
-        style={{
-          padding: '0.6rem 1.25rem',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-          background: 'rgba(148, 163, 184, 0.08)',
-          color: 'var(--text)',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        Clear all filters
-      </button>
+    <section aria-label="Attestation activity trend" style={{ marginTop: '1.5rem', padding: 'var(--density-padding)', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Attestation activity</h2>
+          <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)', fontSize: '0.9rem' }}>Daily attestation volume by status.</p>
+        </div>
+        <button type="button" onClick={() => setView(view === 'chart' ? 'table' : 'chart')} style={{ minHeight: 'var(--density-touch-min)', padding: '0.5rem 0.75rem', borderRadius: 10, border: '1px solid var(--border)', background: 'rgba(148, 163, 184, 0.08)', color: 'var(--text)', fontWeight: 700, cursor: 'pointer' }}>
+          {view === 'chart' ? 'View as table' : 'View as chart'}
+        </button>
+      </div>
+
+      {view === 'table' ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+            <caption style={{ textAlign: 'left', marginBottom: '0.5rem', color: 'var(--muted)' }}>Attestation volume by date and status</caption>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)', textAlign: 'left' }}>
+                <th scope="col" style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>Date</th>
+                <th scope="col" style={{ padding: '0.5rem' }}>Verified</th>
+                <th scope="col" style={{ padding: '0.5rem' }}>Pending</th>
+                <th scope="col" style={{ padding: '0.5rem' }}>Failed</th>
+                <th scope="col" style={{ padding: '0.5rem 0 0.5rem 0.5rem' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {buckets.map((bucket) => (
+                <tr key={bucket.dateKey} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.15)' }}>
+                  <td style={{ padding: '0.5rem 0.5rem 0.5rem 0', fontWeight: 600 }}>{bucket.label}</td>
+                  <td style={{ padding: '0.5rem' }}>{bucket.counts.verified}</td>
+                  <td style={{ padding: '0.5rem' }}>{bucket.counts.pending}</td>
+                  <td style={{ padding: '0.5rem' }}>{bucket.counts.failed}</td>
+                  <td style={{ padding: '0.5rem 0 0.5rem 0.5rem', fontWeight: 700 }}>{bucket.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <>
+          <div role="status" style={{ minHeight: '1.5rem', fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+            {selected
+              ? `${selected.label}: ${selected.total} attestations, ${selected.counts.verified} verified, ${selected.counts.pending} pending, ${selected.counts.failed} failed`
+              : 'Hover or focus a bar to see daily details.'}
+          </div>
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 24}`} role="img" aria-labelledby="attestation-trend-title" style={{ display: 'block', width: '100%', height: 'auto' }}>
+            <title id="attestation-trend-title">Attestation activity over time</title>
+            <defs>
+              <pattern id="attestation-trend-stripes" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="6" height="6" fill="var(--surface)" />
+                <line x1="0" y1="0" x2="0" y2="6" stroke="var(--danger)" strokeWidth="2" />
+              </pattern>
+              <pattern id="attestation-trend-dots" width="8" height="8" patternUnits="userSpaceOnUse">
+                <rect width="8" height="8" fill="var(--surface)" />
+                <circle cx="4" cy="4" r="1.5" fill="var(--warning)" />
+              </pattern>
+            </defs>
+            {buckets.map((bucket, index) => {
+              const x = buckets.length === 1 ? (availableWidth - barWidth) / 2 + 12 : 12 + index * step;
+              let cursor = chartHeight;
+              let totalHeight = 0;
+              return (
+                <g
+                  key={bucket.dateKey}
+                  id={`attestation-trend-bar-${index}`}
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`${bucket.label}: ${bucket.total} attestations, ${bucket.counts.verified} verified, ${bucket.counts.pending} pending, ${bucket.counts.failed} failed`}
+                  onFocus={() => setFocusedIndex(index)}
+                  onBlur={() => setFocusedIndex(null)}
+                  onMouseEnter={() => setFocusedIndex(index)}
+                  onMouseLeave={() => setFocusedIndex(null)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                      event.preventDefault();
+                      focusBar(index + 1);
+                    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                      event.preventDefault();
+                      focusBar(index - 1);
+                    } else if (event.key === 'Home') {
+                      event.preventDefault();
+                      focusBar(0);
+                    } else if (event.key === 'End') {
+                      event.preventDefault();
+                      focusBar(buckets.length - 1);
+                    }
+                  }}
+                  style={{ outline: focusedIndex === index ? '2px solid var(--accent)' : 'none', outlineOffset: '2px' }}
+                >
+                  {TREND_STATUS_ORDER.map((status) => {
+                    const count = bucket.counts[status];
+                    if (count === 0) return null;
+                    const segmentHeight = (count / maxCount) * chartHeight;
+                    const y = cursor - segmentHeight;
+                    cursor -= segmentHeight;
+                    totalHeight += segmentHeight;
+                    const meta = STATUS_META[status];
+                    const fill = status === 'failed' ? 'url(#attestation-trend-stripes)' : status === 'pending' ? 'url(#attestation-trend-dots)' : meta.marker;
+                    const stroke = status === 'failed' || status === 'pending' ? meta.marker : 'none';
+                    return (
+                      <rect key={status} x={x} y={y} width={barWidth} height={segmentHeight} fill={fill} stroke={stroke} strokeWidth={stroke === 'none' ? 0 : 2}>
+                        <title>{`${bucket.label} ${meta.label}: ${count}`}</title>
+                      </rect>
+                    );
+                  })}
+                  <rect x={x} y={chartHeight - totalHeight} width={barWidth} height={totalHeight} fill="transparent" pointerEvents="all" />
+                </g>
+              );
+            })}
+            <line x1="12" y1="0" x2="12" y2={chartHeight} stroke="var(--border)" strokeWidth="1" />
+            <line x1="12" y1={chartHeight} x2={chartWidth - 12} y2={chartHeight} stroke="var(--border)" strokeWidth="1" />
+            {[0, 0.5, 1].map((tick) => {
+              const y = chartHeight - tick * chartHeight;
+              return (
+                <g key={tick}>
+                  <line x1="0" y1={y} x2="12" y2={y} stroke="var(--border)" strokeWidth="1" />
+                  <text x="4" y={y + 4} textAnchor="middle" fontSize="10" fill="var(--muted)">{Math.round(tick * maxCount)}</text>
+                </g>
+              );
+            })}
+          </svg>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
+            {TREND_STATUS_ORDER.map((status) => {
+              const meta = STATUS_META[status];
+              return (
+                <span key={status} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--muted)' }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" style={{ display: 'block' }}>
+                    <rect width="12" height="12" fill={status === 'failed' ? 'url(#attestation-trend-stripes)' : status === 'pending' ? 'url(#attestation-trend-dots)' : meta.marker} stroke={status === 'failed' || status === 'pending' ? meta.marker : 'none'} strokeWidth="1.5" />
+                  </svg>
+                  {meta.label}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      )}
     </section>
-  )
+  );
 }
 
 function TimelineRow({ item }: { item: AttestationListItem }) {
@@ -380,7 +511,7 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(140px, 220px) minmax(0, 1fr)",
+            gridTemplateColumns: "max-content minmax(0, 1fr)",
             gap: "0.5rem 1rem",
             alignItems: "baseline",
           }}
@@ -429,9 +560,12 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
-import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
-
 export default function Attestations() {
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const attestations: AttestationListItem[] = [
     {
       id: 'att-001',
@@ -453,37 +587,101 @@ export default function Attestations() {
     '2026-05-28',
   ]
 
+  // Mock attestation details (would come from API in real app)
+  const mockDetails: AttestationDetails = {
+    source: 'Stripe Connect API',
+    period: 'May 2026',
+    recordCount: 15420,
+    merkleRoot: '0x3a7bd3e2360a3d29eea436fcfb7e44c735d117c9f4e4b5e6a1c2d3e4f5a6b7c8',
+  }
+
+  const mockFeeInfo: FeeInfo = {
+    total: 2.5,
+    breakdown: [
+      { label: 'Network fee', amount: 0.001 },
+      { label: 'Attestation service', amount: 2.499 },
+    ],
+  }
+
+  function handleOpenModal() {
+    setError(null)
+    setModalOpen(true)
+  }
+
+  function handleCloseModal() {
+    setModalOpen(false)
+    setIsLoading(false)
+  }
+
+  async function handleConfirmAttestation() {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      // Mock success
+      console.log('Attestation confirmed and published')
+      setModalOpen(false)
+      setIsLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process attestation')
+      setIsLoading(false)
+    }
+  }
+
   return (
-    <div style={{ maxWidth: 1040 }}>
-      <header style={{ display: 'grid', gap: 'var(--density-row-gap)' }}>
-        <h1 style={{ margin: 0 }}>Attestations</h1>
-        <p
-          style={{
-            color: 'var(--muted)',
-            margin: 0,
-            lineHeight: 1.65,
-            maxWidth: 78 * 10,
-          }}
-        >
-          Revenue attestations published on Stellar. Merkle roots and metadata are stored on-chain,
-          with a proof-history timeline for each run.
-        </p>
-      </header>
+    <>
+      <div style={{ maxWidth: 1040, paddingBottom: 'var(--space-touch)' }}>
+        <header style={{ display: 'grid', gap: 'var(--density-row-gap)' }}>
+          <h1 style={{ margin: 0 }}>Attestations</h1>
+          <p
+            style={{
+              color: 'var(--muted)',
+              margin: 0,
+              lineHeight: 1.65,
+              maxWidth: 78 * 10,
+            }}
+          >
+            Revenue attestations published on Stellar. Merkle roots and metadata are stored on-chain,
+            with a proof-history timeline for each run.
+          </p>
+        </header>
 
-      <AttestationCalendar scheduledDates={scheduledDates} />
+        <AttestationCalendar scheduledDates={scheduledDates} />
 
-      <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
-        {attestations.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <ol style={{ margin: 0, padding: 0 }}>
-            {attestations.map((item) => (
-              <TimelineRow key={item.id} item={item} />
-            ))}
-          </ol>
-        )}
-      </section>
-    </div>
+        {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
+
+        <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
+          {attestations.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ol style={{ margin: 0, padding: 0 }}>
+              {attestations.map((item) => (
+                <TimelineRow key={item.id} item={item} />
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      {/* Mobile FAB - triggers attestation modal */}
+      <TriggerAttestationFAB
+        onTrigger={handleOpenModal}
+        isLoading={isLoading}
+      />
+
+      {/* Attestation confirmation modal */}
+      <AttestationConfirmModal
+        open={modalOpen}
+        onClose={handleCloseModal}
+        onConfirm={handleConfirmAttestation}
+        isLoading={isLoading}
+        error={error}
+        details={mockDetails}
+        feeInfo={mockFeeInfo}
+      />
+    </>
   )
 }
-

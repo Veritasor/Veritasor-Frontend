@@ -1,0 +1,11 @@
+Veritasor Terms of Service v2.4.0
+
+Effective date: 2026-07-29
+
+Summary of this release:
+- Added a versioned changelog flow for policy reviews.
+- Clarified data retention timing for user, audit, and support records.
+- Replaced broad third-party sharing language with named disclosure categories.
+
+This text file is a lightweight download for offline review.
+

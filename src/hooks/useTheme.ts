@@ -1,48 +1,78 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
-const STORAGE_KEY = 'veritasor-theme'
-export type Theme = 'system' | 'light' | 'dark'
+const BASE_STORAGE_KEY = 'veritasor-theme'
+export type Theme = 'system' | 'light' | 'dark' | 'high-contrast'
 
-function getThemeFromStorage(): Theme {
+export function getThemeStorageKey(userId?: string): string {
+  return userId ? `${BASE_STORAGE_KEY}-${userId}` : BASE_STORAGE_KEY
+}
+
+function getThemeFromStorage(key: string): Theme {
   let stored: string | null = null
   try {
-    stored = localStorage.getItem(STORAGE_KEY)
+    stored = localStorage.getItem(key)
+    if (!stored && key !== BASE_STORAGE_KEY) {
+      stored = localStorage.getItem(BASE_STORAGE_KEY)
+    }
   } catch {
     stored = null
   }
-  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+  if (
+    stored === 'light' ||
+    stored === 'dark' ||
+    stored === 'system' ||
+    stored === 'high-contrast'
+  )
+    return stored
   return 'system'
 }
 
-function getResolvedTheme(theme: Theme): 'light' | 'dark' {
-  if (theme === 'light') return 'light'
-  if (theme === 'dark') return 'dark'
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+function getResolvedTheme(theme: Theme): 'light' | 'dark' | 'high-contrast' {
+  // The light theme is not fully supported yet; the app ships dark-only.
+  if (theme === 'high-contrast') return 'high-contrast'
+  return 'dark'
 }
 
 function applyTheme(theme: Theme): void {
+  if (typeof document === 'undefined') return
   const resolved = getResolvedTheme(theme)
   document.documentElement.setAttribute('data-theme', resolved)
 }
 
-function subscribeToStore(callback: () => void): () => void {
-  window.addEventListener(STORAGE_KEY, callback)
-  window.addEventListener('storage', callback)
-  return () => {
-    window.removeEventListener(STORAGE_KEY, callback)
-    window.removeEventListener('storage', callback)
-  }
-}
+export function useTheme(userId?: string) {
+  const storageKey = getThemeStorageKey(userId)
 
-function getSnapshot(): Theme {
-  return getThemeFromStorage()
-}
+  const subscribeToStore = useCallback(
+    (callback: () => void): (() => void) => {
+      const handleStorage = (event: StorageEvent) => {
+        if (
+          event.key === storageKey ||
+          event.key === BASE_STORAGE_KEY ||
+          event.key === null
+        ) {
+          callback()
+        }
+      }
+      window.addEventListener(storageKey, callback)
+      window.addEventListener(BASE_STORAGE_KEY, callback)
+      window.addEventListener('storage', handleStorage)
+      return () => {
+        window.removeEventListener(storageKey, callback)
+        window.removeEventListener(BASE_STORAGE_KEY, callback)
+        window.removeEventListener('storage', handleStorage)
+      }
+    },
+    [storageKey]
+  )
 
-function getServerSnapshot(): Theme {
-  return 'system'
-}
+  const getSnapshot = useCallback((): Theme => {
+    return getThemeFromStorage(storageKey)
+  }, [storageKey])
 
-export function useTheme() {
+  const getServerSnapshot = useCallback((): Theme => {
+    return 'system'
+  }, [])
+
   const theme = useSyncExternalStore(subscribeToStore, getSnapshot, getServerSnapshot)
 
   useEffect(() => {
@@ -57,14 +87,21 @@ export function useTheme() {
     return () => mq.removeEventListener('change', handler)
   }, [theme])
 
-  const setTheme = useCallback((next: Theme) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, next)
-    } catch {
-      // localStorage unavailable
-    }
-    window.dispatchEvent(new Event(STORAGE_KEY))
-  }, [])
+  const setTheme = useCallback(
+    (next: Theme) => {
+      try {
+        localStorage.setItem(storageKey, next)
+        if (userId) {
+          localStorage.setItem(BASE_STORAGE_KEY, next)
+        }
+      } catch {
+        // localStorage unavailable
+      }
+      window.dispatchEvent(new Event(storageKey))
+      window.dispatchEvent(new Event(BASE_STORAGE_KEY))
+    },
+    [storageKey, userId]
+  )
 
   const resolved = getResolvedTheme(theme)
 

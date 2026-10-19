@@ -25,6 +25,11 @@ export type DocumentUpload = {
   proofOfAddress: string[]
 }
 
+export type SelfieCapture = {
+  captured: boolean
+  fileName: string
+}
+
 export type BankDetails = {
   bankName: string
   accountNumber: string
@@ -36,6 +41,7 @@ export type OnboardingDraft = {
   step: number
   business: BusinessDetails
   owner: OwnerDetails
+  selfie: SelfieCapture
   documents: DocumentUpload
   bank: BankDetails
 }
@@ -46,6 +52,7 @@ const INITIAL_DRAFT: OnboardingDraft = {
   step: 1,
   business: { legalName: '', registrationNumber: '', country: '', businessType: '', website: '' },
   owner: { fullName: '', dateOfBirth: '', nationality: '', addressLine1: '', addressLine2: '', city: '', postalCode: '' },
+  selfie: { captured: false, fileName: '' },
   documents: { registrationCert: [], govIdFront: [], govIdBack: [], proofOfAddress: [] },
   bank: { bankName: '', accountNumber: '', ibanSwift: '', currency: '' },
 }
@@ -84,8 +91,12 @@ export function useOnboardingDraft() {
 
   // Persist on mount if draft already existed
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) setSavedAt(new Date())
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) setSavedAt(new Date())
+    } catch {
+      // Storage unavailable (private mode / blocked): keep the in-memory draft.
+    }
   }, [])
 
   return { draft, setDraft, clearDraft, savedAt }

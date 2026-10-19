@@ -10,7 +10,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/api/': { target: 'http://localhost:3000', changeOrigin: true },
     },
   },
   test: {
@@ -31,13 +31,16 @@ export default defineConfig({
         'src/components/Layout.tsx',
         'src/components/AttestationConfirmModal.tsx',
         'src/components/SearchFilter.tsx',
+        'src/components/SubmitButton.tsx',
         'src/components/CookieConsentContext.tsx',
         'src/components/CookieBanner.tsx',
+        'src/components/SkeletonLoader.tsx',
         'src/pages/Login.tsx',
         'src/pages/Signup.tsx',
         'src/pages/ForgotPassword.tsx',
         'src/pages/Dashboard.tsx',
         'src/pages/Attestations.tsx',
+        'src/components/a11y/A11yAuditPanel.tsx',
       ],
     },
   },

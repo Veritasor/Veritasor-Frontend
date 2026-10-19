@@ -55,6 +55,7 @@ Long route labels (e.g. a business name used as a step title) must not overflow 
 - `aria-current="page"` on the final item allows screen readers to announce the current location without requiring separate visually-hidden text.
 - Truncated labels always carry a `title` attribute so users with low vision who enlarge text can still discover the full string via tooltip.
 - The component does not render if `items` is empty — this prevents an empty `<nav>` from appearing in the accessibility tree.
+- **Structured Data**: The component automatically emits `BreadcrumbList` JSON-LD schema to benefit search and assistive tools. See the [Breadcrumb Structured Data (JSON-LD) Documentation](breadcrumb-schema.md) for details and samples.
 
 ## Sidebar Coexistence
 
