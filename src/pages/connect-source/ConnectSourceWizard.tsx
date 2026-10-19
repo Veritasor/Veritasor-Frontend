@@ -216,6 +216,189 @@ const initialWizardData: WizardData = {
   mappingValidationAttempted: false,
 }
 
+export const WIZARD_STORAGE_KEY = 'veritasor:connect-source-wizard:v1'
+
+const VALID_PROVIDERS: ReadonlySet<ProviderId> = new Set(providerOptions.map((option) => option.id))
+const VALID_AUTH_STATUSES: ReadonlySet<AuthorizationStatus> = new Set([
+  'idle',
+  'pending',
+  'authorized',
+  'denied',
+  'expired',
+  'unknown',
+])
+const VALID_CALLBACK_STATES: ReadonlySet<OAuthCallbackState> = new Set([
+  'success',
+  'denied',
+  'expired',
+  'unknown',
+])
+const VALID_SYNC_WINDOWS: ReadonlySet<SyncWindowId> = new Set(
+  syncWindows.map((windowOption) => windowOption.id),
+)
+const VALID_OPTIONAL_SCOPES: ReadonlySet<string> = new Set(optionalScopes.map((scope) => scope.id))
+const VALID_CATEGORIES: ReadonlySet<InternalCategory> = new Set(
+  CATEGORY_OPTIONS.map((option) => option.value),
+)
+const VALID_LEDGER_ACCOUNTS: ReadonlySet<LedgerAccount> = new Set(
+  LEDGER_OPTIONS.map((option) => option.value),
+)
+
+function createInitialWizardData(): WizardData {
+  return {
+    ...initialWizardData,
+    optionalScopes: [...initialWizardData.optionalScopes],
+    currencyMappings: DEFAULT_CURRENCY_ROWS.map((row) => ({ ...row })),
+  }
+}
+
+function isValidCurrencyRow(value: unknown): value is CurrencyRow {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  if (typeof candidate.currency !== 'string' || candidate.currency.trim() === '') {
+    return false
+  }
+  if (
+    candidate.category !== null &&
+    (typeof candidate.category !== 'string' ||
+      !VALID_CATEGORIES.has(candidate.category as InternalCategory))
+  ) {
+    return false
+  }
+  if (
+    candidate.ledgerAccount !== null &&
+    (typeof candidate.ledgerAccount !== 'string' ||
+      !VALID_LEDGER_ACCOUNTS.has(candidate.ledgerAccount as LedgerAccount))
+  ) {
+    return false
+  }
+  return true
+}
+
+function loadPersistedWizardData(): WizardData {
+  if (typeof window === 'undefined') {
+    return createInitialWizardData()
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(WIZARD_STORAGE_KEY)
+    if (!raw) {
+      return createInitialWizardData()
+    }
+
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    const candidate = parsed as Record<string, unknown>
+
+    if (
+      candidate.provider !== null &&
+      (typeof candidate.provider !== 'string' ||
+        !VALID_PROVIDERS.has(candidate.provider as ProviderId))
+    ) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    if (
+      typeof candidate.authorizationStatus !== 'string' ||
+      !VALID_AUTH_STATUSES.has(candidate.authorizationStatus as AuthorizationStatus)
+    ) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    if (
+      typeof candidate.oauthCallbackState !== 'string' ||
+      !VALID_CALLBACK_STATES.has(candidate.oauthCallbackState as OAuthCallbackState)
+    ) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    if (
+      candidate.syncWindow !== null &&
+      (typeof candidate.syncWindow !== 'string' ||
+        !VALID_SYNC_WINDOWS.has(candidate.syncWindow as SyncWindowId))
+    ) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    if (
+      !Array.isArray(candidate.optionalScopes) ||
+      !candidate.optionalScopes.every(
+        (scope): scope is string => typeof scope === 'string' && VALID_OPTIONAL_SCOPES.has(scope),
+      )
+    ) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    if (
+      !Array.isArray(candidate.currencyMappings) ||
+      candidate.currencyMappings.length === 0 ||
+      !candidate.currencyMappings.every(isValidCurrencyRow)
+    ) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    if (
+      typeof candidate.confirmLeastPrivilege !== 'boolean' ||
+      typeof candidate.scopeValidationAttempted !== 'boolean' ||
+      typeof candidate.mappingValidationAttempted !== 'boolean'
+    ) {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+      return createInitialWizardData()
+    }
+
+    return {
+      provider: candidate.provider as ProviderId | null,
+      authorizationStatus: candidate.authorizationStatus as AuthorizationStatus,
+      oauthCallbackState: candidate.oauthCallbackState as OAuthCallbackState,
+      syncWindow: candidate.syncWindow as SyncWindowId | null,
+      optionalScopes: [...candidate.optionalScopes],
+      currencyMappings: candidate.currencyMappings.map((row) => ({
+        currency: row.currency,
+        category: row.category,
+        ledgerAccount: row.ledgerAccount,
+      })),
+      confirmLeastPrivilege: candidate.confirmLeastPrivilege,
+      scopeValidationAttempted: candidate.scopeValidationAttempted,
+      mappingValidationAttempted: candidate.mappingValidationAttempted,
+    }
+  } catch {
+    try {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+    } catch {
+      // Ignore storage access errors
+    }
+    return createInitialWizardData()
+  }
+}
+
+function persistWizardData(data: WizardData) {
+  try {
+    window.sessionStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(data))
+  } catch {
+    // Ignore storage quota or access errors
+  }
+}
+
+function clearPersistedWizardData() {
+  try {
+    window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+  } catch {
+    // Ignore storage access errors
+  }
+}
+
 function getProviderName(provider: ProviderId | null) {
   return providerOptions.find((option) => option.id === provider)?.name ?? 'your provider'
 }
@@ -266,11 +449,23 @@ function useWizardContext() {
 export function ConnectSourceWizard() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [data, setData] = useState<WizardData>(initialWizardData)
+  const [data, setData] = useState<WizardData>(loadPersistedWizardData)
+  const [isCleared, setIsCleared] = useState(false)
   const currentStepIndex = getStepIndex(location.pathname)
   const providerName = getProviderName(data.provider)
 
   useEffect(() => {
+    if (isCleared) {
+      return
+    }
+    persistWizardData(data)
+  }, [data, isCleared])
+
+  useEffect(() => {
+    if (isCleared) {
+      return
+    }
+
     if (currentStepIndex === -1) {
       navigate(wizardSteps[0].path, { replace: true })
       return
@@ -281,7 +476,7 @@ export function ConnectSourceWizard() {
     if (currentStepIndex > furthestAllowedStepIndex) {
       navigate(wizardSteps[furthestAllowedStepIndex].path, { replace: true })
     }
-  }, [currentStepIndex, data, navigate])
+  }, [currentStepIndex, data, isCleared, navigate])
 
   useEffect(() => {
     if (data.authorizationStatus !== 'pending') {
@@ -333,6 +528,12 @@ export function ConnectSourceWizard() {
     navigate(wizardSteps[index].path)
   }
 
+  function handleCancel() {
+    setIsCleared(true)
+    clearPersistedWizardData()
+    setData(createInitialWizardData())
+  }
+
   function handleNext() {
     if (activeStep.id === 'scope' && data.syncWindow === null) {
       setData((currentData) => ({
@@ -356,6 +557,9 @@ export function ConnectSourceWizard() {
     }
 
     if (isLastStep) {
+      setIsCleared(true)
+      clearPersistedWizardData()
+      setData(createInitialWizardData())
       navigate('/')
       return
     }
@@ -367,18 +571,20 @@ export function ConnectSourceWizard() {
     data,
     currentStepIndex,
     providerName,
-    setProvider: (provider) =>
+    setProvider: (provider) => {
+      setIsCleared(false)
       setData({
         provider,
         authorizationStatus: 'idle',
         oauthCallbackState: 'success',
         syncWindow: null,
         optionalScopes: [],
-        currencyMappings: DEFAULT_CURRENCY_ROWS,
+        currencyMappings: DEFAULT_CURRENCY_ROWS.map((row) => ({ ...row })),
         confirmLeastPrivilege: false,
         scopeValidationAttempted: false,
         mappingValidationAttempted: false,
-      }),
+      })
+    },
     startAuthorization: () =>
       setData((currentData) => ({
         ...currentData,
@@ -393,18 +599,27 @@ export function ConnectSourceWizard() {
       navigate('/connect-source/callback?state=denied')
     },
     setOAuthCallbackState: (state) =>
-      setData((currentData) => ({
-        ...currentData,
-        oauthCallbackState: state,
-        authorizationStatus:
+      setData((currentData) => {
+        const nextAuthorizationStatus: AuthorizationStatus =
           state === 'success'
             ? 'authorized'
             : state === 'denied'
               ? 'denied'
               : state === 'expired'
                 ? 'expired'
-                : 'unknown',
-      })),
+                : 'unknown'
+        if (
+          currentData.oauthCallbackState === state &&
+          currentData.authorizationStatus === nextAuthorizationStatus
+        ) {
+          return currentData
+        }
+        return {
+          ...currentData,
+          oauthCallbackState: state,
+          authorizationStatus: nextAuthorizationStatus,
+        }
+      }),
     setSyncWindow: (windowId) =>
       setData((currentData) => ({
         ...currentData,
@@ -473,7 +688,11 @@ export function ConnectSourceWizard() {
         </div>
 
         <footer className="wizard-footer">
-          <Link to="/" className="app-button app-button-ghost wizard-cancel">
+          <Link
+            to="/"
+            className="app-button app-button-ghost wizard-cancel"
+            onClick={handleCancel}
+          >
             Cancel
           </Link>
 
@@ -716,7 +935,8 @@ export function OAuthCallbackLandingStep() {
         setOAuthCallbackState('success')
       }
     }
-  }, [searchParams, setOAuthCallbackState])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const currentState: OAuthCallbackState = data.oauthCallbackState || 'success'
 
