@@ -86,6 +86,11 @@ export default function TopAppBar({
   openWorkspaceSwitcherInSearchMode = false,
   onWorkspaceSwitcherOpenChange,
 }: TopAppBarProps) {
+  const [createdWorkspaces, setCreatedWorkspaces] = useState<WorkspaceMetadata[]>([]);
+  const allWorkspaces = useMemo(
+    () => [...workspaces, ...createdWorkspaces],
+    [workspaces, createdWorkspaces],
+  );
   const [workspaceId, setWorkspaceId] = useState(initialWorkspace);
   const [recentWorkspaceIds, setRecentWorkspaceIds] = useState<string[]>([
     initialWorkspace || "",
@@ -100,21 +105,23 @@ export default function TopAppBar({
   const [createWsDraft, setCreateWsDraft] = useState<CreateWorkspaceDraft>(() =>
     loadDraftFromStorage(),
   );
+  const [createWsError, setCreateWsError] = useState<string | null>(null);
   const [createWsSubmitting, setCreateWsSubmitting] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const intl = useIntl();
 
   const currentWorkspace = useMemo(
-    () => workspaces.find((ws) => ws.id === workspaceId) || workspaces[0] || DEFAULT_WORKSPACES[0],
-    [workspaces, workspaceId],
+    () => allWorkspaces.find((ws) => ws.id === workspaceId) || allWorkspaces[0] || DEFAULT_WORKSPACES[0],
+    [allWorkspaces, workspaceId],
   );
 
   const _recentWorkspaces = useMemo(
     () => recentWorkspaceIds
-      .map((id) => workspaces.find((ws) => ws.id === id))
+      .map((id) => allWorkspaces.find((ws) => ws.id === id))
       .filter(Boolean) as WorkspaceMetadata[],
-    [workspaces, recentWorkspaceIds],
+    [allWorkspaces, recentWorkspaceIds],
   );
+  void _recentWorkspaces;
 
   const workspaceBtnRef = useRef<HTMLButtonElement>(null);
   const workspaceMenuRef = useRef<HTMLUListElement>(null);
@@ -189,14 +196,18 @@ export default function TopAppBar({
   // Focus + scroll lock for create workspace modal
   useEffect(() => {
     if (createWsOpen) {
-      createWsTriggerRef.current = document.activeElement as HTMLElement;
+      if (!createWsTriggerRef.current) {
+        createWsTriggerRef.current = (document.activeElement as HTMLElement) || workspaceBtnRef.current;
+      }
       document.body.style.overflow = "hidden";
+      createWsNameRef.current?.focus();
       const t = window.setTimeout(() => createWsNameRef.current?.focus(), 20);
       return () => {
         window.clearTimeout(t);
         document.body.style.overflow = "";
       };
     } else {
+      document.body.style.overflow = "";
       createWsTriggerRef.current?.focus();
     }
   }, [createWsOpen]);
@@ -215,7 +226,11 @@ export default function TopAppBar({
         createWsModalRef.current.querySelectorAll<HTMLElement>(
           FOCUSABLE_SELECTORS,
         ),
-      ).filter((el) => (el as HTMLElement).offsetParent !== null);
+      ).filter(
+        (el) =>
+          !el.hasAttribute("disabled") &&
+          el.getAttribute("aria-hidden") !== "true",
+      );
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (e.shiftKey && document.activeElement === first) {
@@ -345,23 +360,87 @@ export default function TopAppBar({
     [createWsDraft],
   );
 
+  function validateWorkspaceName(rawName: string, rawDisplayName?: string): string | null {
+    const trimmed = rawName.trim();
+    if (!trimmed) {
+      return "Workspace name is required.";
+    }
+    if (trimmed.length < 2) {
+      return "Workspace name must be at least 2 characters.";
+    }
+    if (trimmed.length > 48) {
+      return "Workspace name must be 48 characters or fewer.";
+    }
+    const slug = trimmed.toLowerCase().replace(/\s+/g, "-");
+    const displayTrimmed = rawDisplayName?.trim().toLowerCase();
+    const isDuplicate = allWorkspaces.some(
+      (ws) =>
+        ws.name.trim().toLowerCase() === trimmed.toLowerCase() ||
+        ws.id.toLowerCase() === slug ||
+        (displayTrimmed && ws.name.trim().toLowerCase() === displayTrimmed) ||
+        (ws.displayName && ws.displayName.trim().toLowerCase() === trimmed.toLowerCase()),
+    );
+    if (isDuplicate) {
+      return "A workspace with this name already exists.";
+    }
+    return null;
+  }
+
   function openCreateWorkspace() {
     createWsTriggerRef.current = workspaceBtnRef.current;
+    setCreateWsError(null);
     setWorkspaceOpen(false);
     setCreateWsOpen(true);
   }
 
   function _handleCreateWorkspaceSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (createWsSubmitting) return;
+
+    const validationError = validateWorkspaceName(
+      createWsDraft.name,
+      createWsDraft.displayName,
+    );
+    if (validationError) {
+      setCreateWsError(validationError);
+      createWsNameRef.current?.focus();
+      return;
+    }
+
+    setCreateWsError(null);
     setCreateWsSubmitting(true);
+
     setTimeout(() => {
-      const newName =
-        createWsDraft.displayName.trim() ||
-        createWsDraft.name.trim() ||
-        "New Workspace";
-      const newId = newName.toLowerCase().replace(/\s+/g, "-");
+      const trimmedName = createWsDraft.name.trim();
+      const trimmedDisplay = createWsDraft.displayName.trim();
+      const trimmedDesc = createWsDraft.description.trim();
+      const finalName = trimmedDisplay || trimmedName;
+      const newId = trimmedName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || `ws-${Date.now()}`;
+      const words = finalName.split(/\s+/).filter(Boolean);
+      const initials =
+        words.length >= 2
+          ? `${words[0][0]}${words[1][0]}`.toUpperCase()
+          : finalName.slice(0, 2).toUpperCase();
+
+      const newWorkspace: WorkspaceMetadata = {
+        id: newId,
+        name: finalName,
+        displayName: trimmedDisplay || undefined,
+        description: trimmedDesc || undefined,
+        initials,
+        plan: createWsDraft.plan,
+        region: createWsDraft.region,
+      };
+
+      setCreatedWorkspaces((prev) => [...prev, newWorkspace]);
       setWorkspaceId(newId);
-      setRecentWorkspaceIds((prev) => [newId, ...prev].slice(0, 5));
+      onWorkspaceChange?.(newId);
+      setRecentWorkspaceIds((prev) => [newId, ...prev.filter((id) => id !== newId)].slice(0, 5));
+      setAnnouncement(`Switched to workspace: ${finalName}`);
+      setTimeout(() => setAnnouncement(""), 1000);
       setCreateWsDraft({ ...EMPTY_DRAFT });
       try {
         localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -370,16 +449,18 @@ export default function TopAppBar({
       }
       setCreateWsSubmitting(false);
       setCreateWsOpen(false);
-    }, 1400);
+    }, 50);
   }
 
   function _clearCreateWorkspaceDraft() {
     setCreateWsDraft({ ...EMPTY_DRAFT });
+    setCreateWsError(null);
     try {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
     } catch {
       // Ignore storage errors
     }
+    createWsNameRef.current?.focus();
   }
 
   // Density mode is managed by DensityToggle via data attribute on root
@@ -505,7 +586,7 @@ export default function TopAppBar({
                         first?.focus();
                       } else if (e.key === "Enter") {
                         e.preventDefault();
-                        const filtered = workspaces.filter(
+                        const filtered = allWorkspaces.filter(
                           (ws) =>
                             workspaceSearch.trim() === "" ||
                             ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()) ||
@@ -555,7 +636,7 @@ export default function TopAppBar({
                 style={{ position: "static", minWidth: "100%" }}
                 onKeyDown={handleWorkspaceMenuKeyDown}
               >
-                {workspaces
+                {allWorkspaces
                   .filter((ws) =>
                     workspaceSearch.trim() === "" ||
                     ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()) ||
@@ -679,7 +760,7 @@ export default function TopAppBar({
                     </li>
                   ))}
                 {workspaceSearch.trim() !== "" &&
-                  workspaces.filter((ws) =>
+                  allWorkspaces.filter((ws) =>
                     ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()) ||
                     ws.description?.toLowerCase().includes(workspaceSearch.toLowerCase()),
                   ).length === 0 && (
@@ -1031,6 +1112,185 @@ export default function TopAppBar({
         </div>
       </div>
     </header>
+    {createWsOpen && (
+      <div
+        className="modal-backdrop"
+        onClick={() => {
+          if (!createWsSubmitting) setCreateWsOpen(false);
+        }}
+      >
+        <div
+          ref={createWsModalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-workspace-title"
+          aria-describedby="create-workspace-desc"
+          className="modal-dialog"
+          tabIndex={-1}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="modal-header">
+            <h2 id="create-workspace-title" className="modal-title">
+              Create workspace
+            </h2>
+            <button
+              type="button"
+              className="modal-close"
+              aria-label="Close dialog"
+              disabled={createWsSubmitting}
+              onClick={() => setCreateWsOpen(false)}
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+          <form onSubmit={_handleCreateWorkspaceSubmit} noValidate>
+            <div className="modal-body">
+              <p id="create-workspace-desc" className="modal-description">
+                Set up a dedicated workspace for your team, revenue sources, and attestations.
+              </p>
+
+              <div style={{ display: "grid", gap: "0.35rem" }}>
+                <label
+                  htmlFor="create-ws-name"
+                  style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text)" }}
+                >
+                  Workspace name <span aria-hidden="true" style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <input
+                  id="create-ws-name"
+                  ref={createWsNameRef}
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={48}
+                  value={createWsDraft.name}
+                  disabled={createWsSubmitting}
+                  aria-invalid={createWsError ? "true" : "false"}
+                  aria-describedby={createWsError ? "create-ws-name-error" : undefined}
+                  placeholder="e.g. Acme Treasury"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCreateWsDraft((prev) => ({ ...prev, name: val }));
+                    if (createWsError) {
+                      setCreateWsError(null);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.55rem 0.75rem",
+                    borderRadius: "var(--radius-sm)",
+                    border: `1px solid ${createWsError ? "var(--danger)" : "var(--border)"}`,
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "0.9rem",
+                  }}
+                />
+                {createWsError && (
+                  <p
+                    id="create-ws-name-error"
+                    role="alert"
+                    className="modal-error"
+                    style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--danger)" }}
+                  >
+                    {createWsError}
+                  </p>
+                )}
+              </div>
+
+              <div style={{ display: "grid", gap: "0.35rem" }}>
+                <label
+                  htmlFor="create-ws-display-name"
+                  style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text)" }}
+                >
+                  Display name
+                </label>
+                <input
+                  id="create-ws-display-name"
+                  type="text"
+                  value={createWsDraft.displayName}
+                  disabled={createWsSubmitting}
+                  placeholder="Optional friendly display name"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCreateWsDraft((prev) => ({ ...prev, displayName: val }));
+                    if (createWsError) {
+                      setCreateWsError(null);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.55rem 0.75rem",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gap: "0.35rem" }}>
+                <label
+                  htmlFor="create-ws-description"
+                  style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text)" }}
+                >
+                  Description
+                </label>
+                <textarea
+                  id="create-ws-description"
+                  rows={3}
+                  value={createWsDraft.description}
+                  disabled={createWsSubmitting}
+                  placeholder="Optional description for this workspace"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCreateWsDraft((prev) => ({ ...prev, description: val }));
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.55rem 0.75rem",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "0.9rem",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="modal-btn modal-btn-cancel"
+                disabled={createWsSubmitting || !hasDraftContent}
+                onClick={_clearCreateWorkspaceDraft}
+              >
+                Clear draft
+              </button>
+              <button
+                type="button"
+                className="modal-btn modal-btn-cancel"
+                disabled={createWsSubmitting}
+                onClick={() => setCreateWsOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="modal-btn modal-btn-confirm"
+                disabled={createWsSubmitting}
+                aria-busy={createWsSubmitting}
+              >
+                {createWsSubmitting ? "Creating…" : "Create workspace"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
     </>
   );
 }
