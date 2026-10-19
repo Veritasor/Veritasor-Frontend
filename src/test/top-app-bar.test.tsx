@@ -1,14 +1,18 @@
 import { MemoryRouter } from 'react-router-dom'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
+import { IntlProvider } from 'react-intl'
 import TopAppBar from '../components/TopAppBar'
 import Layout from '../components/Layout'
 import { CookieConsentProvider } from '../components/CookieConsentContext'
+import enMessages from '../i18n/messages/en.json'
 
 function renderWithRouter(ui: React.ReactElement, { initialEntries = ['/'] } = {}) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <CookieConsentProvider>{ui}</CookieConsentProvider>
+      <IntlProvider locale="en" messages={enMessages}>
+        <CookieConsentProvider>{ui}</CookieConsentProvider>
+      </IntlProvider>
     </MemoryRouter>,
   )
 }
@@ -361,7 +365,7 @@ describe('TopAppBar', () => {
     it('renders Profile settings menuitem', () => {
       renderWithRouter(<TopAppBar />)
       fireEvent.click(screen.getByRole('button', { name: /account menu/i }))
-      expect(screen.getByRole('menuitem', { name: /profile settings/i })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /^settings$/i })).toBeInTheDocument()
     })
 
     it('renders API keys menuitem', () => {
@@ -379,7 +383,7 @@ describe('TopAppBar', () => {
     it('closes menu when Profile settings is clicked', () => {
       renderWithRouter(<TopAppBar />)
       fireEvent.click(screen.getByRole('button', { name: /account menu/i }))
-      fireEvent.click(screen.getByRole('menuitem', { name: /profile settings/i }))
+      fireEvent.click(screen.getByRole('menuitem', { name: /^settings$/i }))
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     })
 
@@ -447,7 +451,7 @@ describe('TopAppBar', () => {
     it('activates Profile settings on Enter key', () => {
       renderWithRouter(<TopAppBar />)
       fireEvent.click(screen.getByRole('button', { name: /account menu/i }))
-      fireEvent.keyDown(screen.getByRole('menuitem', { name: /profile settings/i }), {
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^settings$/i }), {
         key: 'Enter',
       })
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()
@@ -456,7 +460,7 @@ describe('TopAppBar', () => {
     it('activates Profile settings on Space key', () => {
       renderWithRouter(<TopAppBar />)
       fireEvent.click(screen.getByRole('button', { name: /account menu/i }))
-      fireEvent.keyDown(screen.getByRole('menuitem', { name: /profile settings/i }), {
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^settings$/i }), {
         key: ' ',
       })
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()
@@ -465,7 +469,7 @@ describe('TopAppBar', () => {
     it('does not close menu on other key from Profile settings', () => {
       renderWithRouter(<TopAppBar />)
       fireEvent.click(screen.getByRole('button', { name: /account menu/i }))
-      fireEvent.keyDown(screen.getByRole('menuitem', { name: /profile settings/i }), {
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^settings$/i }), {
         key: 'Tab',
       })
       expect(screen.getByRole('menu')).toBeInTheDocument()
@@ -684,8 +688,8 @@ describe('Layout', () => {
     expect(screen.getByRole('link', { name: /attestations/i })).toBeInTheDocument()
   })
 
-  it('active link (Dashboard at /) has aria-current="page"', () => {
-    renderWithRouter(<Layout />, { initialEntries: ['/'] })
+  it('active link (Dashboard at /dashboard) has aria-current="page"', () => {
+    renderWithRouter(<Layout />, { initialEntries: ['/dashboard'] })
     expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute(
       'aria-current',
       'page',
@@ -693,7 +697,7 @@ describe('Layout', () => {
   })
 
   it('inactive link does not have aria-current', () => {
-    renderWithRouter(<Layout />, { initialEntries: ['/'] })
+    renderWithRouter(<Layout />, { initialEntries: ['/dashboard'] })
     expect(screen.getByRole('link', { name: /attestations/i })).not.toHaveAttribute(
       'aria-current',
     )

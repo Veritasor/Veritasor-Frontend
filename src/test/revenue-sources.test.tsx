@@ -12,10 +12,16 @@
 
 import { MemoryRouter } from 'react-router-dom'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, afterEach, beforeEach } from 'vitest'
 import RevenueSources from '../pages/RevenueSources'
+import { sourcesStore } from '../store/sourcesStore'
 
 afterEach(() => cleanup())
+
+beforeEach(() => {
+  localStorage.clear()
+  sourcesStore.reset()
+})
 
 function renderPage() {
   return render(

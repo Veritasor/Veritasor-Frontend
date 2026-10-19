@@ -1,29 +1,8 @@
-import { useState, useCallback, type CSSProperties } from 'react'
+import { useCallback, useRef, useEffect, useState, type CSSProperties } from 'react'
+import { Link } from 'react-router-dom'
 import { useDragReorder } from '../hooks/useDragReorder'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type HealthStatus = 'healthy' | 'warning' | 'error'
-
-interface Source {
-  id: string
-  provider: string
-  accountLabel: string
-  status: HealthStatus
-  lastSync: string | null
-}
-
-// ---------------------------------------------------------------------------
-// Mock data — replace with real API
-// ---------------------------------------------------------------------------
-
-const INITIAL_SOURCES: Source[] = [
-  { id: 'src-001', provider: 'Stripe', accountLabel: 'acct_1A2B3C4D', status: 'healthy', lastSync: '2026-06-01T14:00:00Z' },
-  { id: 'src-002', provider: 'Shopify', accountLabel: 'my-store.myshopify.com', status: 'warning', lastSync: '2026-05-30T08:15:00Z' },
-  { id: 'src-003', provider: 'QuickBooks', accountLabel: 'Acme Corp', status: 'error', lastSync: '2026-05-20T11:45:00Z' },
-]
+import { useSources, sourcesStore, type Source, type HealthStatus } from '../store/sourcesStore'
+import { useToast } from '../components/ToastContext'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,7 +11,7 @@ const INITIAL_SOURCES: Source[] = [
 const STATUS_META: Record<HealthStatus, { label: string; bg: string; color: string }> = {
   healthy: { label: 'Healthy', bg: 'var(--success-soft)', color: 'var(--success)' },
   warning: { label: 'Warning', bg: 'var(--warning-soft)', color: 'var(--warning)' },
-  error: { label: 'Error', bg: 'var(--danger-soft)', color: 'var(--danger)' },
+  error:   { label: 'Error',   bg: 'var(--danger-soft)',  color: 'var(--danger)'  },
 }
 
 function formatSync(iso: string | null) {
@@ -105,28 +84,10 @@ const baseBtn: CSSProperties = {
   transition: 'opacity 160ms',
 }
 
-const secondaryBtn: CSSProperties = {
-  ...baseBtn,
-  background: 'rgba(148,163,184,0.08)',
-  borderColor: 'var(--border)',
-  color: 'var(--text)',
-}
+const secondaryBtn: CSSProperties = { ...baseBtn, background: 'rgba(148,163,184,0.08)', borderColor: 'var(--border)', color: 'var(--text)' }
+const dangerBtn:    CSSProperties = { ...baseBtn, background: 'var(--danger-soft)',     borderColor: 'rgba(251,113,133,0.35)',  color: 'var(--danger)'  }
+const accentBtn:    CSSProperties = { ...baseBtn, background: 'rgba(94,234,212,0.08)',  borderColor: 'rgba(94,234,212,0.3)',    color: 'var(--accent)'  }
 
-const dangerBtn: CSSProperties = {
-  ...baseBtn,
-  background: 'var(--danger-soft)',
-  borderColor: 'rgba(251,113,133,0.35)',
-  color: 'var(--danger)',
-}
-
-const accentBtn: CSSProperties = {
-  ...baseBtn,
-  background: 'rgba(94,234,212,0.08)',
-  borderColor: 'rgba(94,234,212,0.3)',
-  color: 'var(--accent)',
-}
-
-// Drag handle — six-dot grip icon rendered via box-shadow dots
 const HANDLE_SIZE = 20
 
 // ---------------------------------------------------------------------------
@@ -168,14 +129,7 @@ function DragHandle({ label, isGrabbed, onPointerDown, onKeyDown, onClick }: Dra
         transition: 'background 120ms, border-color 120ms, color 120ms',
       }}
     >
-      {/* Six-dot grip icon (2×3 grid) */}
-      <svg
-        aria-hidden="true"
-        width={HANDLE_SIZE}
-        height={HANDLE_SIZE}
-        viewBox="0 0 20 20"
-        fill="currentColor"
-      >
+      <svg aria-hidden="true" width={HANDLE_SIZE} height={HANDLE_SIZE} viewBox="0 0 20 20" fill="currentColor">
         <circle cx="7" cy="5" r="1.5" />
         <circle cx="13" cy="5" r="1.5" />
         <circle cx="7" cy="10" r="1.5" />
@@ -197,6 +151,7 @@ interface SourceRowProps {
   totalCount: number
   isGrabbed: boolean
   isDropTarget: boolean
+  isNew: boolean
   onReconnect: (id: string) => void
   onDisconnect: (source: Source) => void
   onPointerDown: (e: { preventDefault(): void }) => void
@@ -206,19 +161,16 @@ interface SourceRowProps {
 }
 
 function SourceRow({
-  source,
-  index,
-  totalCount,
-  isGrabbed,
-  isDropTarget,
-  onReconnect,
-  onDisconnect,
-  onPointerDown,
-  onPointerEnter,
-  onKeyDown,
-  onHandleClick,
+  source, index, totalCount, isGrabbed, isDropTarget, isNew,
+  onReconnect, onDisconnect, onPointerDown, onPointerEnter, onKeyDown, onHandleClick,
 }: SourceRowProps) {
   const s = STATUS_META[source.status]
+  const rowRef = useRef<HTMLLIElement | null>(null)
+
+  // Move focus to newly-added rows
+  useEffect(() => {
+    if (isNew) rowRef.current?.focus()
+  }, [isNew])
 
   const rowStyle: CSSProperties = {
     display: 'flex',
@@ -226,16 +178,20 @@ function SourceRow({
     alignItems: 'center',
     gap: '1rem',
     padding: '1rem 1.25rem',
-    background: isGrabbed
+    background: isNew
       ? 'rgba(94,234,212,0.06)'
-      : isDropTarget
-        ? 'rgba(94,234,212,0.03)'
-        : 'var(--surface)',
-    border: isGrabbed
-      ? '1px solid rgba(94,234,212,0.45)'
-      : isDropTarget
-        ? '2px dashed rgba(94,234,212,0.6)'
-        : '1px solid var(--border)',
+      : isGrabbed
+        ? 'rgba(94,234,212,0.06)'
+        : isDropTarget
+          ? 'rgba(94,234,212,0.03)'
+          : 'var(--surface)',
+    border: isNew
+      ? '1px solid rgba(94,234,212,0.6)'
+      : isGrabbed
+        ? '1px solid rgba(94,234,212,0.45)'
+        : isDropTarget
+          ? '2px dashed rgba(94,234,212,0.6)'
+          : '1px solid var(--border)',
     borderRadius: 'var(--radius-sm)',
     opacity: isGrabbed ? 0.85 : 1,
     outline: 'none',
@@ -244,9 +200,12 @@ function SourceRow({
 
   return (
     <li
+      ref={rowRef}
       role="listitem"
       aria-label={`${source.provider}, priority ${index + 1} of ${totalCount}`}
       aria-grabbed={isGrabbed || undefined}
+      tabIndex={isNew ? -1 : undefined}
+      data-source-id={source.id}
       onPointerEnter={onPointerEnter}
       style={rowStyle}
     >
@@ -258,7 +217,6 @@ function SourceRow({
         onClick={onHandleClick}
       />
 
-      {/* Provider + account */}
       <div style={{ flex: '1 1 10rem', minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{source.provider}</div>
         <div style={{ color: 'var(--muted)', fontSize: '0.82rem', marginTop: '0.15rem' }}>
@@ -266,7 +224,6 @@ function SourceRow({
         </div>
       </div>
 
-      {/* Status badge */}
       <span
         aria-label={`Health status: ${s.label}`}
         style={{
@@ -282,7 +239,6 @@ function SourceRow({
         {s.label}
       </span>
 
-      {/* Last sync */}
       <div style={{ color: 'var(--muted)', fontSize: '0.82rem', flexShrink: 0, minWidth: '9rem' }}>
         <span style={{ display: 'block', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.1rem' }}>
           Last sync
@@ -292,24 +248,13 @@ function SourceRow({
         </time>
       </div>
 
-      {/* Actions */}
       <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
         {source.status !== 'healthy' && (
-          <button
-            type="button"
-            aria-label={`Reconnect ${source.provider}`}
-            onClick={() => onReconnect(source.id)}
-            style={accentBtn}
-          >
+          <button type="button" aria-label={`Reconnect ${source.provider}`} onClick={() => onReconnect(source.id)} style={accentBtn}>
             Reconnect
           </button>
         )}
-        <button
-          type="button"
-          aria-label={`Disconnect ${source.provider}`}
-          onClick={() => onDisconnect(source)}
-          style={dangerBtn}
-        >
+        <button type="button" aria-label={`Disconnect ${source.provider}`} onClick={() => onDisconnect(source)} style={dangerBtn}>
           Disconnect
         </button>
       </div>
@@ -323,8 +268,11 @@ function SourceRow({
 
 export default function RevenueSources() {
   const { addToast } = useToast()
-  const [sources, setSources] = useState<Source[]>(INITIAL_SOURCES)
+  const sources = useSources()
   const [pendingDisconnect, setPendingDisconnect] = useState<Source | null>(null)
+
+  // Track which source id was just added so we can highlight + focus it
+  const newSourceIdRef = useRef<string | null>(null)
 
   const getLabel = useCallback((s: Source) => s.provider, [])
 
@@ -337,12 +285,10 @@ export default function RevenueSources() {
     handlePointerUp,
     handleKeyboardGrab,
     handleKeyDown,
-  } = useDragReorder(sources, setSources, getLabel)
+  } = useDragReorder(sources, sourcesStore.setAll, getLabel)
 
   function handleReconnect(id: string) {
-    setSources((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: 'healthy', lastSync: new Date().toISOString() } : s)),
-    )
+    sourcesStore.update(id, { status: 'healthy', lastSync: new Date().toISOString() })
   }
 
   function handleDisconnectRequest(source: Source) {
@@ -351,23 +297,18 @@ export default function RevenueSources() {
 
   function handleDisconnectConfirm() {
     if (!pendingDisconnect) return
-    const sourceToRemove = pendingDisconnect
-    setSources((prev) => prev.filter((s) => s.id !== sourceToRemove.id))
+    const source = pendingDisconnect
     setPendingDisconnect(null)
-
+    sourcesStore.remove(source.id)
     addToast(
-      `Disconnected ${sourceToRemove.provider}`,
+      `Disconnected ${source.provider}`,
       'info',
       8000,
       () => {
-        setSources((prev) => {
-          // Prevent duplicates if already added back
-          if (prev.some((s) => s.id === sourceToRemove.id)) return prev
-          return [...prev, sourceToRemove]
-        })
-        addToast(`Reconnected ${sourceToRemove.provider}`, 'success')
+        sourcesStore.restore(source)
+        addToast(`Reconnected ${source.provider}`, 'success')
       },
-      'Undo'
+      'Undo',
     )
   }
 
@@ -401,9 +342,16 @@ export default function RevenueSources() {
             borderRadius: 'var(--radius-sm)',
           }}
         >
-          <p style={{ margin: 0, color: 'var(--muted)' }}>
-            No revenue sources connected. Add an integration from the dashboard.
+          <p style={{ margin: '0 0 1rem', color: 'var(--muted)' }}>
+            No revenue sources connected.
           </p>
+          <Link
+            to="/connect-source/provider"
+            className="app-button app-button-primary"
+            style={{ display: 'inline-flex', textDecoration: 'none' }}
+          >
+            Connect a source
+          </Link>
         </section>
       ) : (
         <ul
@@ -420,6 +368,7 @@ export default function RevenueSources() {
               totalCount={sources.length}
               isGrabbed={grabbedIndex === index}
               isDropTarget={dropTargetIndex === index && grabbedIndex !== null && grabbedIndex !== index}
+              isNew={newSourceIdRef.current === source.id}
               onReconnect={handleReconnect}
               onDisconnect={handleDisconnectRequest}
               onPointerDown={handlePointerDown(index)}
