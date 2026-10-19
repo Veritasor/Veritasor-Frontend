@@ -4,9 +4,9 @@ import TermsOfServiceChangelogModal from "../components/TermsOfServiceChangelogM
 import SubmitButton, { SUBMIT_DEMO_MS } from "../components/SubmitButton";
 
 const highlights = [
-  "Clear field grouping keeps legal, team, and security details easy to scan",
-  "Password requirements are visible before submission to reduce recovery loops",
-  "Responsive spacing keeps the full flow usable without horizontal scrolling",
+  "Set up your business account in a minute",
+  "Password requirements are shown up front",
+  "Works on phones, tablets, and desktops",
 ];
 
 const CURRENT_TOS_VERSION = "v2.4.0";
@@ -70,8 +70,8 @@ export default function Signup() {
       footerPrompt="Already have access?"
       footerLinkLabel="Sign in"
       footerLinkHref="/login"
-      sideTitle="Fast onboarding without visual guesswork"
-      sideDescription="Typography, spacing, and button hierarchy are shared across all authentication screens so engineers can extend the flow without inventing new patterns."
+      sideTitle="Get started in minutes"
+      sideDescription="Create a business account, connect your revenue sources, and start sharing verifiable proof. Demo build: no real accounts are created."
       sideHighlights={highlights}
     >
       <TermsOfServiceChangelogModal
@@ -181,9 +181,6 @@ export default function Signup() {
             busy={isSubmitting}
             disabled={!hasAcknowledgedCurrentTerms}
           />
-          <button type="button" className="auth-button auth-button-secondary">
-            Book onboarding call
-          </button>
         </div>
       </form>
     </AuthShell>

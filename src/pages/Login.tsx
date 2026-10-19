@@ -83,9 +83,9 @@ const FALLBACK_METHODS: MfaMethodFallbackDefinition[] = [
 ];
 
 const loginHighlights = [
-  "Enterprise-grade verification for revenue attestations",
-  "Keyboard-first forms with visible focus and inline guidance",
-  "Reusable error, loading, and disabled states across every auth entry point",
+  "Verifiable revenue attestations anchored on-chain",
+  "Fully keyboard accessible, with inline guidance",
+  "Clear feedback on every step of sign-in",
 ];
 
 function getMethodDefinition(
@@ -99,8 +99,8 @@ function getMethodDefinition(
 
 function CredentialsState({ onContinue }: { onContinue: () => void }) {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("ops@veritasor.com");
-  const [password, setPassword] = useState("badpass");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [rememberDevice, setRememberDevice] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitTimerRef = useRef<number | null>(null);
@@ -140,7 +140,7 @@ function CredentialsState({ onContinue }: { onContinue: () => void }) {
       footerLinkLabel="Create one"
       footerLinkHref="/signup"
       sideTitle="Trusted access for finance teams"
-      sideDescription="The authentication system now uses a shared visual language that stays readable on phones, tablets, and large desktop workspaces."
+      sideDescription="Sign in to review attestation runs and share verifiable revenue proof. This is a demo build: no real credentials are checked."
       sideHighlights={loginHighlights}
     >
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
@@ -210,16 +210,6 @@ function CredentialsState({ onContinue }: { onContinue: () => void }) {
             busyLabel="Signing in…"
             busy={isSubmitting}
           />
-          <button type="button" className="auth-button auth-button-secondary">
-            Continue with Google
-          </button>
-          <button
-            type="button"
-            className="auth-button auth-button-ghost"
-            disabled
-          >
-            SSO loading…
-          </button>
         </div>
       </form>
     </AuthShell>

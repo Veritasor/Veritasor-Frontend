@@ -362,6 +362,7 @@ export function AttestationCalendar({
       </header>
 
       <div
+        className="sched-layout"
         style={{
           display: 'grid',
           gap: 'var(--density-row-gap)',
@@ -693,12 +694,6 @@ export function AttestationCalendar({
                   </li>
                   <li>
                     <strong>Leap days:</strong> if the recurrence targets Feb 29, non-leap years roll the run back to Feb 28 (never skipped).
-                  </li>
-                  <li>
-                    <strong>Mobile rendering:</strong> the grid uses fixed 44px minimum touch targets and avoids absolute positioning so stacks remain usable.
-                  </li>
-                  <li>
-                    <strong>RTL support:</strong> layout uses CSS that behaves correctly under `dir="rtl"` (no directional hard-coding for the grid).
                   </li>
                 </ul>
               </div>

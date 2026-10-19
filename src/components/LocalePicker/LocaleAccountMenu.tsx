@@ -87,7 +87,7 @@ export default function LocaleAccountMenu({ className = '' }: LocaleAccountMenuP
     : 'absolute right-0 top-full mt-2 z-50 w-80 rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900'
 
   return (
-    <div ref={containerRef} className={`relative ${className}`} dir={dir}>
+    <div ref={containerRef} className={`lp relative ${className}`} dir={dir}>
       <button
         ref={triggerRef}
         type="button"
@@ -110,7 +110,7 @@ export default function LocaleAccountMenu({ className = '' }: LocaleAccountMenuP
         <span aria-hidden="true" className="text-base leading-none" lang={current.code}>
           {current.nativeLabel}
         </span>
-        <span className="hidden text-xs text-zinc-500 sm:inline">{current.label}</span>
+        {current.label !== current.nativeLabel && <span className="hidden text-xs text-zinc-500 sm:inline">{current.label}</span>}
         <span className="rounded-full border border-zinc-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500 dark:border-zinc-700">
           {current.code}
         </span>

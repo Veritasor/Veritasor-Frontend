@@ -666,11 +666,6 @@ export function ConnectSourceWizard() {
               handoff, set the sync scope, then confirm the read-only connection.
             </p>
           </div>
-          <div className="page-chip-group" aria-label="Wizard characteristics">
-            <span className="page-chip">WCAG 2.1 AA target</span>
-            <span className="page-chip">4-step pattern</span>
-            <span className="page-chip">Review-friendly states</span>
-          </div>
         </div>
       </header>
 

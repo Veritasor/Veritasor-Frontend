@@ -194,13 +194,6 @@ export default function ConsentPreferences() {
               <p className="cp-last-updated">
                 Last updated: <time dateTime={LAST_UPDATED.toISOString()}>{formatDate(LAST_UPDATED)}</time>
               </p>
-              <p className="cp-policy-link">
-                For more details, read our{' '}
-                <a href="/privacy-policy" className="cp-link">
-                  privacy policy
-                </a>
-                .
-              </p>
             </div>
           </footer>
         </main>

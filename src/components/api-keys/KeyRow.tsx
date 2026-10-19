@@ -49,7 +49,7 @@ export default function KeyRow({
   }
 
   return (
-    <li
+    <div role="group"
       aria-label={`API key ${keyItem.label}, ${meta.label}${isLastAdminKey ? ', Critical Last Admin Key' : ''}`}
       style={{
         padding: '1rem 1.1rem',
@@ -224,6 +224,6 @@ export default function KeyRow({
           }}
         />
       )}
-    </li>
+    </div>
   )
 }

@@ -128,7 +128,7 @@ function LayoutInner() {
   }
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+    <div className="vt-shell">
       <OfflineBanner />
       <TopAppBar onSidebarToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
 
@@ -140,7 +140,7 @@ function LayoutInner() {
         >
           <nav aria-label="Main navigation">
             <NavLink
-              to="/"
+              to="/dashboard"
               end
               className={({ isActive }) =>
                 `sidebar-link${isActive ? " sidebar-link-active" : ""}`
@@ -164,9 +164,6 @@ function LayoutInner() {
             >
               Revenue Sources
             </NavLink>
-            <NavLink to="/motion-tokens" className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}>
-              Motion Tokens
-            </NavLink>
           </nav>
 
           <div className="sidebar-footer">
@@ -186,6 +183,14 @@ function LayoutInner() {
             >
               Help &amp; support
             </button>
+            <a
+              className="sidebar-help-btn sidebar-github"
+              href="https://github.com/Veritasor/Veritasor-Frontend"
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub
+            </a>
           </div>
         </aside>
 

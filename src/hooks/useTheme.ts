@@ -28,12 +28,9 @@ function getThemeFromStorage(key: string): Theme {
 }
 
 function getResolvedTheme(theme: Theme): 'light' | 'dark' | 'high-contrast' {
-  if (theme === 'light') return 'light'
-  if (theme === 'dark') return 'dark'
+  // The light theme is not fully supported yet; the app ships dark-only.
   if (theme === 'high-contrast') return 'high-contrast'
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: light)').matches
-    ? 'light'
-    : 'dark'
+  return 'dark'
 }
 
 function applyTheme(theme: Theme): void {

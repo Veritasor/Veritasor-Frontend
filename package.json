@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "tsc -b",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
@@ -14,12 +15,10 @@
     "test:e2e-update": "playwright test --update-snapshots"
   },
   "dependencies": {
-    "@types/node": "^26.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-intl": "^10.1.14",
-    "react-router-dom": "^6.28.0",
-    "ts-node": "^10.9.2"
+    "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

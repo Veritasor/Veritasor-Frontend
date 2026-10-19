@@ -46,14 +46,9 @@ export default function ServerError() {
           >
             Try again
           </button>
-          <a
-            className="not-found-button not-found-button-secondary"
-            href="https://status.veritasor.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View status page
-          </a>
+          <Link className="not-found-button not-found-button-secondary" to="/">
+            Go to home
+          </Link>
         </div>
 
         <div className="not-found-support" aria-label="Additional support links">
