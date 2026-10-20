@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
+import { useEnvironment } from '../context/EnvironmentContext'
 import Breadcrumb from '../components/Breadcrumb'
 import StatusTimeline, { 
   TimelineStep, 
@@ -70,7 +71,10 @@ const MOCK: Record<string, AttestationRecord> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const STELLAR_EXPLORER = 'https://stellar.expert/explorer/public/tx/'
+const STELLAR_EXPLORER_BASE: Record<'testnet' | 'mainnet', string> = {
+  testnet: 'https://stellar.expert/explorer/testnet/tx/',
+  mainnet: 'https://stellar.expert/explorer/public/tx/',
+}
 
 const STATUS_STYLES: Record<VerificationStatus, { bg: string; color: string; label: string }> = {
   verified: { bg: 'var(--success-soft)', color: 'var(--success)', label: 'Verified' },
@@ -390,6 +394,7 @@ function BackLink({ className = '' }: { className?: string }) {
 
 export default function AttestationDetail() {
   const { id } = useParams<{ id: string }>()
+  const { environment } = useEnvironment()
   const attestation = id ? MOCK[id] : undefined
   const [printedOn, setPrintedOn] = useState<string | null>(null)
   const [now] = useState(() => new Date())
@@ -445,6 +450,7 @@ export default function AttestationDetail() {
   const issuedOn = formatDate(attestation.timestamp)
   const formattedTotal = `${attestation.totalRevenue} ${attestation.currency}`
   const timelineSteps = generateTimelineSteps(attestation)
+  const stellarExplorer = STELLAR_EXPLORER_BASE[environment]
 
   return (
     <article
@@ -704,7 +710,7 @@ export default function AttestationDetail() {
             </code>
             <CopyButton value={attestation.stellarTxHash} label="Stellar transaction hash" />
             <a
-              href={`${STELLAR_EXPLORER}${attestation.stellarTxHash}`}
+              href={`${stellarExplorer}${attestation.stellarTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="View transaction on Stellar Expert (opens in new tab)"
