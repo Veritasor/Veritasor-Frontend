@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
+import { useAuth } from "../auth/AuthContext";
 import BottomTabBar from "./BottomTabBar";
 import { ToastProvider } from "./ToastContext";
 import OfflineBanner from "./OfflineBanner";
@@ -57,6 +58,11 @@ function BillingBannerSlot() {
 function LayoutInner() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, signOut } = useAuth();
+  const handleSignOut = () => {
+    signOut();
+    navigate("/login", { replace: true });
+  };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -130,7 +136,14 @@ function LayoutInner() {
   return (
     <div className="vt-shell">
       <OfflineBanner />
-      <TopAppBar onSidebarToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
+      <TopAppBar
+        onSidebarToggle={toggleSidebar}
+        sidebarOpen={sidebarOpen}
+        userName={user?.name}
+        userInitials={user?.initials}
+        userEmail={user?.email}
+        onSignOut={handleSignOut}
+      />
 
       <div className="app-body">
         <aside

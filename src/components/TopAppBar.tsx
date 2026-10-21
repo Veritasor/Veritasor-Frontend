@@ -30,6 +30,8 @@ export interface TopAppBarProps {
   openWorkspaceSwitcherInSearchMode?: boolean;
   /** Callback to notify parent that the workspace switcher has been opened/closed */
   onWorkspaceSwitcherOpenChange?: (open: boolean) => void;
+  /** Called when the "Sign out" menu item is activated (after the menu closes) */
+  onSignOut?: () => void;
 }
 
 const DEFAULT_WORKSPACES: WorkspaceMetadata[] = [
@@ -84,6 +86,7 @@ export default function TopAppBar({
   onWorkspaceChange,
   openWorkspaceSwitcherInSearchMode = false,
   onWorkspaceSwitcherOpenChange,
+  onSignOut,
 }: TopAppBarProps) {
   const [workspaceId, setWorkspaceId] = useState(initialWorkspace);
   const [recentWorkspaceIds, setRecentWorkspaceIds] = useState<string[]>([
@@ -330,6 +333,11 @@ export default function TopAppBar({
     setWorkspaceSearch("");
     setWorkspaceOpen(false);
     workspaceBtnRef.current?.focus();
+  }
+
+  function handleSignOut() {
+    closeAccountMenu();
+    onSignOut?.();
   }
 
   function closeAccountMenu() {
@@ -1013,11 +1021,11 @@ export default function TopAppBar({
                   role="menuitem"
                   tabIndex={0}
                   className="disclosure-item disclosure-item-danger"
-                  onClick={closeAccountMenu}
+                  onClick={handleSignOut}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      closeAccountMenu();
+                      handleSignOut();
                     }
                   }}
                 >
