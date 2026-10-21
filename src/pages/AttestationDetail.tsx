@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
 import Breadcrumb from '../components/Breadcrumb'
@@ -6,6 +6,7 @@ import StatusTimeline, {
   TimelineStep, 
   TimelineStepStatus 
 } from '../components/StatusTimeline'
+import ProofShareModal from '../components/ProofShareModal'
 import './AttestationCertificate.print.css'
 
 // ---------------------------------------------------------------------------
@@ -393,6 +394,8 @@ export default function AttestationDetail() {
   const attestation = id ? MOCK[id] : undefined
   const [printedOn, setPrintedOn] = useState<string | null>(null)
   const [now] = useState(() => new Date())
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  const shareButtonRef = useRef<HTMLButtonElement>(null)
 
   // Reset printed-on timestamp whenever the attestation changes so the footer
   // reflects the most-recent print of the current record.
@@ -407,6 +410,14 @@ export default function AttestationDetail() {
       setPrintedOn(new Date().toISOString())
     })
     window.print()
+  }, [])
+
+  const handleShareClose = useCallback(() => {
+    setIsShareOpen(false)
+    // Restore focus to the trigger button after the modal unmounts
+    requestAnimationFrame(() => {
+      shareButtonRef.current?.focus()
+    })
   }, [])
 
   // ── Loading / not-found states ──────────────────────────────────────────
@@ -501,13 +512,54 @@ export default function AttestationDetail() {
           {status.label}
         </span>
         <button
+          ref={shareButtonRef}
+          type="button"
+          onClick={() => setIsShareOpen(true)}
+          aria-label={
+            attestation.status === 'verified'
+              ? 'Share proof'
+              : `Share proof — not available for ${attestation.status} attestations`
+          }
+          title={
+            attestation.status === 'verified'
+              ? 'Share this attestation proof'
+              : `Sharing is only available for verified attestations (current status: ${attestation.status})`
+          }
+          disabled={attestation.status !== 'verified'}
+          className="no-print"
+          style={{
+            marginLeft: 'auto',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.5rem 0.85rem',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            border: '1px solid var(--border)',
+            borderRadius: '0.5rem',
+            background: 'var(--surface)',
+            color: attestation.status === 'verified' ? 'var(--text)' : 'var(--muted)',
+            cursor: attestation.status === 'verified' ? 'pointer' : 'not-allowed',
+            opacity: attestation.status === 'verified' ? 1 : 0.5,
+            transition: 'border-color 160ms, background 160ms',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="11" cy="2.5" r="1.5" />
+            <circle cx="11" cy="11.5" r="1.5" />
+            <circle cx="3" cy="7" r="1.5" />
+            <line x1="4.4" y1="6.25" x2="9.6" y2="3.25" />
+            <line x1="4.4" y1="7.75" x2="9.6" y2="10.75" />
+          </svg>
+          Share proof
+        </button>
+        <button
           type="button"
           onClick={handlePrint}
           aria-label="Print certificate"
           title="Print this attestation as a formal certificate"
           className="no-print"
           style={{
-            marginLeft: 'auto',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -875,6 +927,13 @@ export default function AttestationDetail() {
       <div className="screen-only" style={{ marginTop: '2rem' }}>
         <BackLink />
       </div>
+
+      {/* ── Share proof modal (screen-only, excluded from print) ───────── */}
+      <ProofShareModal
+        isOpen={isShareOpen}
+        onClose={handleShareClose}
+        attestationId={attestation.id}
+      />
     </article>
   )
 }
