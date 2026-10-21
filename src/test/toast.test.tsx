@@ -1,6 +1,7 @@
 import { render, screen, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { useToast } from '../components/ToastContext'
+import { ToastProvider, useToast } from '../components/ToastContext'
+import ToastContainer from '../components/ToastContainer'
 import Layout from '../components/Layout'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { CookieConsentProvider } from '../components/CookieConsentContext'
@@ -31,7 +32,7 @@ describe('Toast Notification System', () => {
 
   const renderSystem = () => {
     return render(
-      <LocaleProvider>
+      <LocaleProvider><ToastProvider>
         <MemoryRouter initialEntries={['/']}>
           <CookieConsentProvider>
             <Routes>
@@ -41,7 +42,7 @@ describe('Toast Notification System', () => {
             </Routes>
           </CookieConsentProvider>
         </MemoryRouter>
-      </LocaleProvider>
+      <ToastContainer /></ToastProvider></LocaleProvider>
     )
   }
 
@@ -148,7 +149,7 @@ describe('Toast Notification System', () => {
     }
 
     render(
-      <LocaleProvider>
+      <LocaleProvider><ToastProvider>
         <MemoryRouter initialEntries={['/']}>
           <CookieConsentProvider>
             <Routes>
@@ -158,7 +159,7 @@ describe('Toast Notification System', () => {
             </Routes>
           </CookieConsentProvider>
         </MemoryRouter>
-      </LocaleProvider>
+      <ToastContainer /></ToastProvider></LocaleProvider>
     )
 
     // Trigger toast
@@ -318,7 +319,7 @@ describe('Toast Motion', () => {
 
   const renderSystem = () => {
     return render(
-      <LocaleProvider>
+      <LocaleProvider><ToastProvider>
         <MemoryRouter initialEntries={['/']}>
           <CookieConsentProvider>
             <Routes>
@@ -328,7 +329,7 @@ describe('Toast Motion', () => {
             </Routes>
           </CookieConsentProvider>
         </MemoryRouter>
-      </LocaleProvider>
+      <ToastContainer /></ToastProvider></LocaleProvider>
     )
   }
 

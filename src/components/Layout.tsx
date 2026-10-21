@@ -2,10 +2,8 @@ import { useEffect, useState, useRef } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
-import { ToastProvider } from "./ToastContext";
 import OfflineBanner from "./OfflineBanner";
 import { BillingProvider, useBilling } from "./BillingContext";
-import ToastContainer from "./ToastContainer";
 import ShortcutsOverlay from "./ShortcutsOverlay";
 import ContextualHelpSearch from "./ContextualHelpSearch";
 
@@ -209,7 +207,6 @@ function LayoutInner() {
       </div>
 
       <BottomTabBar />
-      <ToastContainer />
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <ContextualHelpSearch open={helpSearchOpen} onClose={() => setHelpSearchOpen(false)} />
     </div>
@@ -219,9 +216,7 @@ function LayoutInner() {
 export default function Layout() {
   return (
     <BillingProvider>
-      <ToastProvider>
-        <LayoutInner />
-      </ToastProvider>
+      <LayoutInner />
     </BillingProvider>
   );
 }

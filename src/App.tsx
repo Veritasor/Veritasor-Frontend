@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { LocaleProvider } from './i18n/provider'
 import { ToastProvider } from './components/ToastContext'
+import ToastContainer from './components/ToastContainer'
 import Layout from './components/Layout'
 import { CookieConsentProvider } from './components/CookieConsentContext'
 import Landing from './pages/Landing'
@@ -62,6 +63,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <ToastContainer />
       </BrowserRouter>
       </CookieConsentProvider>
     </ToastProvider>
