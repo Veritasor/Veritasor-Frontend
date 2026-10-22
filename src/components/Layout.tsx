@@ -164,6 +164,22 @@ function LayoutInner() {
             >
               Revenue Sources
             </NavLink>
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
+              }
+            >
+              Settings
+            </NavLink>
+            <NavLink
+              to="/api-keys"
+              className={({ isActive }) =>
+                `sidebar-link${isActive ? " sidebar-link-active" : ""}`
+              }
+            >
+              API keys
+            </NavLink>
           </nav>
 
           <div className="sidebar-footer">
