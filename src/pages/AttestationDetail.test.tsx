@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { EnvironmentProvider } from '../context/EnvironmentContext'
 import AttestationDetail from './AttestationDetail'
+import { AttestationsProvider } from '../state/attestations'
 
 function renderDetail(path: string) {
   return render(
