@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import TopAppBar from "./TopAppBar";
 import BottomTabBar from "./BottomTabBar";
 import { ToastProvider } from "./ToastContext";
@@ -8,6 +8,7 @@ import { BillingProvider, useBilling } from "./BillingContext";
 import ToastContainer from "./ToastContainer";
 import ShortcutsOverlay from "./ShortcutsOverlay";
 import ContextualHelpSearch from "./ContextualHelpSearch";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 
 // ---------------------------------------------------------------------------
 // Route title map
@@ -73,7 +74,6 @@ function BillingBannerSlot() {
 
 function LayoutInner() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [helpSearchOpen, setHelpSearchOpen] = useState(false);
@@ -141,7 +141,14 @@ function LayoutInner() {
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
       <OfflineBanner />
-      <TopAppBar onSidebarToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
+      <TopAppBar
+        onSidebarToggle={toggleSidebar}
+        sidebarOpen={sidebarOpen}
+        openWorkspaceSwitcherInSearchMode={openWsSwitcherInSearchMode}
+        onWorkspaceSwitcherOpenChange={(open) => {
+          if (!open) setOpenWsSwitcherInSearchMode(false);
+        }}
+      />
 
       <div className="app-body">
         <aside id="app-sidebar" className={`app-sidebar${sidebarOpen ? " app-sidebar-open" : ""}`} aria-label="Site navigation">
