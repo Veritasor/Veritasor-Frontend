@@ -10,6 +10,7 @@ import type { FileMap } from './onboarding/DocumentUploadStep'
 import BankDetailsStep from './onboarding/BankDetailsStep'
 import ReviewSubmitStep from './onboarding/ReviewSubmitStep'
 import type { OnboardingDraft, BusinessDetails, OwnerDetails, SelfieCapture, DocumentUpload, BankDetails } from '../hooks/useOnboardingDraft'
+import { submitOnboardingApplication } from '../services/onboardingApi'
 import Breadcrumb from '../components/Breadcrumb'
 
 const TOTAL_STEPS = 6
@@ -27,29 +28,62 @@ export default function OnboardingWizard() {
   const { draft, setDraft, clearDraft, savedAt } = useOnboardingDraft()
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [selfieFile, setSelfieFile] = useState<File | null>(null)
+  const [documentFiles, setDocumentFiles] = useState<FileMap>({
+    registrationCert: [],
+    govIdFront: [],
+    govIdBack: [],
+    proofOfAddress: [],
+  })
   const [stepAnnouncement, setStepAnnouncement] = useState('')
   const titleRef = useRef<HTMLHeadingElement | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [actionsEl, setActionsEl] = useState<HTMLElement | null>(null)
   const rafIdRef = useRef<number | null>(null)
-  const pendingUpdaterRef = useRef<((prev: OnboardingDraft) => OnboardingDraft) | null>(null)
+  const pendingUpdatersRef = useRef<Array<(prev: OnboardingDraft) => OnboardingDraft>>([])
 
   const step = resolveStep(draft)
 
+  const flushDraftUpdates = () => {
+    if (rafIdRef.current != null) {
+      window.cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
+    if (pendingUpdatersRef.current.length > 0) {
+      const updaters = pendingUpdatersRef.current
+      pendingUpdatersRef.current = []
+      setDraft(prev => updaters.reduce((acc, fn) => fn(acc), prev))
+    }
+  }
+
   function scheduleDraftUpdate(updater: (prev: OnboardingDraft) => OnboardingDraft) {
-    pendingUpdaterRef.current = updater
+    pendingUpdatersRef.current.push(updater)
     if (rafIdRef.current != null) return
     rafIdRef.current = window.requestAnimationFrame(() => {
-      const nextUpdater = pendingUpdaterRef.current
-      pendingUpdaterRef.current = null
       rafIdRef.current = null
-      if (nextUpdater) setDraft(nextUpdater)
+      flushDraftUpdates()
     })
   }
 
   useEffect(() => {
+    const handleFlush = () => {
+      flushDraftUpdates()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushDraftUpdates()
+      }
+    }
+
+    window.addEventListener('pagehide', handleFlush)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
-      if (rafIdRef.current != null) window.cancelAnimationFrame(rafIdRef.current)
+      window.removeEventListener('pagehide', handleFlush)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      flushDraftUpdates()
     }
   }, [])
 
@@ -147,12 +181,16 @@ export default function OnboardingWizard() {
     setDraft(prev => ({ ...prev, owner: data, step: 3 }))
   }
 
-  function handleSelfie(data: SelfieCapture, _file: File | null) {
+  function handleSelfie(data: SelfieCapture, file: File | null) {
+    if (file) {
+      setSelfieFile(file)
+    }
     setDraft(prev => ({ ...prev, selfie: data, step: 4 }))
   }
 
-  function handleDocuments(data: DocumentUpload, _files: FileMap) {
-    // File objects can't be serialised to localStorage; we store names only
+  function handleDocuments(data: DocumentUpload, files: FileMap) {
+    // File objects can't be serialised to localStorage; we store names in draft and keep File objects in memory
+    setDocumentFiles(files)
     setDraft(prev => ({ ...prev, documents: data, step: 5 }))
   }
 
@@ -162,19 +200,20 @@ export default function OnboardingWizard() {
 
   async function handleSubmit() {
     setSubmitting(true)
+    setSubmitError(null)
     try {
-      // POST to backend — replace with real endpoint
-      await fetch('/api/onboarding/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draft, status: 'pending_review' }),
+      await submitOnboardingApplication({
+        draft,
+        selfieFile,
+        documentFiles,
       })
-    } catch {
-      // Proceed optimistically in dev; real app would show an error
+      clearDraft()
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Submission failed. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
-    clearDraft()
-    setSubmitted(true)
-    setSubmitting(false)
   }
 
   if (submitted) {
@@ -309,6 +348,8 @@ export default function OnboardingWizard() {
                 onBack={() => goTo(5)}
                 onSubmit={handleSubmit}
                 submitting={submitting}
+                submitError={submitError}
+                onRetry={handleSubmit}
               />
             )}
           </div>
