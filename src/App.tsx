@@ -65,6 +65,7 @@ const router = createBrowserRouter([
   future: { v7_relativeSplatPath: true },
 })
 
+/** Production entry point — wraps AppRoutes in BrowserRouter + providers. */
 export default function App() {
   return (
     <LocaleProvider>
