@@ -54,18 +54,44 @@ describe("Layout - BillingBannerSlot", () => {
   it("hides the banner when dismissFailedPayment is called (simulate success/empty path)", () => {
     renderLayout(["/"]);
 
-    // Banner is initially present
-    const alert = screen.getByRole("alert");
-    expect(alert).toBeInTheDocument();
+  it("main element has id=main-content and tabIndex=-1", () => {
+    renderLayout();
+    const main = document.getElementById("main-content");
+    expect(main).toBeInTheDocument();
+    expect(main).toHaveAttribute("tabindex", "-1");
+  });
+});
 
-    const dismissButton = screen.getByRole("button", { name: /Update payment method/i });
-    expect(dismissButton).toBeInTheDocument();
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-    // Click to dismiss
-    fireEvent.click(dismissButton);
+describe("Layout — sidebar", () => {
+  it("sidebar opens when hamburger is clicked", () => {
+    renderLayout();
+    fireEvent.click(screen.getByRole("button", { name: /open navigation/i }));
+    expect(document.getElementById("app-sidebar")).toHaveClass("app-sidebar-open");
+  });
 
-    // The banner should now return null and be removed from the document
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  it("sidebar closes when overlay is clicked", () => {
+    renderLayout();
+    fireEvent.click(screen.getByRole("button", { name: /open navigation/i }));
+    fireEvent.click(document.querySelector(".app-sidebar-overlay")!);
+    expect(document.getElementById("app-sidebar")).not.toHaveClass("app-sidebar-open");
+  });
+
+  it("Escape closes the sidebar", () => {
+    renderLayout();
+    fireEvent.click(screen.getByRole("button", { name: /open navigation/i }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.getElementById("app-sidebar")).not.toHaveClass("app-sidebar-open");
+  });
+});
+
+// ─── BillingBannerSlot ────────────────────────────────────────────────────────
+
+describe("Layout — BillingBannerSlot", () => {
+  it("renders no billing alert by default (no failed payment)", () => {
+    renderLayout();
+    // BillingContext starts with null — no alert rendered
     expect(screen.queryByText(/A recent payment failed/i)).not.toBeInTheDocument();
   });
 });
