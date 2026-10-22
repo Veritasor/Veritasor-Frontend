@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import AttestationDetail from './AttestationDetail'
 import { ToastProvider } from '../components/ToastContext'
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 function renderDetail(path: string) {
   return render(
@@ -65,18 +69,127 @@ describe('AttestationDetail', () => {
     expect(screen.getByText(/^Verification failed: Stellar network timeout/)).toBeInTheDocument()
   })
 
-  it('prints the certificate and confirms before retrying a failure', () => {
+  it('prints the certificate without opening a retry dialog', () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => {})
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const confirm = vi.spyOn(window, 'confirm')
+    const alert = vi.spyOn(window, 'alert')
 
     renderDetail('/attestations/att-003')
     fireEvent.click(screen.getByRole('button', { name: 'Print certificate' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Retry Attestation' }))
 
     expect(print).toHaveBeenCalledOnce()
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to retry this failed attestation?')
+    expect(confirm).not.toHaveBeenCalled()
+    expect(alert).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
     print.mockRestore()
     confirm.mockRestore()
+    alert.mockRestore()
+  })
+
+  // ── Retry dialog — open / cancel ──────────────────────────────────────────
+
+  it('opens the retry ConfirmDialog when "Retry Attestation" is clicked', async () => {
+    const user = userEvent.setup()
+    renderDetail('/attestations/att-003')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry Attestation' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Retry Attestation' })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+  })
+
+  it('closes the retry dialog without changing state when Cancel is clicked', async () => {
+    const user = userEvent.setup()
+    renderDetail('/attestations/att-003')
+
+    const retryBtn = screen.getByRole('button', { name: 'Retry Attestation' })
+    await user.click(retryBtn)
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    // Button should still read "Retry Attestation" — no state change
+    expect(screen.getByRole('button', { name: 'Retry Attestation' })).toBeInTheDocument()
+  })
+
+  it('returns focus to the Retry button when the dialog is cancelled', async () => {
+    const user = userEvent.setup()
+    renderDetail('/attestations/att-003')
+
+    const retryBtn = screen.getByRole('button', { name: 'Retry Attestation' })
+    await user.click(retryBtn)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(document.activeElement).toBe(retryBtn)
+  })
+
+  // ── Retry dialog — confirm → pending → result ─────────────────────────────
+
+  it('shows a pending/busy state while retry is in progress', () => {
+    vi.useFakeTimers()
+    renderDetail('/attestations/att-003')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Attestation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    // While simulated async is pending the button label changes
+    expect(screen.getByRole('button', { name: 'Retrying…' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Attestation Retry In Progress' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Status: pending on-chain confirmation' })).toBeInTheDocument()
+
+  })
+
+  it('announces the result via role="status" after retry resolves', () => {
+    vi.useFakeTimers()
+    renderDetail('/attestations/att-003')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Attestation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    act(() => vi.runAllTimers())
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The live region should carry the outcome message
+    expect(screen.getByRole('status', { name: 'Retry status' })).toHaveTextContent(/retry succeeded|retry failed/i)
+    expect(screen.getByRole('status', { name: 'Status: verified' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Attestation Retry Complete' })).toBeInTheDocument()
+
+  })
+
+  it('restores focus to the Retry button after retry resolves', () => {
+    vi.useFakeTimers()
+    renderDetail('/attestations/att-003')
+
+    const retryBtn = screen.getByRole('button', { name: 'Retry Attestation' })
+    retryBtn.focus()
+    fireEvent.click(retryBtn)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    act(() => vi.runAllTimers())
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(retryBtn)
+
+  })
+
+  // ── "Read docs" link ──────────────────────────────────────────────────────
+
+  it('"Read docs" links to /help and not to /docs/troubleshooting', () => {
+    renderDetail('/attestations/att-003')
+
+    const docsLink = screen.getByRole('link', { name: 'Read docs' })
+    expect(docsLink).toHaveAttribute('href', '/help')
+    expect(docsLink).not.toHaveAttribute('href', expect.stringContaining('/docs/troubleshooting'))
   })
 
   // ── Share proof button ────────────────────────────────────────────────────
