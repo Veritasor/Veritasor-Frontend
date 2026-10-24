@@ -9,11 +9,11 @@ export interface DragReorderState {
 
 export interface DragReorderHandlers {
   /** Call on pointerdown of the drag handle */
-  handlePointerDown: (index: number) => (e: { preventDefault(): void }) => void
+  handlePointerDown: (index: number) => (e: { preventDefault(): void; pointerId?: number; currentTarget?: unknown; target?: unknown }) => void
   /** Call on pointerenter of each list item during a drag */
   handlePointerEnter: (index: number) => () => void
-  /** Call on pointerup anywhere (attach to the list element) */
-  handlePointerUp: () => void
+  /** Call on pointerup or pointercancel */
+  handlePointerUp: (e?: { pointerId?: number; currentTarget?: unknown; target?: unknown }) => void
   /** Toggle keyboard reorder mode for an item */
   handleKeyboardGrab: (index: number) => void
   /** Handle ArrowUp/ArrowDown/Enter/Space/Escape in keyboard mode */
@@ -41,6 +41,8 @@ export function useDragReorder<T>(
   // Refs track drag state synchronously so pointerUp always sees the latest values
   const dragFrom = useRef<number | null>(null)
   const dragTo = useRef<number | null>(null)
+  const capturedElement = useRef<{ releasePointerCapture?: (id: number) => void } | null>(null)
+  const capturedPointerId = useRef<number | null>(null)
 
   const reorder = useCallback(
     (from: number, to: number) => {
@@ -54,8 +56,18 @@ export function useDragReorder<T>(
   )
 
   const handlePointerDown = useCallback(
-    (index: number) => (e: { preventDefault(): void }) => {
+    (index: number) => (e: { preventDefault(): void; pointerId?: number; currentTarget?: unknown; target?: unknown }) => {
       e.preventDefault()
+      const target = (e.currentTarget ?? e.target) as { setPointerCapture?: (id: number) => void } | null
+      if (typeof e.pointerId === 'number' && target && typeof target.setPointerCapture === 'function') {
+        try {
+          target.setPointerCapture(e.pointerId)
+          capturedElement.current = target as { releasePointerCapture?: (id: number) => void }
+          capturedPointerId.current = e.pointerId
+        } catch {
+          // pointer capture unsupported or element detached
+        }
+      }
       dragFrom.current = index
       dragTo.current = index
       setGrabbedIndex(index)
@@ -74,7 +86,19 @@ export function useDragReorder<T>(
     [],
   )
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e?: { pointerId?: number; currentTarget?: unknown; target?: unknown }) => {
+    const pointerId = e?.pointerId ?? capturedPointerId.current
+    const target = (e?.currentTarget ?? e?.target ?? capturedElement.current) as { releasePointerCapture?: (id: number) => void } | null
+    if (typeof pointerId === 'number' && target && typeof target.releasePointerCapture === 'function') {
+      try {
+        target.releasePointerCapture(pointerId)
+      } catch {
+        // pointer capture already released or invalid
+      }
+    }
+    capturedElement.current = null
+    capturedPointerId.current = null
+
     const from = dragFrom.current
     const to = dragTo.current
     if (from === null) return

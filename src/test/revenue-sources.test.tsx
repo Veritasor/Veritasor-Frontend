@@ -263,13 +263,29 @@ describe('RevenueSources — pointer drag reorder', () => {
     expect(shopifyRow).toHaveStyle({ border: '2px dashed rgba(94,234,212,0.6)' })
   })
 
-  it('pointerleave on the list cancels the drag', () => {
+  it('drag continues when pointer leaves the list bounds and ends on pointerup', () => {
+    renderPage()
+    const list = screen.getByRole('list', { name: /connected revenue sources/i })
+    const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
+    const shopifyRow = screen.getByRole('listitem', { name: /shopify, priority 2 of 3/i })
+    fireEvent.pointerDown(stripeHandle)
+    fireEvent.pointerEnter(shopifyRow)
+    fireEvent.pointerLeave(list)
+    expect(stripeHandle).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.pointerUp(list)
+    expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 3/i })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: /stripe, priority 2 of 3/i })).toBeInTheDocument()
+    expect(getAnnouncement().textContent).toMatch(/moved to position 2/i)
+  })
+
+  it('pointercancel on the list cancels the drag', () => {
     renderPage()
     const list = screen.getByRole('list', { name: /connected revenue sources/i })
     const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
     fireEvent.pointerDown(stripeHandle)
-    fireEvent.pointerLeave(list)
-    expect(screen.getByRole('listitem', { name: /stripe, priority 1 of 3/i })).toBeInTheDocument()
+    fireEvent.pointerCancel(list)
+    expect(stripeHandle).toHaveAttribute('aria-pressed', 'false')
+    expect(getAnnouncement().textContent).toMatch(/drop cancelled/i)
   })
 })
 
@@ -380,9 +396,12 @@ describe('RevenueSources — accessibility attributes', () => {
     expect(document.querySelectorAll('time').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('drag handles have touchAction none for touch devices', () => {
+  it('drag handles have touchAction none for touch devices, but the list allows page scrolling', () => {
     renderPage()
-    expect(screen.getByRole('list', { name: /connected revenue sources/i })).toHaveStyle({ touchAction: 'none' })
+    expect(screen.getByRole('list', { name: /connected revenue sources/i })).not.toHaveStyle({ touchAction: 'none' })
+    for (const handle of getHandles()) {
+      expect(handle).toHaveStyle({ touchAction: 'none' })
+    }
   })
 
   it('handles have type="button"', () => {

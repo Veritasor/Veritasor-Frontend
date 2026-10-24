@@ -190,6 +190,89 @@ describe('pointer drag flow', () => {
     expect(result.current.announcement).toBe('')
   })
 
+  it('captures pointer on pointerdown and releases pointer on pointerup', () => {
+    const { result } = makeHook()
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn()
+    const element = { setPointerCapture, releasePointerCapture }
+
+    act(() => {
+      result.current.handlePointerDown(0)({
+        preventDefault: vi.fn(),
+        pointerId: 42,
+        currentTarget: element,
+      })
+    })
+
+    expect(setPointerCapture).toHaveBeenCalledWith(42)
+
+    act(() => {
+      result.current.handlePointerUp({
+        pointerId: 42,
+        currentTarget: element,
+      })
+    })
+
+    expect(releasePointerCapture).toHaveBeenCalledWith(42)
+  })
+
+  it('releases pointer capture on handlePointerUp even if event target is missing (fallback to captured target)', () => {
+    const { result } = makeHook()
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn()
+    const element = { setPointerCapture, releasePointerCapture }
+
+    act(() => {
+      result.current.handlePointerDown(1)({
+        preventDefault: vi.fn(),
+        pointerId: 7,
+        currentTarget: element,
+      })
+    })
+
+    expect(setPointerCapture).toHaveBeenCalledWith(7)
+
+    act(() => {
+      result.current.handlePointerUp()
+    })
+
+    expect(releasePointerCapture).toHaveBeenCalledWith(7)
+  })
+
+  it('handles pointer cancel gracefully by releasing capture and resetting state', () => {
+    const { result } = makeHook()
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn()
+    const element = { setPointerCapture, releasePointerCapture }
+
+    act(() => {
+      result.current.handlePointerDown(0)({
+        preventDefault: vi.fn(),
+        pointerId: 101,
+        currentTarget: element,
+      })
+    })
+
+    expect(result.current.grabbedIndex).toBe(0)
+
+    act(() => {
+      result.current.handlePointerEnter(2)()
+    })
+    expect(result.current.dropTargetIndex).toBe(2)
+
+    // Simulated pointercancel
+    act(() => {
+      result.current.handlePointerUp({
+        pointerId: 101,
+        currentTarget: element,
+      })
+    })
+
+    expect(releasePointerCapture).toHaveBeenCalledWith(101)
+    expect(result.current.grabbedIndex).toBeNull()
+    expect(result.current.dropTargetIndex).toBeNull()
+  })
+
   it('resets state after a completed drag', () => {
     const { result } = makeHook()
 

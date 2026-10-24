@@ -783,8 +783,8 @@ export default function RevenueSources() {
         <ul
           aria-label="Connected revenue sources"
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          style={{ listStyle: 'none', margin: '2rem 0 0', padding: 0, display: 'grid', gap: '0.75rem', touchAction: 'none' }}
+          onPointerCancel={handlePointerUp}
+          style={{ listStyle: 'none', margin: '2rem 0 0', padding: 0, display: 'grid', gap: '0.75rem' }}
         >
           {sources.map((source, index) => (
             <SourceRow
