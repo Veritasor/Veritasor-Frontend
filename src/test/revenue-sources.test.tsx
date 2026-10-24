@@ -347,7 +347,7 @@ describe('RevenueSources — disconnect confirmation', () => {
   it('dialog describes the consequence', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /disconnect stripe/i }))
-    expect(screen.getByText(/cannot be undone/i)).toBeInTheDocument()
+    expect(screen.getByText(/undo this action within 8 seconds/i)).toBeInTheDocument()
   })
 
   it('Cancel closes the dialog without removing the source', () => {

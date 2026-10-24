@@ -214,6 +214,9 @@ function ExpiredTokenBanner({ sources, onReconnect, dismissedIds, onDismiss }: E
 // ConfirmDialog
 // ---------------------------------------------------------------------------
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 interface ConfirmDialogProps {
   source: Source
   onConfirm: () => void
@@ -226,6 +229,44 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
   const isConfirmed = typedName === expectedName
 
   const impactPipelines = useMemo(() => getMockImpact(source.provider), [source.provider])
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement
+    inputRef.current?.focus()
+    return () => {
+      triggerRef.current?.focus()
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+        return
+      }
+      if (e.key !== 'Tab') return
+
+      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
 
   return (
     <div
@@ -233,6 +274,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
       aria-modal="true"
       aria-labelledby="confirm-title"
       aria-describedby="confirm-desc"
+      onClick={onCancel}
       style={{
         position: 'fixed', inset: 0, zIndex: 50,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -241,6 +283,9 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: 'min(480px, 100%)',
           background: 'var(--surface-strong, #0f1b30)',
@@ -256,9 +301,9 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
           <h2 id="confirm-title" style={{ margin: 0, fontSize: '1.1rem', color: 'var(--danger)' }}>
             Disconnect {source.provider}?
           </h2>
-          <p style={{ margin: '0.35rem 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+          <p id="confirm-desc" style={{ margin: '0.35rem 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
             <strong style={{ color: 'var(--text)' }}>{source.accountLabel}</strong> will be removed.
-            This action cannot be undone.
+            You can undo this action within 8 seconds.
           </p>
         </div>
 
@@ -314,6 +359,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
             Type <strong style={{ color: 'var(--danger)' }}>{expectedName}</strong> to confirm
           </label>
           <input
+            ref={inputRef}
             id="disconnect-confirm-input"
             type="text"
             autoComplete="off"
@@ -715,6 +761,7 @@ export default function RevenueSources() {
   function handleDisconnectConfirm() {
     if (!pendingDisconnect) return
     const source = pendingDisconnect
+    const removeIndex = sources.findIndex((s) => s.id === source.id)
     setPendingDisconnect(null)
     sourcesStore.remove(source.id)
     addToast(
@@ -722,7 +769,7 @@ export default function RevenueSources() {
       'info',
       8000,
       () => {
-        sourcesStore.restore(source)
+        sourcesStore.restore(source, removeIndex !== -1 ? removeIndex : undefined)
         addToast(`Reconnected ${source.provider}`, 'success')
       },
       'Undo'

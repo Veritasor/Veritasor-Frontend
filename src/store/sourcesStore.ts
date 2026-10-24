@@ -132,8 +132,14 @@ export const sourcesStore = {
   },
 
   /** Re-insert a previously removed source at its original index (undo support). */
-  restore(source: Source): void {
+  restore(source: Source, index?: number): void {
     if (state.some((s) => s.id === source.id)) return
+    if (index !== undefined && index >= 0 && index <= state.length) {
+      const next = [...state]
+      next.splice(index, 0, source)
+      setState(next)
+      return
+    }
     setState([...state, source])
   },
 
