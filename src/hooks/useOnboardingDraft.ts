@@ -51,6 +51,8 @@ const STORAGE_KEY = 'veritasor_onboarding_draft'
 
 export const DRAFT_VERSION = 1
 export const TOTAL_STEPS = 6
+export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+export const SENSITIVE_STORAGE_KEY = 'veritasor_onboarding_draft_sensitive'
 
 const INITIAL_DRAFT: OnboardingDraft = {
   version: DRAFT_VERSION,
@@ -219,14 +221,210 @@ export function parseDraft(raw: string | null | undefined): OnboardingDraft {
   return parsed
 }
 
+type SensitiveDraftParts = {
+  owner: {
+    dateOfBirth: string
+    nationality: string
+    addressLine1: string
+    addressLine2: string
+    city: string
+    postalCode: string
+  }
+  bank: {
+    accountNumber: string
+    ibanSwift: string
+  }
+}
+
+export function splitDraft(draft: OnboardingDraft): {
+  persisted: Record<string, unknown>
+  sensitive: SensitiveDraftParts
+} {
+  const { owner, bank, ...rest } = draft
+  const persisted = {
+    ...rest,
+    owner: {
+      fullName: owner.fullName,
+    },
+    bank: {
+      bankName: bank.bankName,
+      currency: bank.currency,
+    },
+    updatedAt: Date.now(),
+  }
+
+  const sensitive: SensitiveDraftParts = {
+    owner: {
+      dateOfBirth: owner.dateOfBirth,
+      nationality: owner.nationality,
+      addressLine1: owner.addressLine1,
+      addressLine2: owner.addressLine2,
+      city: owner.city,
+      postalCode: owner.postalCode,
+    },
+    bank: {
+      accountNumber: bank.accountNumber,
+      ibanSwift: bank.ibanSwift,
+    },
+  }
+
+  return { persisted, sensitive }
+}
+
+function hasSensitiveKeys(rawObj: Record<string, unknown>): boolean {
+  if (isRecord(rawObj.owner)) {
+    const owner = rawObj.owner
+    if (
+      asString(owner.dateOfBirth).trim() !== '' ||
+      asString(owner.nationality).trim() !== '' ||
+      asString(owner.addressLine1).trim() !== '' ||
+      asString(owner.addressLine2).trim() !== '' ||
+      asString(owner.city).trim() !== '' ||
+      asString(owner.postalCode).trim() !== ''
+    ) {
+      return true
+    }
+  }
+  if (isRecord(rawObj.bank)) {
+    const bank = rawObj.bank
+    if (
+      asString(bank.accountNumber).trim() !== '' ||
+      asString(bank.ibanSwift).trim() !== ''
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+export function purgeExpiredOrLegacyDraft(): boolean {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return false
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return false
+    }
+
+    if (!isRecord(parsed)) return false
+
+    // Check TTL (7 days)
+    if (typeof parsed.updatedAt === 'number') {
+      const age = Date.now() - parsed.updatedAt
+      if (age > DRAFT_TTL_MS) {
+        localStorage.removeItem(STORAGE_KEY)
+        try {
+          sessionStorage.removeItem(SENSITIVE_STORAGE_KEY)
+        } catch {
+          // ignore
+        }
+        return true
+      }
+    }
+
+    // Check legacy draft with sensitive keys in localStorage
+    if (hasSensitiveKeys(parsed)) {
+      localStorage.removeItem(STORAGE_KEY)
+      try {
+        sessionStorage.removeItem(SENSITIVE_STORAGE_KEY)
+      } catch {
+        // ignore
+      }
+      return true
+    }
+
+    return false
+  } catch {
+    return false
+  }
+}
+
+export function loadStoredDraft(): OnboardingDraft {
+  try {
+    const rawLocal = localStorage.getItem(STORAGE_KEY)
+    if (!rawLocal) return INITIAL_DRAFT
+
+    let parsedRaw: unknown
+    try {
+      parsedRaw = JSON.parse(rawLocal)
+    } catch {
+      return INITIAL_DRAFT
+    }
+
+    if (!isRecord(parsedRaw)) return INITIAL_DRAFT
+
+    // Discard drafts older than TTL
+    if (typeof parsedRaw.updatedAt === 'number') {
+      const age = Date.now() - parsedRaw.updatedAt
+      if (age > DRAFT_TTL_MS) {
+        localStorage.removeItem(STORAGE_KEY)
+        try {
+          sessionStorage.removeItem(SENSITIVE_STORAGE_KEY)
+        } catch {
+          // ignore
+        }
+        return INITIAL_DRAFT
+      }
+    }
+
+    // Clear legacy full draft with sensitive keys in localStorage on load
+    if (hasSensitiveKeys(parsedRaw)) {
+      localStorage.removeItem(STORAGE_KEY)
+      try {
+        sessionStorage.removeItem(SENSITIVE_STORAGE_KEY)
+      } catch {
+        // ignore
+      }
+      return INITIAL_DRAFT
+    }
+
+    const baseDraft = parseDraft(rawLocal)
+
+    let sensitive: Partial<SensitiveDraftParts> = {}
+    try {
+      const rawSession = sessionStorage.getItem(SENSITIVE_STORAGE_KEY)
+      if (rawSession) {
+        sensitive = JSON.parse(rawSession) as Partial<SensitiveDraftParts>
+      }
+    } catch {
+      // sessionStorage unavailable or parse error
+    }
+
+    const merged: OnboardingDraft = {
+      ...baseDraft,
+      owner: {
+        ...baseDraft.owner,
+        ...(sensitive.owner ?? {}),
+      },
+      bank: {
+        ...baseDraft.bank,
+        ...(sensitive.bank ?? {}),
+      },
+    }
+
+    merged.step = resolveStep(merged)
+    return merged
+  } catch {
+    return INITIAL_DRAFT
+  }
+}
+
+export function saveStoredDraft(draft: OnboardingDraft): void {
+  const { persisted, sensitive } = splitDraft(draft)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted))
+  try {
+    sessionStorage.setItem(SENSITIVE_STORAGE_KEY, JSON.stringify(sensitive))
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
 export function useOnboardingDraft() {
   const [draft, setDraftState] = useState<OnboardingDraft>(() => {
-    try {
-      return parseDraft(localStorage.getItem(STORAGE_KEY))
-    } catch {
-      // ignore storage access errors
-    }
-    return INITIAL_DRAFT
+    return loadStoredDraft()
   })
 
   const [savedAt, setSavedAt] = useState<Date | null>(null)
@@ -235,7 +433,7 @@ export function useOnboardingDraft() {
     setDraftState(prev => {
       const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater }
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        saveStoredDraft(next)
         setSavedAt(new Date())
       } catch {
         // storage full or unavailable
@@ -245,7 +443,12 @@ export function useOnboardingDraft() {
   }, [])
 
   const clearDraft = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY)
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+      sessionStorage.removeItem(SENSITIVE_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
     setDraftState(INITIAL_DRAFT)
     setSavedAt(null)
   }, [])

@@ -446,3 +446,107 @@ describe('useOnboardingDraft — storage failures', () => {
     expect(() => renderHook(() => useOnboardingDraft())).not.toThrow()
   })
 })
+
+describe('useOnboardingDraft — security #852: isolation, TTL, and legacy migration', () => {
+  it('excludes sensitive keys (DOB, address, account number, IBAN) from localStorage', () => {
+    const { result } = renderHook(() => useOnboardingDraft())
+
+    act(() => {
+      result.current.setDraft({
+        business: BUSINESS,
+        owner: OWNER,
+        bank: BANK,
+        step: 6,
+      })
+    })
+
+    const rawLocal = localStorage.getItem(STORAGE_KEY)
+    expect(rawLocal).not.toBeNull()
+    const stored = JSON.parse(rawLocal!)
+
+    // Non-sensitive fields should be preserved in localStorage
+    expect(stored.business.legalName).toBe(BUSINESS.legalName)
+    expect(stored.owner.fullName).toBe(OWNER.fullName)
+    expect(stored.bank.bankName).toBe(BANK.bankName)
+    expect(stored.bank.currency).toBe(BANK.currency)
+
+    // Sensitive owner fields must NOT be in localStorage
+    expect(stored.owner.dateOfBirth).toBeUndefined()
+    expect(stored.owner.nationality).toBeUndefined()
+    expect(stored.owner.addressLine1).toBeUndefined()
+    expect(stored.owner.addressLine2).toBeUndefined()
+    expect(stored.owner.city).toBeUndefined()
+    expect(stored.owner.postalCode).toBeUndefined()
+
+    // Sensitive bank fields must NOT be in localStorage
+    expect(stored.bank.accountNumber).toBeUndefined()
+    expect(stored.bank.ibanSwift).toBeUndefined()
+
+    // In-memory state still retains the full draft
+    expect(result.current.draft.owner).toEqual(OWNER)
+    expect(result.current.draft.bank).toEqual(BANK)
+  })
+
+  it('purges drafts older than the TTL on load', () => {
+    const eightDaysAgo = Date.now() - 8 * 24 * 60 * 60 * 1000
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        step: 2,
+        business: BUSINESS,
+        owner: { fullName: OWNER.fullName },
+        bank: { bankName: BANK.bankName, currency: BANK.currency },
+        updatedAt: eightDaysAgo,
+      }),
+    )
+
+    const { result } = renderHook(() => useOnboardingDraft())
+
+    // Expired draft discarded -> falls back to initial empty draft
+    expect(result.current.draft.business.legalName).toBe('')
+    expect(result.current.draft.step).toBe(1)
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+
+  it('keeps drafts that are within the TTL', () => {
+    const oneDayAgo = Date.now() - 1 * 24 * 60 * 60 * 1000
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        step: 2,
+        business: BUSINESS,
+        owner: { fullName: OWNER.fullName },
+        bank: { bankName: BANK.bankName, currency: BANK.currency },
+        updatedAt: oneDayAgo,
+      }),
+    )
+
+    const { result } = renderHook(() => useOnboardingDraft())
+
+    expect(result.current.draft.business.legalName).toBe(BUSINESS.legalName)
+    expect(result.current.draft.step).toBe(2)
+  })
+
+  it('clears legacy plaintext full draft on first load', () => {
+    // Legacy draft with full plaintext sensitive fields in localStorage
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        step: 2,
+        business: BUSINESS,
+        owner: OWNER,
+        bank: BANK,
+      }),
+    )
+
+    const { result } = renderHook(() => useOnboardingDraft())
+
+    // Legacy draft wiped from localStorage and reset to initial
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(result.current.draft.bank.accountNumber).toBe('')
+    expect(result.current.draft.owner.dateOfBirth).toBe('')
+  })
+})

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { OnboardingDraft } from '../../hooks/useOnboardingDraft'
 
 type Props = {
@@ -9,7 +10,23 @@ type Props = {
   onRetry?: () => void
 }
 
-type ReviewRow = { label: string; value: string }
+type ReviewRow = {
+  label: string
+  value: string
+  action?: {
+    label: string
+    onClick: () => void
+    ariaLabel?: string
+  }
+}
+
+export function maskSensitiveValue(value: string): string {
+  if (!value) return ''
+  const trimmed = value.trim()
+  if (trimmed.length <= 4) return trimmed
+  const last4 = trimmed.slice(-4)
+  return `•••• ${last4}`
+}
 
 function rows(entries: [string, string][]): ReviewRow[] {
   return entries.filter(([, v]) => v).map(([label, value]) => ({ label, value }))
@@ -17,6 +34,8 @@ function rows(entries: [string, string][]): ReviewRow[] {
 
 export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting, submitError, onRetry }: Props) {
   const { business, owner, selfie, documents, bank } = draft
+  const [showAccountNumber, setShowAccountNumber] = useState(false)
+  const [showIbanSwift, setShowIbanSwift] = useState(false)
 
   const businessRows = rows([
     ['Legal name', business.legalName],
@@ -44,12 +63,35 @@ export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting, 
     ['Proof of address', documents.proofOfAddress.join(', ')],
   ])
 
-  const bankRows = rows([
-    ['Bank name', bank.bankName],
-    ['Account number', bank.accountNumber],
-    ['IBAN / SWIFT', bank.ibanSwift],
-    ['Currency', bank.currency],
-  ])
+  const bankRows: ReviewRow[] = []
+  if (bank.bankName) {
+    bankRows.push({ label: 'Bank name', value: bank.bankName })
+  }
+  if (bank.accountNumber) {
+    bankRows.push({
+      label: 'Account number',
+      value: showAccountNumber ? bank.accountNumber : maskSensitiveValue(bank.accountNumber),
+      action: {
+        label: showAccountNumber ? 'Hide' : 'Show',
+        onClick: () => setShowAccountNumber(prev => !prev),
+        ariaLabel: showAccountNumber ? 'Hide account number' : 'Show account number',
+      },
+    })
+  }
+  if (bank.ibanSwift) {
+    bankRows.push({
+      label: 'IBAN / SWIFT',
+      value: showIbanSwift ? bank.ibanSwift : maskSensitiveValue(bank.ibanSwift),
+      action: {
+        label: showIbanSwift ? 'Hide' : 'Show',
+        onClick: () => setShowIbanSwift(prev => !prev),
+        ariaLabel: showIbanSwift ? 'Hide IBAN or SWIFT code' : 'Show IBAN or SWIFT code',
+      },
+    })
+  }
+  if (bank.currency) {
+    bankRows.push({ label: 'Currency', value: bank.currency })
+  }
 
   return (
     <div className="ob-form">
@@ -111,10 +153,28 @@ function ReviewSection({ title, rows }: { title: string; rows: ReviewRow[] }) {
   return (
     <section className="ob-review-section" aria-label={title}>
       <h3 className="ob-review-section-title">{title}</h3>
-      {rows.map(({ label, value }) => (
+      {rows.map(({ label, value, action }) => (
         <div key={label} className="ob-review-row">
           <span className="ob-review-key">{label}</span>
-          <span className="ob-review-val">{value}</span>
+          <span className="ob-review-val" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>{value}</span>
+            {action && (
+              <button
+                type="button"
+                className="ob-btn ob-btn-secondary"
+                onClick={action.onClick}
+                aria-label={action.ariaLabel}
+                style={{
+                  minHeight: '1.75rem',
+                  padding: '0.125rem 0.5rem',
+                  fontSize: '0.75rem',
+                  lineHeight: 1.2,
+                }}
+              >
+                {action.label}
+              </button>
+            )}
+          </span>
         </div>
       ))}
     </section>

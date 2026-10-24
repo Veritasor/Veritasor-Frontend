@@ -109,4 +109,35 @@ describe('ReviewSubmitStep', () => {
 
     expect(screen.getByText('Not provided')).toBeInTheDocument()
   })
+
+  it('masks account number and IBAN by default (last 4 visible) with a Show/Hide toggle', () => {
+    const onBack = vi.fn()
+    const onSubmit = vi.fn()
+    render(<ReviewSubmitStep draft={mockDraft} onBack={onBack} onSubmit={onSubmit} submitting={false} />)
+
+    // Unmasked account number (987654321) should not be visible; masked "•••• 4321" should be visible
+    expect(screen.queryByText('987654321')).not.toBeInTheDocument()
+    expect(screen.getByText('•••• 4321')).toBeInTheDocument()
+
+    // Unmasked IBAN (FBUS33) should not be visible; masked "•••• US33" should be visible
+    expect(screen.queryByText('FBUS33')).not.toBeInTheDocument()
+    expect(screen.getByText('•••• US33')).toBeInTheDocument()
+
+    // Toggle show for account number
+    const showAccBtn = screen.getByRole('button', { name: /show account number/i })
+    fireEvent.click(showAccBtn)
+    expect(screen.getByText('987654321')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /hide account number/i })).toBeInTheDocument()
+
+    // Toggle hide for account number
+    fireEvent.click(screen.getByRole('button', { name: /hide account number/i }))
+    expect(screen.queryByText('987654321')).not.toBeInTheDocument()
+    expect(screen.getByText('•••• 4321')).toBeInTheDocument()
+
+    // Toggle show for IBAN
+    const showIbanBtn = screen.getByRole('button', { name: /show iban or swift code/i })
+    fireEvent.click(showIbanBtn)
+    expect(screen.getByText('FBUS33')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /hide iban or swift code/i })).toBeInTheDocument()
+  })
 })
