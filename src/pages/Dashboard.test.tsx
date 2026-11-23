@@ -120,10 +120,10 @@ describe('Dashboard Page', () => {
 // prop pass-through would go unnoticed.
 
 describe('Dashboard Page – usage meters', () => {
-  it('renders one progressbar per usage entry, keyed by label', () => {
+  it('renders one meter per usage entry, keyed by label', () => {
     renderPage()
 
-    const meters = screen.getAllByRole('progressbar')
+    const meters = screen.getAllByRole('meter')
     expect(meters).toHaveLength(2)
     expect(meters.map((m) => m.getAttribute('aria-label'))).toEqual([
       'Attestations',
@@ -134,7 +134,7 @@ describe('Dashboard Page – usage meters', () => {
   it('exposes the attestation usage as a critical (90%) meter', () => {
     renderPage()
 
-    const meter = screen.getByRole('progressbar', { name: 'Attestations' })
+    const meter = screen.getByRole('meter', { name: 'Attestations' })
     expect(meter).toHaveAttribute('aria-valuenow', '90')
     expect(meter).toHaveAttribute('aria-valuemin', '0')
     expect(meter).toHaveAttribute('aria-valuemax', '100')
@@ -144,7 +144,7 @@ describe('Dashboard Page – usage meters', () => {
   it('rounds API usage down to the warning boundary (75%), not the normal tier', () => {
     renderPage()
 
-    const meter = screen.getByRole('progressbar', { name: 'API calls' })
+    const meter = screen.getByRole('meter', { name: 'API calls' })
     // 7_520 / 10_000 = 75.2 % → Math.round → 75, which is inclusive of "warning".
     expect(meter).toHaveAttribute('aria-valuenow', '75')
     expect(meter).toHaveAttribute('aria-valuetext', '7,520 of 10,000 calls used (75%)')
@@ -164,7 +164,7 @@ describe('Dashboard Page – usage meters', () => {
 
     const section = container.querySelector('section[aria-labelledby="usage-heading"]')
     expect(section).not.toBeNull()
-    expect(section!.querySelectorAll('[role="progressbar"]')).toHaveLength(2)
+    expect(section!.querySelectorAll('[role="meter"]')).toHaveLength(2)
   })
 })
 

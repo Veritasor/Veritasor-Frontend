@@ -1,13 +1,32 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { memo, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
 import AttestationConfirmModal, { type FeeInfo } from '../components/AttestationConfirmModal'
 import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
 import { getAttestationChartGeometry, getAttestationChartLabelIndices } from '../utils/attestationChartData'
 import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
+import SearchFilter, { parseFilterState, type ChipDef } from '../components/SearchFilter'
 import { useToast } from '../components/ToastContext'
 import { useAttestations, type Attestation } from '../state/attestations'
 import { DEFAULT_TRIGGER_DETAILS } from '../state/attestationMocks'
+
+export const PAGE_SIZE = 50
+
+const STATUS_CHIPS: ChipDef[] = [
+  { id: 'verified', label: 'Verified', color: 'success' },
+  { id: 'pending', label: 'Pending', color: 'warning' },
+  { id: 'failed', label: 'Failed', color: 'danger' },
+]
+
+const SCHEDULED_DATES = ['2026-05-15', '2026-05-28']
+
+const MOCK_FEE_INFO: FeeInfo = {
+  total: 2.5,
+  breakdown: [
+    { label: 'Network fee', amount: 0.001 },
+    { label: 'Attestation service', amount: 2.499 },
+  ],
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -292,7 +311,11 @@ function EmptyState({ onRunReport }: { onRunReport: () => void }) {
     </section>
   );
 }
-function AttestationTrendChart({ attestations }: { attestations: AttestationListItem[] }) {
+const AttestationTrendChart = memo(function AttestationTrendChart({
+  attestations,
+}: {
+  attestations: AttestationListItem[]
+}) {
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const buckets = buildTrendBuckets(attestations);
@@ -472,9 +495,9 @@ function AttestationTrendChart({ attestations }: { attestations: AttestationList
       )}
     </section>
   );
-}
+})
 
-function TimelineRow({ item }: { item: AttestationListItem }) {
+const TimelineRow = memo(function TimelineRow({ item }: { item: AttestationListItem }) {
   const meta = STATUS_META[item.status];
   const formattedDate = formatCompactDate(item.createdAt);
   const shortRoot = middleEllipsis(item.merkleRoot, 12, 12);
@@ -589,7 +612,7 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
       </article>
     </li>
   );
-}
+})
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
@@ -600,20 +623,55 @@ export default function Attestations() {
   const [error, setError] = useState<string | null>(null)
   const { list: attestations, trigger } = useAttestations()
   const { addToast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  // Mock scheduled runs for calendar indicators.
-  const scheduledDates = [
-    '2026-05-15',
-    '2026-05-28',
-  ]
+  const filters = useMemo(() => parseFilterState(searchParams), [searchParams])
 
-  // Mock attestation details (would come from API in real app)
-  const mockFeeInfo: FeeInfo = {
-    total: 2.5,
-    breakdown: [
-      { label: 'Network fee', amount: 0.001 },
-      { label: 'Attestation service', amount: 2.499 },
-    ],
+  const filteredAttestations = useMemo(() => {
+    const normalizedQuery = filters.query.trim().toLowerCase()
+    return attestations.filter((item) => {
+      if (filters.activeChips.length > 0 && !filters.activeChips.includes(item.status)) {
+        return false
+      }
+      if (normalizedQuery) {
+        const matches =
+          item.id.toLowerCase().includes(normalizedQuery) ||
+          item.merkleRoot.toLowerCase().includes(normalizedQuery) ||
+          item.status.toLowerCase().includes(normalizedQuery) ||
+          item.source.toLowerCase().includes(normalizedQuery) ||
+          item.period.toLowerCase().includes(normalizedQuery)
+        if (!matches) return false
+      }
+      if (filters.dateFrom || filters.dateTo) {
+        const dateKey = item.createdAt.slice(0, 10)
+        if (filters.dateFrom && dateKey < filters.dateFrom) return false
+        if (filters.dateTo && dateKey > filters.dateTo) return false
+      }
+      return true
+    })
+  }, [attestations, filters])
+
+  const totalPages = Math.max(1, Math.ceil(filteredAttestations.length / PAGE_SIZE))
+  const rawPage = Number(searchParams.get('page'))
+  const currentPage =
+    Number.isInteger(rawPage) && rawPage >= 1 ? Math.min(rawPage, totalPages) : 1
+
+  const paginatedAttestations = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE
+    return filteredAttestations.slice(startIndex, startIndex + PAGE_SIZE)
+  }, [filteredAttestations, currentPage])
+
+  function setPage(nextPage: number) {
+    const clamped = Math.max(1, Math.min(totalPages, nextPage))
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (clamped <= 1) next.delete('page')
+        else next.set('page', String(clamped))
+        return next
+      },
+      { replace: true },
+    )
   }
 
   function handleOpenModal() {
@@ -660,7 +718,7 @@ export default function Attestations() {
           </p>
         </header>
 
-        <AttestationCalendar scheduledDates={scheduledDates} />
+        <AttestationCalendar scheduledDates={SCHEDULED_DATES} />
 
         {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
 
@@ -668,11 +726,93 @@ export default function Attestations() {
           {attestations.length === 0 ? (
             <EmptyState onRunReport={handleOpenModal} />
           ) : (
-            <ol style={{ margin: 0, padding: 0 }}>
-              {attestations.map((item) => (
-                <TimelineRow key={item.id} item={item} />
-              ))}
-            </ol>
+            <>
+              <SearchFilter
+                placeholder="Search attestations by ID, Merkle root, source, or status…"
+                chips={STATUS_CHIPS}
+                showDateRange
+                resultCount={filteredAttestations.length}
+                totalCount={attestations.length}
+                entityLabel="attestation"
+              />
+
+              {filteredAttestations.length === 0 ? (
+                <p
+                  style={{
+                    marginTop: '1rem',
+                    padding: 'var(--density-padding)',
+                    borderRadius: 12,
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  No attestations match the current filters.
+                </p>
+              ) : (
+                <>
+                  <ol style={{ margin: '1rem 0 0', padding: 0 }}>
+                    {paginatedAttestations.map((item) => (
+                      <TimelineRow key={item.id} item={item} />
+                    ))}
+                  </ol>
+
+                  {totalPages > 1 && (
+                    <nav
+                      aria-label="Attestations pagination"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        marginTop: '1.25rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setPage(currentPage - 1)}
+                        disabled={currentPage <= 1}
+                        style={{
+                          minHeight: 'var(--density-touch-min)',
+                          padding: '0.5rem 0.9rem',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'rgba(148, 163, 184, 0.08)',
+                          color: 'var(--text)',
+                          fontWeight: 700,
+                          cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                          opacity: currentPage <= 1 ? 0.5 : 1,
+                        }}
+                      >
+                        Previous
+                      </button>
+                      <span style={{ color: 'var(--muted)', fontSize: '0.9rem', fontWeight: 600 }}>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPage(currentPage + 1)}
+                        disabled={currentPage >= totalPages}
+                        style={{
+                          minHeight: 'var(--density-touch-min)',
+                          padding: '0.5rem 0.9rem',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'rgba(148, 163, 184, 0.08)',
+                          color: 'var(--text)',
+                          fontWeight: 700,
+                          cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                          opacity: currentPage >= totalPages ? 0.5 : 1,
+                        }}
+                      >
+                        Next
+                      </button>
+                    </nav>
+                  )}
+                </>
+              )}
+            </>
           )}
         </section>
       </div>
@@ -691,7 +831,7 @@ export default function Attestations() {
         isLoading={isLoading}
         error={error}
         details={DEFAULT_TRIGGER_DETAILS}
-        feeInfo={mockFeeInfo}
+        feeInfo={MOCK_FEE_INFO}
       />
     </>
   )

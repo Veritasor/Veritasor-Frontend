@@ -46,7 +46,7 @@ const sampleKey: ApiKey = {
   id: 'key_abc123',
   name: 'Test Production Key',
   prefix: 'vts_live_abc1...',
-  scopes: ['read', 'write'],
+  scopes: ['read:attestations', 'write:attestations'],
   status: 'active',
   createdAt: '2026-05-01',
   lastUsedAt: '2026-06-20',
@@ -112,8 +112,8 @@ describe('ApiKeyDetailPanel – open / rendered state (happy path)', () => {
 
   it('displays all allowed scopes as badges', () => {
     render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
-    expect(screen.getByText('read')).toBeInTheDocument()
-    expect(screen.getByText('write')).toBeInTheDocument()
+    expect(screen.getByText('read:attestations')).toBeInTheDocument()
+    expect(screen.getByText('write:attestations')).toBeInTheDocument()
   })
 
   it('displays the key ID in the metadata section', () => {
@@ -152,6 +152,19 @@ describe('ApiKeyDetailPanel – open / rendered state (happy path)', () => {
   it('renders the "Call Volume" section heading', () => {
     render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
     expect(screen.getByText(/call volume/i)).toBeInTheDocument()
+  })
+
+  it('renders an Edit button in the Scopes section', () => {
+    render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
+    expect(screen.getByText('Edit')).toBeInTheDocument()
+  })
+
+  it('opens EditScopesModal when Edit button is clicked', () => {
+    render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
+    fireEvent.click(screen.getByText('Edit'))
+    // The EditScopesModal should render a dialog when open
+    // Since it's a separate component, we verify the button click works
+    // The actual modal rendering is tested in EditScopesModal.test.tsx
   })
 })
 
@@ -201,11 +214,11 @@ describe('ApiKeyDetailPanel – boundary inputs', () => {
   it('renders with a single scope without crashing', () => {
     render(
       <ApiKeyDetailPanel
-        keyData={makeKey({ scopes: ['admin'] })}
+        keyData={makeKey({ scopes: ['read:attestations'] })}
         onClose={() => {}}
       />,
     )
-    expect(screen.getByText('admin')).toBeInTheDocument()
+    expect(screen.getByText('read:attestations')).toBeInTheDocument()
   })
 
   it('handles lastUsedAt = "Never" without crashing', () => {

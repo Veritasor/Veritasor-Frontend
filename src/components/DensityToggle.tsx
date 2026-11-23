@@ -1,4 +1,4 @@
-import { type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useDensityMode, type DensityMode } from "../hooks/useDensityMode";
 
 export interface DensityToggleProps {
@@ -61,6 +61,33 @@ function DensityPreview({ mode, selected }: { mode: DensityMode; selected: boole
 
 export default function DensityToggle({ workspace, onPersistError }: DensityToggleProps) {
   const { density, setDensity } = useDensityMode(workspace, { onPersistError });
+  const [announcement, setAnnouncement] = useState("");
+  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const selectDensity = (cfg: { key: DensityMode; label: string }) => {
+    setDensity(cfg.key);
+    setAnnouncement(`Display density changed to ${cfg.label}`);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null;
+
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      nextIndex = (index + 1) % DENSITY_CONFIG.length;
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      nextIndex = (index - 1 + DENSITY_CONFIG.length) % DENSITY_CONFIG.length;
+    } else if (e.key === "Home") {
+      nextIndex = 0;
+    } else if (e.key === "End") {
+      nextIndex = DENSITY_CONFIG.length - 1;
+    }
+
+    if (nextIndex !== null) {
+      e.preventDefault();
+      selectDensity(DENSITY_CONFIG[nextIndex]);
+      radioRefs.current[nextIndex]?.focus();
+    }
+  };
 
   return (
     <div
@@ -71,16 +98,21 @@ export default function DensityToggle({ workspace, onPersistError }: DensityTogg
         gap: "0.75rem",
       }}
     >
-      {DENSITY_CONFIG.map((cfg) => {
+      {DENSITY_CONFIG.map((cfg, index) => {
         const selected = density === cfg.key;
         return (
           <button
             key={cfg.key}
+            ref={(el) => {
+              radioRefs.current[index] = el;
+            }}
             type="button"
             role="radio"
             aria-checked={selected}
             aria-label={`${cfg.label} — ${cfg.description}`}
-            onClick={() => setDensity(cfg.key)}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => selectDensity(cfg)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
             style={{
               flex: "1 1 0",
               minWidth: 140,
@@ -125,6 +157,9 @@ export default function DensityToggle({ workspace, onPersistError }: DensityTogg
           </button>
         );
       })}
+      <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </span>
     </div>
   );
 }
