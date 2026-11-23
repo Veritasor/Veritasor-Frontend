@@ -81,6 +81,7 @@ export default function SearchFilter({
         const next = new URLSearchParams(prev)
         if (value) next.set(key, value)
         else next.delete(key)
+        next.delete('page')
         return next
       },
       { replace: true },

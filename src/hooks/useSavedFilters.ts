@@ -26,6 +26,7 @@ import {
   type SavedFilter,
   type ValidationResult,
 } from '../utils/auditLogFilters'
+import { useOptionalWorkspace } from '../state/workspace'
 
 export interface UseSavedFiltersReturn {
   filters: SavedFilter[]
@@ -74,8 +75,10 @@ function writeToStorage(key: string, value: SavedFilter[]): void {
   }
 }
 
-export function useSavedFilters(workspaceId: string): UseSavedFiltersReturn {
-  const key = savedFilterStorageKey(workspaceId)
+export function useSavedFilters(workspaceId?: string): UseSavedFiltersReturn {
+  const workspaceCtx = useOptionalWorkspace()
+  const effectiveWorkspaceId = workspaceId ?? workspaceCtx?.activeWorkspaceId ?? 'default'
+  const key = savedFilterStorageKey(effectiveWorkspaceId)
   // Lazy initializer → first render already has persisted data.
   const [filters, setFilters] = useState<SavedFilter[]>(() => readFromStorage(key))
   const [isHydrated, setIsHydrated] = useState(true)

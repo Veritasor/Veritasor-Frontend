@@ -1,15 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import Attestations from './Attestations'
+import Attestations, { PAGE_SIZE } from './Attestations'
 import { ToastProvider } from '../components/ToastContext'
-import { AttestationsProvider } from '../state/attestations'
+import { AttestationsProvider, type Attestation } from '../state/attestations'
+import { createMockAttestations } from '../state/attestationMocks'
 
-function renderPage() {
+function renderPage(options?: {
+  initialEntries?: string[]
+  initialAttestations?: Attestation[]
+}) {
   return render(
-    <AttestationsProvider>
+    <AttestationsProvider initialAttestations={options?.initialAttestations}>
       <ToastProvider>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={options?.initialEntries}>
           <Attestations />
         </MemoryRouter>
       </ToastProvider>
@@ -97,5 +101,71 @@ describe('Attestations Page', () => {
     expect(firstBar).not.toBeNull()
     fireEvent.mouseEnter(firstBar!)
     expect(status).toHaveTextContent(initialStatus!)
+  })
+})
+
+describe('Attestations Page — pagination and filtering with 2,000 items', () => {
+  const largeFixture = createMockAttestations(2000)
+
+  it('renders only one page of rows in the DOM for 2,000 attestations', () => {
+    renderPage({ initialAttestations: largeFixture })
+
+    const articles = screen.getAllByRole('article')
+    expect(articles).toHaveLength(PAGE_SIZE)
+
+    const pagination = screen.getByRole('navigation', { name: 'Attestations pagination' })
+    expect(within(pagination).getByText('Page 1 of 40')).toBeInTheDocument()
+    expect(within(pagination).getByRole('button', { name: 'Previous' })).toBeDisabled()
+    expect(within(pagination).getByRole('button', { name: 'Next' })).toBeEnabled()
+
+    const links = screen.getAllByRole('link', { name: /view details/i })
+    expect(links[0]).toHaveAttribute('href', '/attestations/att-0001')
+    expect(links[PAGE_SIZE - 1]).toHaveAttribute('href', '/attestations/att-0050')
+  })
+
+  it('respects the URL ?page param and navigates between pages', () => {
+    renderPage({
+      initialAttestations: largeFixture,
+      initialEntries: ['/attestations?page=2'],
+    })
+
+    const pagination = screen.getByRole('navigation', { name: 'Attestations pagination' })
+    expect(within(pagination).getByText('Page 2 of 40')).toBeInTheDocument()
+
+    const links = screen.getAllByRole('link', { name: /view details/i })
+    expect(links).toHaveLength(PAGE_SIZE)
+    expect(links[0]).toHaveAttribute('href', '/attestations/att-0051')
+
+    fireEvent.click(within(pagination).getByRole('button', { name: 'Next' }))
+    expect(within(pagination).getByText('Page 3 of 40')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /view details/i })[0]).toHaveAttribute(
+      'href',
+      '/attestations/att-0101',
+    )
+  })
+
+  it('resets page to 1 when typing in SearchFilter or toggling a status chip', () => {
+    renderPage({
+      initialAttestations: largeFixture,
+      initialEntries: ['/attestations?page=3'],
+    })
+
+    const pagination = screen.getByRole('navigation', { name: 'Attestations pagination' })
+    expect(within(pagination).getByText('Page 3 of 40')).toBeInTheDocument()
+
+    const searchInput = screen.getByRole('searchbox')
+    fireEvent.change(searchInput, { target: { value: 'Stripe' } })
+
+    expect(within(pagination).getByText('Page 1 of 10')).toBeInTheDocument()
+    expect(screen.getAllByRole('article')).toHaveLength(PAGE_SIZE)
+
+    fireEvent.click(within(pagination).getByRole('button', { name: 'Next' }))
+    expect(within(pagination).getByText('Page 2 of 10')).toBeInTheDocument()
+
+    const statusGroup = screen.getByRole('group', { name: 'Filter by status' })
+    fireEvent.click(within(statusGroup).getByRole('button', { name: 'Verified' }))
+
+    expect(within(pagination).getByText('Page 1 of 4')).toBeInTheDocument()
+    expect(screen.getAllByRole('article')).toHaveLength(PAGE_SIZE)
   })
 })

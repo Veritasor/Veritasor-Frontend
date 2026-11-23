@@ -36,6 +36,15 @@ export const INITIAL_SOURCES: Source[] = [
 
 const STORAGE_KEY = 'veritasor-sources-v1'
 
+/** Schema version of the persisted payload. Bump when the stored shape changes. */
+export const SOURCES_SCHEMA_VERSION = 1
+
+/** Shape written to localStorage — an envelope carrying the schema version. */
+interface PersistedSources {
+  version: number
+  sources: Source[]
+}
+
 // ---------------------------------------------------------------------------
 // Validation — rejects payloads that aren't a valid Source[]
 // ---------------------------------------------------------------------------
@@ -58,15 +67,44 @@ function isValidSources(v: unknown): v is Source[] {
 }
 
 // ---------------------------------------------------------------------------
-// Storage helpers
+// Storage helpers — versioned payload, validated on load
 // ---------------------------------------------------------------------------
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/**
+ * Normalises a parsed payload to a Source[]:
+ * - current-version envelope `{ version, sources }` → validated sources
+ * - legacy bare `Source[]` (written before versioning) → validated sources,
+ *   re-saved in the versioned envelope on the next write
+ * - unknown version or malformed shape → INITIAL_SOURCES (fail closed)
+ */
+function migrate(parsed: unknown): Source[] {
+  if (isRecord(parsed) && 'sources' in parsed) {
+    if (parsed.version !== SOURCES_SCHEMA_VERSION) return INITIAL_SOURCES
+    return isValidSources(parsed.sources) ? parsed.sources : INITIAL_SOURCES
+  }
+  // Legacy payload: a bare Source[] under the same key
+  if (Array.isArray(parsed)) {
+    return isValidSources(parsed) ? parsed : INITIAL_SOURCES
+  }
+  return INITIAL_SOURCES
+}
+
+function parseStored(raw: string): Source[] {
+  try {
+    return migrate(JSON.parse(raw))
+  } catch {
+    return INITIAL_SOURCES
+  }
+}
 
 function readStorage(): Source[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return INITIAL_SOURCES
-    const parsed: unknown = JSON.parse(raw)
-    return isValidSources(parsed) ? parsed : INITIAL_SOURCES
+    return raw === null ? INITIAL_SOURCES : parseStored(raw)
   } catch {
     return INITIAL_SOURCES
   }
@@ -74,7 +112,8 @@ function readStorage(): Source[] {
 
 function writeStorage(sources: Source[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sources))
+    const payload: PersistedSources = { version: SOURCES_SCHEMA_VERSION, sources }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   } catch {
     // quota exceeded or private browsing — ignore
   }
@@ -108,6 +147,21 @@ function setState(next: Source[]): void {
 function subscribe(cb: () => void): () => void {
   listeners.add(cb)
   return () => listeners.delete(cb)
+}
+
+/**
+ * Cross-tab sync: when another tab writes to STORAGE_KEY the browser fires a
+ * `storage` event here. Adopt the incoming payload (validated) so every open
+ * tab converges on the same list.
+ */
+function handleStorageEvent(event: StorageEvent): void {
+  if (event.key !== null && event.key !== STORAGE_KEY) return
+  state = typeof event.newValue === 'string' ? parseStored(event.newValue) : readStorage()
+  notify()
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', handleStorageEvent)
 }
 
 // ---------------------------------------------------------------------------

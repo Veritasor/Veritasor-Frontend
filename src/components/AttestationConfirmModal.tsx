@@ -20,11 +20,17 @@ export interface FeeInfo {
 export interface AttestationConfirmModalProps {
   open: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: () => void | Promise<unknown>
   isLoading?: boolean
   error?: string | null
   details?: AttestationDetails | null
   feeInfo?: FeeInfo | null
+}
+
+function formatErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message
+  if (typeof err === 'string' && err) return err
+  return 'Failed to submit attestation. Please try again.'
 }
 
 const FOCUSABLE =
@@ -42,7 +48,21 @@ export default function AttestationConfirmModal({
 }: AttestationConfirmModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const [showFeeBreakdown, setShowFeeBreakdown] = useState(false)
+  const [isPending, setIsPending] = useState(false)
+  const [internalError, setInternalError] = useState<string | null>(null)
+  const pendingRef = useRef(false)
+  const isMountedRef = useRef(true)
   const triggerRef = useRef<HTMLElement | null>(null)
+
+  const pending = isLoading || isPending
+  const displayError = error || internalError
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Save the element that triggered the modal; move focus to dialog on open; restore on close
   useEffect(() => {
@@ -50,6 +70,7 @@ export default function AttestationConfirmModal({
       triggerRef.current = document.activeElement as HTMLElement
       dialogRef.current!.focus()
     } else {
+      setInternalError(null)
       triggerRef.current?.focus()
     }
   }, [open])
@@ -86,7 +107,33 @@ export default function AttestationConfirmModal({
   }, [open, onClose])
 
   function handleBackdropClick() {
-    if (!isLoading) onClose()
+    if (!pending) onClose()
+  }
+
+  function handleConfirm() {
+    if (pending || pendingRef.current) return
+    setInternalError(null)
+    try {
+      const result = onConfirm()
+      if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+        pendingRef.current = true
+        setIsPending(true)
+        Promise.resolve(result)
+          .catch((err: unknown) => {
+            if (isMountedRef.current) {
+              setInternalError(formatErrorMessage(err))
+            }
+          })
+          .finally(() => {
+            pendingRef.current = false
+            if (isMountedRef.current) {
+              setIsPending(false)
+            }
+          })
+      }
+    } catch (err: unknown) {
+      setInternalError(formatErrorMessage(err))
+    }
   }
 
   if (!open) return null
@@ -188,9 +235,9 @@ export default function AttestationConfirmModal({
             <span>This action cannot be undone. Attested data is permanent on-chain.</span>
           </div>
 
-          {error && (
+          {displayError && (
             <p role="alert" className="modal-error">
-              {error}
+              {displayError}
             </p>
           )}
         </div>
@@ -200,18 +247,18 @@ export default function AttestationConfirmModal({
             type="button"
             className="modal-btn modal-btn-cancel"
             onClick={onClose}
-            disabled={isLoading}
+            disabled={pending}
           >
             Cancel
           </button>
           <button
             type="button"
             className="modal-btn modal-btn-confirm"
-            onClick={onConfirm}
-            disabled={isLoading}
-            aria-busy={isLoading}
+            onClick={handleConfirm}
+            disabled={pending}
+            aria-busy={pending}
           >
-            {isLoading ? 'Attesting…' : 'Confirm & Attest'}
+            {pending ? 'Attesting…' : 'Confirm & Attest'}
           </button>
         </div>
       </div>

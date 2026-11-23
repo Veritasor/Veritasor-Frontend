@@ -8,14 +8,14 @@ import TokensDiffViewer from '../components/tokens/TokensDiffViewer'
 import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
 import A11yCoverageMatrix from '../components/a11y/A11yCoverageMatrix'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
-import MfaMethodChooser from '../components/MfaMethodChooser'
-import type { MfaMethod } from '../components/MfaMethodChooser'
+import MfaManagementPanel from '../components/MfaManagementPanel'
 import WebhookRetryPanel from '../components/WebhookRetryPanel'
 import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
 import DensityToggle from '../components/DensityToggle'
 import DirtyStateBanner from '../components/DirtyStateBanner'
 import { useDirtyForm, type SaveStatus } from '../hooks/useDirtyForm'
 import { validatePassword } from '../utils/passwordPolicy'
+import { useOptionalWorkspace } from '../state/workspace'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -2574,7 +2574,6 @@ function SignOutAllButton() {
 
 function SecurityPanel() {
   const registry = useDirtyRegistry();
-  const [mfaMethod, setMfaMethod] = useState<MfaMethod | null>(null);
   const [sessions, setSessions] = useState(MOCK_SESSIONS);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmTouched, setConfirmTouched] = useState(false);
@@ -2762,7 +2761,7 @@ function SecurityPanel() {
 
       <hr style={{ margin: 0, borderColor: "var(--border)", opacity: 0.5 }} />
 
-      <MfaMethodChooser value={mfaMethod} onChange={setMfaMethod} />
+      <MfaManagementPanel />
 
       {/* Active sessions */}
       <hr style={{ margin: 0, borderColor: "var(--border)", opacity: 0.5 }} />
@@ -5333,7 +5332,8 @@ function TeamPanel() {
 }
 
 function AppearancePanel() {
-  const [workspace, setWorkspace] = useState('default-workspace')
+  const workspaceCtx = useOptionalWorkspace()
+  const workspace = workspaceCtx?.activeWorkspaceId ?? 'default-workspace'
 
   return (
     <div style={{ display: "grid", gap: "1.5rem" }}>

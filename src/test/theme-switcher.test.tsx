@@ -11,14 +11,13 @@
  *  - Switching theme updates checked state
  */
 
-import { render, screen, act } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, act, fireEvent } from '@testing-library/react'
+import { describe, it, expect, beforeEach } from 'vitest'
 import ThemeSwitcher from '../components/ThemeSwitcher'
 
 // ThemeSwitcher depends on useTheme which reads/writes localStorage
 beforeEach(() => {
-  vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null)
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {})
+  localStorage.clear()
 })
 
 function renderSwitcher() {
@@ -147,5 +146,79 @@ describe('ThemeSwitcher — accessibility attributes', () => {
     icons.forEach((el) => {
       expect(el).toHaveAttribute('aria-hidden', 'true')
     })
+  })
+
+  it('implements roving tabindex with only the checked radio tabbable', () => {
+    renderSwitcher()
+    const systemRadio = screen.getByRole('radio', { name: /system/i })
+    const lightRadio = screen.getByRole('radio', { name: /light/i })
+    const darkRadio = screen.getByRole('radio', { name: /dark/i })
+    const highContrastRadio = screen.getByRole('radio', { name: /high contrast/i })
+
+    expect(systemRadio).toHaveAttribute('tabindex', '0')
+    expect(lightRadio).toHaveAttribute('tabindex', '-1')
+    expect(darkRadio).toHaveAttribute('tabindex', '-1')
+    expect(highContrastRadio).toHaveAttribute('tabindex', '-1')
+
+    fireEvent.click(darkRadio)
+
+    expect(systemRadio).toHaveAttribute('tabindex', '-1')
+    expect(lightRadio).toHaveAttribute('tabindex', '-1')
+    expect(darkRadio).toHaveAttribute('tabindex', '0')
+    expect(highContrastRadio).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('changes selection and moves focus with arrow keys, Home, and End', () => {
+    renderSwitcher()
+    const systemRadio = screen.getByRole('radio', { name: /system/i }) as HTMLInputElement
+    const lightRadio = screen.getByRole('radio', { name: /light/i }) as HTMLInputElement
+    const darkRadio = screen.getByRole('radio', { name: /dark/i }) as HTMLInputElement
+    const highContrastRadio = screen.getByRole('radio', { name: /high contrast/i }) as HTMLInputElement
+
+    systemRadio.focus()
+    fireEvent.keyDown(systemRadio, { key: 'ArrowRight' })
+    expect(lightRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(lightRadio)
+
+    fireEvent.keyDown(lightRadio, { key: 'ArrowDown' })
+    expect(darkRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(darkRadio)
+
+    fireEvent.keyDown(darkRadio, { key: 'ArrowLeft' })
+    expect(lightRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(lightRadio)
+
+    fireEvent.keyDown(lightRadio, { key: 'ArrowUp' })
+    expect(systemRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(systemRadio)
+
+    // Wraps backwards from first to last
+    fireEvent.keyDown(systemRadio, { key: 'ArrowLeft' })
+    expect(highContrastRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(highContrastRadio)
+
+    // Wraps forwards from last to first
+    fireEvent.keyDown(highContrastRadio, { key: 'ArrowRight' })
+    expect(systemRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(systemRadio)
+
+    fireEvent.keyDown(systemRadio, { key: 'End' })
+    expect(highContrastRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(highContrastRadio)
+
+    fireEvent.keyDown(highContrastRadio, { key: 'Home' })
+    expect(systemRadio.checked).toBe(true)
+    expect(document.activeElement).toBe(systemRadio)
+  })
+
+  it('announces theme changes politely in a status live region', () => {
+    renderSwitcher()
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveTextContent('')
+
+    const systemRadio = screen.getByRole('radio', { name: /system/i })
+    fireEvent.keyDown(systemRadio, { key: 'ArrowRight' })
+    expect(status).toHaveTextContent('Theme changed to Light')
   })
 })

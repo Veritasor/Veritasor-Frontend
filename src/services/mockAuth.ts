@@ -78,6 +78,16 @@ export function remainingCodeCount(): number {
   return _remainingCodes.size;
 }
 
+/** Replace the in-memory recovery code store with a freshly generated set. */
+export function replaceRecoveryCodes(codes: string[]): void {
+  _remainingCodes = new Set(codes);
+}
+
+/** Return a snapshot of the currently remaining recovery codes. */
+export function getRemainingCodes(): string[] {
+  return Array.from(_remainingCodes);
+}
+
 /** The list of demo codes originally shown at enrollment.
  *  Read-only; used to seed UI hints in development. */
 export const DEMO_CODES_READONLY: readonly string[] = Object.freeze([

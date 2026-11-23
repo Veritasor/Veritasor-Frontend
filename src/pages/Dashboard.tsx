@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AttestationConfirmModal from '../components/AttestationConfirmModal'
 import UsageMeter from '../components/UsageMeter'
+import StaleDataChip from '../components/StaleDataChip'
 import { useViewportObserver } from '../hooks/useViewportObserver'
 import { useToast } from '../components/ToastContext'
 import { useAttestations } from '../state/attestations'
@@ -31,12 +32,32 @@ const USAGE_DATA = [
   },
 ]
 
+export const STALE_DATA_THRESHOLD_MS = 5 * 60 * 1000
+
+export function isAttestationDataStale(lastUpdated: string, now = Date.now()) {
+  const updatedAt = Date.parse(lastUpdated)
+  return Number.isFinite(updatedAt) && now - updatedAt >= STALE_DATA_THRESHOLD_MS
+}
+
 export default function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [attestError, setAttestError] = useState<string | null>(null)
-  const { trigger } = useAttestations()
+  const [now, setNow] = useState(() => Date.now())
+  const { trigger, lastUpdated, refresh } = useAttestations()
   const { addToast } = useToast()
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 30 * 1000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  const isStale = isAttestationDataStale(lastUpdated, now)
+
+  function handleRefresh() {
+    refresh()
+    setNow(Date.now())
+  }
 
   // Entrance animation observers — one per metric card
   const { ref: revenueRef, isVisible: revenueVisible } = useViewportObserver<HTMLDivElement>()
@@ -70,6 +91,12 @@ export default function Dashboard() {
       <p style={{ color: 'var(--muted)' }}>
         Connect your revenue sources and manage attestations from here. (Demo build: all figures shown are sample data.)
       </p>
+      <div className="dashboard-data-status" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+        {isStale && <StaleDataChip fetchedAt={lastUpdated} />}
+        <button type="button" className="dashboard-action-btn" onClick={handleRefresh}>
+          Refresh data
+        </button>
+      </div>
 
       <div className="dashboard-grid">
         <section className="dashboard-section">

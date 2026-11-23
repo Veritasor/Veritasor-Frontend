@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback } from 'react'
 import type { SelfieCapture } from '../../hooks/useOnboardingDraft'
 import { useObjectUrl } from '../../hooks/useObjectUrl'
+import { ALLOWED_SELFIE_TYPES, validateOnboardingFile } from '../../services/onboardingApi'
 
 type Props = {
   data: SelfieCapture
@@ -150,12 +151,12 @@ export default function SelfieCaptureStep({ data, file, onBack, onNext }: Props)
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
       if (!file) return
-      if (!['image/jpeg', 'image/png'].includes(file.type)) {
-        setError('Please upload a JPG or PNG image')
-        return
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10 MB')
+      const validationError = validateOnboardingFile(file, {
+        allowedTypes: ALLOWED_SELFIE_TYPES,
+        allowedLabel: 'JPG or PNG',
+      })
+      if (validationError) {
+        setError(validationError)
         return
       }
       setUploadFile(file)

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { AVAILABLE_INTEGRATIONS } from './integrations-data'
-import type { Integration } from './IntegrationCard'
 
 describe('AVAILABLE_INTEGRATIONS', () => {
   it('should be defined and contain items', () => {
@@ -13,6 +12,14 @@ describe('AVAILABLE_INTEGRATIONS', () => {
     const ids = AVAILABLE_INTEGRATIONS.map((integration) => integration.id)
     const uniqueIds = new Set(ids)
     expect(uniqueIds.size).toBe(ids.length)
+  })
+
+  it('should have non-empty ids, names, and descriptions', () => {
+    AVAILABLE_INTEGRATIONS.forEach((integration) => {
+      expect(integration.id.trim().length).toBeGreaterThan(0)
+      expect(integration.name.trim().length).toBeGreaterThan(0)
+      expect(integration.description.trim().length).toBeGreaterThan(0)
+    })
   })
 
   it('should have valid structure for all items', () => {

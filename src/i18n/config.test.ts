@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_LOCALE,
   FALLBACK_LOCALE,
@@ -9,52 +9,103 @@ import {
   resolveInitialLocale,
 } from './config'
 
-describe('i18n/config', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    vi.restoreAllMocks()
+describe('i18n/config helpers', () => {
+  describe('getLocaleDirection', () => {
+    it('returns rtl for Arabic', () => {
+      expect(getLocaleDirection('ar')).toBe('rtl')
+    })
+
+    it('returns ltr for all other supported locales', () => {
+      const ltrLocales = SUPPORTED_LOCALES.filter((item) => item.code !== 'ar')
+      for (const locale of ltrLocales) {
+        expect(getLocaleDirection(locale.code)).toBe('ltr')
+      }
+    })
+
+    it('falls back to ltr for unsupported or empty locales', () => {
+      expect(getLocaleDirection('xx')).toBe('ltr')
+      expect(getLocaleDirection('')).toBe('ltr')
+    })
   })
 
-  it('exposes supported locales with default and fallback set to en', () => {
-    expect(DEFAULT_LOCALE).toBe('en')
-    expect(FALLBACK_LOCALE).toBe('en')
-    expect(SUPPORTED_LOCALES.length).toBeGreaterThanOrEqual(7)
+  describe('normalizeLocale', () => {
+    it('returns DEFAULT_LOCALE for an empty string', () => {
+      expect(normalizeLocale('')).toBe(DEFAULT_LOCALE)
+    })
+
+    it('matches supported locales case-insensitively', () => {
+      expect(normalizeLocale('EN')).toBe('en')
+      expect(normalizeLocale('Fr')).toBe('fr')
+      expect(normalizeLocale('AR')).toBe('ar')
+    })
+
+    it('strips region subtags to match the base language', () => {
+      expect(normalizeLocale('de-AT')).toBe('de')
+      expect(normalizeLocale('zh-CN')).toBe('zh')
+      expect(normalizeLocale('en-US')).toBe('en')
+      expect(normalizeLocale('ES-mx')).toBe('es')
+    })
+
+    it('falls back to DEFAULT_LOCALE for unsupported locales', () => {
+      expect(normalizeLocale('xx')).toBe(DEFAULT_LOCALE)
+      expect(normalizeLocale('xx-YY')).toBe(DEFAULT_LOCALE)
+    })
   })
 
-  it('returns rtl for Arabic and ltr for others or unknown locales', () => {
-    expect(getLocaleDirection('ar')).toBe('rtl')
-    expect(getLocaleDirection('en')).toBe('ltr')
-    expect(getLocaleDirection('fr')).toBe('ltr')
-    expect(getLocaleDirection('unknown')).toBe('ltr')
-  })
+  describe('resolveInitialLocale', () => {
+    beforeEach(() => {
+      window.localStorage.clear()
+    })
 
-  it('normalizes empty, exact, uppercase, region-tagged, and unsupported locales', () => {
-    expect(normalizeLocale('')).toBe('en')
-    expect(normalizeLocale('fr')).toBe('fr')
-    expect(normalizeLocale('DE')).toBe('de')
-    expect(normalizeLocale('es-MX')).toBe('es')
-    expect(normalizeLocale('zh-CN')).toBe('zh')
-    expect(normalizeLocale('pt-BR')).toBe('en')
-  })
+    afterEach(() => {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+      window.localStorage.clear()
+    })
 
-  it('resolves initial locale from localStorage when valid', () => {
-    localStorage.setItem(LOCALE_STORAGE_KEY, 'fr-CA')
-    expect(resolveInitialLocale()).toBe('fr')
+    it('returns FALLBACK_LOCALE when window is undefined', () => {
+      vi.stubGlobal('window', undefined)
+      expect(resolveInitialLocale()).toBe(FALLBACK_LOCALE)
+    })
 
-    localStorage.setItem(LOCALE_STORAGE_KEY, 'en')
-    expect(resolveInitialLocale()).toBe('en')
-  })
+    it('prefers a valid saved locale from localStorage over navigator.language', () => {
+      vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('fr-FR')
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, 'de-AT')
 
-  it('falls back to navigator.language when localStorage is empty or unsupported', () => {
-    vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('de-DE')
-    expect(resolveInitialLocale()).toBe('de')
+      expect(resolveInitialLocale()).toBe('de')
+    })
 
-    localStorage.setItem(LOCALE_STORAGE_KEY, 'xx-YY')
-    expect(resolveInitialLocale()).toBe('de')
-  })
+    it('respects explicitly saved default locale over navigator.language', () => {
+      vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('fr-FR')
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, 'EN')
 
-  it('falls back to en when both localStorage and navigator.language are unsupported', () => {
-    vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('ja-JP')
-    expect(resolveInitialLocale()).toBe('en')
+      expect(resolveInitialLocale()).toBe('en')
+    })
+
+    it('ignores corrupted/unsupported localStorage values and falls back to navigator.language', () => {
+      vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('es-ES')
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, 'corrupted-locale')
+
+      expect(resolveInitialLocale()).toBe('es')
+    })
+
+    it('uses navigator.language when localStorage has no saved locale', () => {
+      vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('fi-FI')
+
+      expect(resolveInitialLocale()).toBe('fi')
+    })
+
+    it('falls back to FALLBACK_LOCALE when both storage and navigator.language are unsupported', () => {
+      vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('xx-YY')
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, 'zz')
+
+      expect(resolveInitialLocale()).toBe(FALLBACK_LOCALE)
+    })
+
+    it('falls back to FALLBACK_LOCALE when navigator.language is empty and storage is empty', () => {
+      vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('')
+
+      expect(resolveInitialLocale()).toBe(FALLBACK_LOCALE)
+    })
   })
 })

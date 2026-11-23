@@ -8,8 +8,11 @@
  *   - <75 % → normal (accent/teal)
  *
  * Accessibility (WCAG 2.1 AA):
- *   - Uses role="progressbar" with aria-valuenow, aria-valuemin, aria-valuemax
- *   - aria-valuetext provides a human-readable text alternative
+ *   - Uses role="meter" (a scalar measurement within a known range, not task
+ *     progress) with aria-valuenow, aria-valuemin, aria-valuemax
+ *   - aria-valuetext provides a human-readable text alternative that includes the
+ *     limit, e.g. "8,000 of 10,000 calls used (80%)"
+ *   - The meter has an accessible name via aria-label
  *   - Warning messages are surfaced via aria-live="polite" / role="status"
  *   - Colour alone is never the sole indicator; icon + label reinforce tier
  *
@@ -238,10 +241,10 @@ export default function UsageMeter({
 
       {/* ── Progress track ────────────────────────────────────────────────── */}
       <div>
-        {/* Accessible progress bar */}
+        {/* Accessible meter */}
         <div
           id={trackId}
-          role="progressbar"
+          role="meter"
           aria-valuenow={pct}
           aria-valuemin={0}
           aria-valuemax={100}

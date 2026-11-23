@@ -362,3 +362,64 @@ describe('ToastItem - content, roles, and invalid input', () => {
     expect(screen.getByText('(U)')).toBeInTheDocument()
   })
 })
+
+function mockPrefersReducedMotion(reduced: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches: reduced,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  )
+}
+
+describe('ToastItem - prefers-reduced-motion', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('skips entering/exiting animations and removes immediately when prefers-reduced-motion is set', () => {
+    mockPrefersReducedMotion(true)
+    const onRemove = vi.fn()
+    const { container } = render(<ToastItem toast={makeToast()} onRemove={onRemove} />)
+
+    const toastEl = container.firstChild as HTMLElement
+    expect(toastEl).toHaveAttribute('data-reduced-motion', 'true')
+    expect(toastEl).not.toHaveClass('toast-entering')
+    expect(toastEl).not.toHaveClass('toast-exiting')
+
+    fireEvent.click(screen.getByRole('button', { name: /close notification/i }))
+    expect(toastEl).not.toHaveClass('toast-exiting')
+    expect(onRemove).toHaveBeenCalledWith('t1')
+  })
+
+  it('plays entering/exiting animations when prefers-reduced-motion is not set', () => {
+    mockPrefersReducedMotion(false)
+    const onRemove = vi.fn()
+    const { container } = render(<ToastItem toast={makeToast()} onRemove={onRemove} />)
+
+    const toastEl = container.firstChild as HTMLElement
+    expect(toastEl).toHaveAttribute('data-reduced-motion', 'false')
+    expect(toastEl).toHaveClass('toast-entering')
+
+    fireEvent.click(screen.getByRole('button', { name: /close notification/i }))
+    expect(toastEl).toHaveClass('toast-exiting')
+    expect(onRemove).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+    expect(onRemove).toHaveBeenCalledWith('t1')
+  })
+})
