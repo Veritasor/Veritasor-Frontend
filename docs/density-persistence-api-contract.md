@@ -67,9 +67,15 @@ Updates the user's density preference for a given workspace.
 
 ## Frontend Integration Strategy
 
+### Functional consent
+
+Without Functional consent, density changes apply in memory. With consent, the frontend can read and write the workspace's local density key and call the density GET and PUT endpoints.
+
+Withdrawing consent removes local density keys across workspaces, stops further synchronization, and aborts in-flight browser requests. The documented API provides GET and PUT. A preference the server already accepted can remain on the account and be restored if the user grants Functional consent again.
+
 ### Optimistic Update
 
-The frontend should update the UI **immediately** before the API call completes:
+With Functional consent, the frontend updates the UI **immediately** before the API call completes:
 
 1. User selects a density mode
 2. Frontend immediately:
