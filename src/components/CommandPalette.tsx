@@ -175,22 +175,28 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
   const scopeRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  // Load recents on mount and when palette opens
+  // Reset the palette on open and return focus to the opener on close.
   useEffect(() => {
-    if (isOpen) {
-      const stored = localStorage.getItem('veritasor-recent-commands')
-      if (stored) {
-        try {
-          setRecents(JSON.parse(stored))
-        } catch {
-          setRecents([])
-        }
+    if (!isOpen) return
+    const previousFocus = document.activeElement
+    const stored = localStorage.getItem('veritasor-recent-commands')
+    if (stored) {
+      try {
+        setRecents(JSON.parse(stored))
+      } catch {
+        setRecents([])
       }
-      setQuery('')
-      setActiveIndex(0)
-      setScope(loadScope)
-      // Small timeout to ensure input is mounted
-      setTimeout(() => inputRef.current?.focus(), 10)
+    }
+    setQuery('')
+    setActiveIndex(0)
+    setScope(loadScope)
+
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 10)
+    return () => {
+      window.clearTimeout(focusTimer)
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected && document.activeElement === document.body) {
+        previousFocus.focus({ preventScroll: true })
+      }
     }
   }, [isOpen])
 
@@ -304,7 +310,11 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
       if (visibleItems[activeIndex]) {
         handleSelect(visibleItems[activeIndex])
       }
-    } else if (e.key === 'Escape') {
+    }
+  }
+
+  const handleDialogKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
       e.preventDefault()
       onClose()
     } else if (e.key === 'Tab') {
@@ -375,6 +385,7 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
+        onKeyDown={handleDialogKeyDown}
       >
         {/* Scope segmented control */}
         <div
