@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AuthShell from "../components/AuthShell";
 import TermsOfServiceChangelogModal from "../components/TermsOfServiceChangelogModal";
 import SubmitButton, { SUBMIT_DEMO_MS } from "../components/SubmitButton";
-import { validatePassword, scorePassword } from "../utils/passwordPolicy";
+import { validatePassword, strengthLevel } from "../utils/passwordPolicy";
 
 const highlights = [
   "Set up your business account in a minute",
@@ -47,11 +47,6 @@ const STRENGTH_COPY: Record<number, string> = {
   3: "Most password requirements met",
   4: "Strong enough for a production workspace",
 };
-
-function computeStrength(password: string): number {
-  if (!password) return 0;
-  return Math.max(1, Math.ceil((scorePassword(password) / 5) * 4));
-}
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -114,7 +109,7 @@ export default function Signup() {
   const showEmailError = (hasSubmitted || emailBlurred) && Boolean(emailErrorMessage);
   const showPasswordError = (hasSubmitted || passwordBlurred) && Boolean(passwordErrorMessage);
 
-  const strength = computeStrength(password);
+  const strength = strengthLevel(password);
   const hasAcknowledgedCurrentTerms = acknowledgedVersion === CURRENT_TOS_VERSION;
 
   useEffect(() => {
