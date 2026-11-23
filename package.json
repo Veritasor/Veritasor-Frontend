@@ -11,6 +11,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
     "preview": "vite preview",
+    "audit": "npm audit --omit=dev",
     "test:e2e": "playwright test",
     "test:e2e-update": "playwright test --update-snapshots"
   },

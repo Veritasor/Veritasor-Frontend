@@ -2,6 +2,19 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const PREVIEW_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+].join('; ')
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -11,6 +24,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api/': { target: 'http://localhost:3000', changeOrigin: true },
+    },
+  },
+  preview: {
+    headers: {
+      'Content-Security-Policy': PREVIEW_CSP,
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
     },
   },
   test: {
