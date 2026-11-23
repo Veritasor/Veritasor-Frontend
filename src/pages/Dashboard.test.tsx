@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Dashboard from './Dashboard'
+import { isAttestationDataStale, STALE_DATA_THRESHOLD_MS } from './Dashboard'
 import { ToastProvider } from '../components/ToastContext'
 import { AttestationsProvider } from '../state/attestations'
 
@@ -15,7 +16,18 @@ function renderPage() {
   )
 }
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe('Dashboard Page', () => {
+  it('exports the stale threshold and detects stale timestamps', () => {
+    const now = Date.parse('2026-07-27T12:00:00Z')
+    expect(STALE_DATA_THRESHOLD_MS).toBe(5 * 60 * 1000)
+    expect(isAttestationDataStale(new Date(now - STALE_DATA_THRESHOLD_MS).toISOString(), now)).toBe(true)
+    expect(isAttestationDataStale(new Date(now - STALE_DATA_THRESHOLD_MS + 1).toISOString(), now)).toBe(false)
+  })
+
   it('renders heading', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Dashboard')
@@ -30,6 +42,23 @@ describe('Dashboard Page', () => {
   it('renders trigger button', () => {
     renderPage()
     expect(screen.getByRole('button', { name: /trigger monthly revenue report/i })).toBeInTheDocument()
+  })
+
+  it('shows stale data after the threshold and hides it after refresh', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-27T12:00:00Z'))
+    renderPage()
+
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(STALE_DATA_THRESHOLD_MS)
+    })
+
+    expect(screen.getByText('Stale')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh data/i }))
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument()
   })
 
   it('has muted description text', () => {
