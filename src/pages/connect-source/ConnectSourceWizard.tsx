@@ -10,27 +10,23 @@ import {
 import WizardProgress from '../../components/WizardProgress'
 import { useToast } from '../../components/ToastContext'
 import { sourcesStore, generateSourceId } from '../../store/sourcesStore'
+import {
+  ConnectSourceProvider,
+  useConnectSource,
+  type InternalCategory,
+  type LedgerAccount,
+  type OAuthCallbackState,
+  type ProviderId,
+  type SyncWindowId,
+  type WizardData,
+} from './ConnectSourceContext'
 
-type ProviderId = 'stripe' | 'shopify' | 'razorpay'
-type OAuthCallbackState = 'success' | 'denied' | 'expired' | 'unknown'
-type AuthorizationStatus = 'idle' | 'pending' | 'authorized' | 'denied' | 'expired' | 'unknown'
-type SyncWindowId = 'trailing-12-months' | 'current-fiscal-year' | 'all-history'
-
-// ---------------------------------------------------------------------------
-// Mapping step types (#223)
-// ---------------------------------------------------------------------------
-
-type InternalCategory = 'recurring' | 'one-time' | 'refund' | 'fee' | 'other'
-type LedgerAccount = 'revenue' | 'deferred' | 'contra' | 'expense' | 'unassigned'
-
-interface CurrencyRow {
-  /** ISO 4217 code as reported by the source */
-  currency: string
-  /** User-assigned internal category */
-  category: InternalCategory | null
-  /** User-assigned ledger account */
-  ledgerAccount: LedgerAccount | null
-}
+export {
+  ConnectSourceContext,
+  ConnectSourceProvider,
+  CONNECT_SOURCE_STORAGE_KEY,
+  useConnectSource,
+} from './ConnectSourceContext'
 
 type ProviderDefinition = {
   id: ProviderId
@@ -53,27 +49,17 @@ type WizardStep = {
   detail: string
 }
 
-type WizardData = {
-  provider: ProviderId | null
-  authorizationStatus: AuthorizationStatus
-  oauthCallbackState: OAuthCallbackState
-  syncWindow: SyncWindowId | null
-  optionalScopes: string[]
-  /** Currency/ledger mapping rows (#223) */
-  currencyMappings: CurrencyRow[]
-  confirmLeastPrivilege: boolean
-  scopeValidationAttempted: boolean
-  mappingValidationAttempted: boolean
-}
-
 type WizardContext = {
   data: WizardData
   currentStepIndex: number
   providerName: string
   setProvider: (provider: ProviderId) => void
-  startAuthorization: () => void
+  startAuthorization: () => string
   setAuthorizationDenied: () => void
-  setOAuthCallbackState: (state: OAuthCallbackState) => void
+  setOAuthCallbackState: (
+    state: OAuthCallbackState,
+    errorDetails?: { error?: string | null; errorDescription?: string | null },
+  ) => void
   setSyncWindow: (windowId: SyncWindowId) => void
   toggleOptionalScope: (scopeId: string) => void
   setCurrencyMapping: (currency: string, field: 'category' | 'ledgerAccount', value: string) => void
@@ -182,14 +168,6 @@ const wizardSteps: WizardStep[] = [
   },
 ]
 
-// Default currency rows — in production these would come from the provider's account info
-const DEFAULT_CURRENCY_ROWS: CurrencyRow[] = [
-  { currency: 'USD', category: 'recurring', ledgerAccount: 'revenue' },
-  { currency: 'EUR', category: null, ledgerAccount: null },
-  { currency: 'GBP', category: null, ledgerAccount: null },
-  { currency: 'INR', category: null, ledgerAccount: null },
-]
-
 const CATEGORY_OPTIONS: { value: InternalCategory; label: string }[] = [
   { value: 'recurring', label: 'Recurring' },
   { value: 'one-time', label: 'One-time' },
@@ -205,18 +183,6 @@ const LEDGER_OPTIONS: { value: LedgerAccount; label: string }[] = [
   { value: 'expense', label: 'Expense' },
   { value: 'unassigned', label: 'Unassigned' },
 ]
-
-const initialWizardData: WizardData = {
-  provider: null,
-  authorizationStatus: 'idle',
-  oauthCallbackState: 'success',
-  syncWindow: null,
-  optionalScopes: [],
-  currencyMappings: DEFAULT_CURRENCY_ROWS,
-  confirmLeastPrivilege: false,
-  scopeValidationAttempted: false,
-  mappingValidationAttempted: false,
-}
 
 function getProviderName(provider: ProviderId | null) {
   return providerOptions.find((option) => option.id === provider)?.name ?? 'your provider'
@@ -234,10 +200,20 @@ function isAuthorizeComplete(data: WizardData) {
   return isProviderComplete(data) && data.authorizationStatus !== 'idle' && data.authorizationStatus !== 'pending'
 }
 
+function canAccessCallbackStep(data: WizardData) {
+  return (
+    isProviderComplete(data) &&
+    (isAuthorizeComplete(data) ||
+      data.authorizationStatus === 'pending' ||
+      data.oauthStateNonce !== null)
+  )
+}
+
 function isCallbackComplete(data: WizardData) {
   return (
     isAuthorizeComplete(data) &&
-    (data.authorizationStatus === 'authorized' || data.oauthCallbackState === 'success')
+    data.authorizationStatus === 'authorized' &&
+    data.oauthCallbackState === 'success'
   )
 }
 
@@ -266,16 +242,41 @@ function useWizardContext() {
 }
 
 export function ConnectSourceWizard() {
+  return (
+    <ConnectSourceProvider>
+      <ConnectSourceWizardShell />
+    </ConnectSourceProvider>
+  )
+}
+
+function ConnectSourceWizardShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const { addToast } = useToast()
-  const [data, setData] = useState<WizardData>(initialWizardData)
+  const {
+    data,
+    setData,
+    setProvider,
+    startAuthorization,
+    setOAuthCallbackState,
+    setSyncWindow,
+    toggleOptionalScope,
+    setCurrencyMapping,
+    setConfirmLeastPrivilege,
+    resetWizard,
+  } = useConnectSource()
   const currentStepIndex = getStepIndex(location.pathname)
   const providerName = getProviderName(data.provider)
 
   useEffect(() => {
     if (currentStepIndex === -1) {
       navigate(wizardSteps[0].path, { replace: true })
+      return
+    }
+
+    // Allow landing on /connect-source/callback when returning from an OAuth redirect
+    // (provider is selected and authorization is pending or a state nonce is stored).
+    if (currentStepIndex === 2 && canAccessCallbackStep(data)) {
       return
     }
 
@@ -287,21 +288,23 @@ export function ConnectSourceWizard() {
   }, [currentStepIndex, data, navigate])
 
   useEffect(() => {
-    if (data.authorizationStatus !== 'pending') {
+    if (data.authorizationStatus !== 'pending' || currentStepIndex !== 1) {
       return
     }
 
+    const nonce = data.oauthStateNonce
     const timeoutId = window.setTimeout(() => {
       setData((currentData) => ({
         ...currentData,
         authorizationStatus: 'authorized',
         oauthCallbackState: 'success',
       }))
-      navigate('/connect-source/callback?state=success')
+      const query = nonce ? `?state=${encodeURIComponent(nonce)}` : '?state=success'
+      navigate(`/connect-source/callback${query}`)
     }, 900)
 
     return () => window.clearTimeout(timeoutId)
-  }, [data.authorizationStatus, navigate])
+  }, [data.authorizationStatus, data.oauthStateNonce, currentStepIndex, navigate, setData])
 
   useEffect(() => {
     const activeStep = wizardSteps[currentStepIndex]
@@ -313,104 +316,14 @@ export function ConnectSourceWizard() {
     document.title = `${activeStep.label} | Connect source | Veritasor`
   }, [currentStepIndex])
 
-  const setProvider = useCallback(
-    (provider: ProviderId) =>
-      setData({
-        provider,
-        authorizationStatus: 'idle',
-        oauthCallbackState: 'success',
-        syncWindow: null,
-        optionalScopes: [],
-        currencyMappings: DEFAULT_CURRENCY_ROWS,
-        confirmLeastPrivilege: false,
-        scopeValidationAttempted: false,
-        mappingValidationAttempted: false,
-      }),
-    [],
-  )
-  const startAuthorization = useCallback(
-    () =>
-      setData((currentData) => ({
-        ...currentData,
-        authorizationStatus: 'pending',
-      })),
-    [],
-  )
   const setAuthorizationDenied = useCallback(() => {
-    setData((currentData) => ({
-      ...currentData,
-      authorizationStatus: 'denied',
-      oauthCallbackState: 'denied',
-    }))
-    navigate('/connect-source/callback?state=denied')
-  }, [navigate])
-  const setOAuthCallbackState = useCallback((state: OAuthCallbackState) => {
-    const authorizationStatus: AuthorizationStatus =
-      state === 'success'
-        ? 'authorized'
-        : state === 'denied'
-          ? 'denied'
-          : state === 'expired'
-            ? 'expired'
-            : 'unknown'
-
-    setData((currentData) => {
-      if (
-        currentData.oauthCallbackState === state &&
-        currentData.authorizationStatus === authorizationStatus
-      ) {
-        return currentData
-      }
-
-      return {
-        ...currentData,
-        oauthCallbackState: state,
-        authorizationStatus,
-      }
+    setOAuthCallbackState('denied', {
+      error: 'access_denied',
+      errorDescription: 'The user declined the authorization request.',
     })
-  }, [])
-  const setSyncWindow = useCallback(
-    (windowId: SyncWindowId) =>
-      setData((currentData) => ({
-        ...currentData,
-        syncWindow: windowId,
-        scopeValidationAttempted: false,
-        confirmLeastPrivilege: false,
-      })),
-    [],
-  )
-  const toggleOptionalScope = useCallback(
-    (scopeId: string) =>
-      setData((currentData) => ({
-        ...currentData,
-        optionalScopes: currentData.optionalScopes.includes(scopeId)
-          ? currentData.optionalScopes.filter((currentScope) => currentScope !== scopeId)
-          : [...currentData.optionalScopes, scopeId],
-        confirmLeastPrivilege: false,
-      })),
-    [],
-  )
-  const setCurrencyMapping = useCallback(
-    (currency: string, field: 'category' | 'ledgerAccount', value: string) =>
-      setData((currentData) => ({
-        ...currentData,
-        mappingValidationAttempted: false,
-        currencyMappings: currentData.currencyMappings.map((row) =>
-          row.currency === currency
-            ? { ...row, [field]: value === '' ? null : value }
-            : row,
-        ),
-      })),
-    [],
-  )
-  const setConfirmLeastPrivilege = useCallback(
-    (checked: boolean) =>
-      setData((currentData) => ({
-        ...currentData,
-        confirmLeastPrivilege: checked,
-      })),
-    [],
-  )
+    navigate('/connect-source/callback?error=access_denied')
+  }, [navigate, setOAuthCallbackState])
+
   const runTestConnection = useCallback(() => {}, [])
   const resetTestConnection = useCallback(() => {}, [])
 
@@ -503,6 +416,7 @@ export function ConnectSourceWizard() {
         lastSync: new Date().toISOString(),
       }
       sourcesStore.add(newSource)
+      resetWizard()
       addToast(`${providerName} connected successfully`, 'success')
       navigate('/sources')
       return
@@ -758,6 +672,11 @@ export function AuthorizeSourceStep() {
               Unknown OAuth callback response error encountered.
             </p>
           ) : null}
+          {data.authorizationStatus === 'mismatch' ? (
+            <p className="wizard-status-message wizard-status-message-error" role="alert">
+              OAuth state verification failed. Start a fresh authorization attempt to continue.
+            </p>
+          ) : null}
         </aside>
       </div>
     </div>
@@ -768,12 +687,74 @@ export function OAuthCallbackLandingStep() {
   const { data, providerName, setOAuthCallbackState } = useWizardContext()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const stateParam =
-    searchParams.get('state') || searchParams.get('status') || searchParams.get('error')
+  const errorParam = searchParams.get('error')
+  const errorDescriptionParam = searchParams.get('error_description')
+  const stateParam = searchParams.get('state')
+  const statusParam = searchParams.get('status')
+  const storedNonce = data.oauthStateNonce ?? null
 
   useEffect(() => {
+    // 1. Explicit OAuth error parameter from the provider takes highest precedence
+    if (errorParam) {
+      const lower = errorParam.toLowerCase()
+      const details = {
+        error: errorParam,
+        errorDescription: errorDescriptionParam,
+      }
+      if (lower.includes('denied') || lower.includes('access_denied')) {
+        setOAuthCallbackState('denied', details)
+      } else if (lower.includes('expire') || lower.includes('timeout')) {
+        setOAuthCallbackState('expired', details)
+      } else {
+        setOAuthCallbackState('unknown', details)
+      }
+      return
+    }
+
+    // 2. Validate state parameter against stored anti-CSRF nonce when present
     if (stateParam) {
       const lower = stateParam.toLowerCase()
+      if (storedNonce) {
+        if (stateParam === storedNonce) {
+          setOAuthCallbackState('success')
+        } else if (lower === 'denied' || lower === 'access_denied') {
+          setOAuthCallbackState('denied')
+        } else if (lower === 'expired' || lower === 'timeout') {
+          setOAuthCallbackState('expired')
+        } else if (lower === 'unknown') {
+          setOAuthCallbackState('unknown')
+        } else {
+          setOAuthCallbackState('mismatch', {
+            error: 'state_mismatch',
+            errorDescription:
+              'The OAuth state parameter returned by the provider did not match this session.',
+          })
+        }
+        return
+      }
+
+      // No stored nonce (e.g., direct demo links or isolated callback previews)
+      if (lower.includes('denied') || lower.includes('access_denied')) {
+        setOAuthCallbackState('denied')
+      } else if (lower.includes('expire') || lower.includes('timeout')) {
+        setOAuthCallbackState('expired')
+      } else if (lower.includes('unknown') || lower.includes('error') || lower.includes('invalid')) {
+        setOAuthCallbackState('unknown')
+      } else if (lower.includes('success') || lower.includes('authorized')) {
+        setOAuthCallbackState('success')
+      } else {
+        setOAuthCallbackState('mismatch', {
+          error: 'state_mismatch',
+          errorDescription:
+            'No active OAuth session nonce was found to verify the returned state parameter.',
+        })
+      }
+      return
+    }
+
+    // 3. Fallback to status query param
+    if (statusParam) {
+      const lower = statusParam.toLowerCase()
       if (lower.includes('denied') || lower.includes('access_denied')) {
         setOAuthCallbackState('denied')
       } else if (lower.includes('expire') || lower.includes('timeout')) {
@@ -784,7 +765,7 @@ export function OAuthCallbackLandingStep() {
         setOAuthCallbackState('success')
       }
     }
-  }, [stateParam, setOAuthCallbackState])
+  }, [errorParam, errorDescriptionParam, stateParam, statusParam, storedNonce, setOAuthCallbackState])
 
   const currentState: OAuthCallbackState = data.oauthCallbackState || 'success'
 
@@ -847,6 +828,22 @@ export function OAuthCallbackLandingStep() {
       secondaryCtaAction: () => navigate('/connect-source/provider'),
       isError: true,
     },
+    mismatch: {
+      badgeClass: 'status-denied',
+      badgeText: 'State Mismatch',
+      title: 'OAuth state verification failed',
+      subtitle:
+        'The state token returned by the provider did not match your active session. This can happen if the link was tampered with or opened in a different tab.',
+      telemetryCode: 'ERR_OAUTH_STATE_MISMATCH',
+      telemetryDetail:
+        'Anti-CSRF state nonce validation failed. No credentials were accepted; restart authorization to generate a fresh state token.',
+      refId: 'auth-ref-mismatch-4019',
+      primaryCtaLabel: 'Restart authorization',
+      primaryCtaAction: () => navigate('/connect-source/authorize'),
+      secondaryCtaLabel: 'Choose another provider',
+      secondaryCtaAction: () => navigate('/connect-source/provider'),
+      isError: true,
+    },
     unknown: {
       badgeClass: 'status-unknown',
       badgeText: 'Handoff Error',
@@ -901,6 +898,14 @@ export function OAuthCallbackLandingStep() {
         <p className="wizard-supporting-copy" style={{ marginBottom: '1.25rem' }}>
           {currentDetails.subtitle}
         </p>
+
+        {/* Provider-supplied error details when present */}
+        {currentDetails.isError && (data.oauthError || data.oauthErrorDescription) ? (
+          <div className="wizard-inline-alert" role="alert" style={{ marginBottom: '1rem' }}>
+            {data.oauthError ? <strong>{data.oauthError}: </strong> : null}
+            {data.oauthErrorDescription ?? 'Authorization could not be completed.'}
+          </div>
+        ) : null}
 
         {/* Telemetry-Safe Error / Status Details */}
         <div className="oauth-telemetry-box" role={currentDetails.isError ? 'alert' : 'status'}>

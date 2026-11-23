@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ApiError, request } from "../services/apiClient";
+import { useOptionalWorkspace } from "../state/workspace";
 
 export type DensityMode = "comfortable" | "compact";
 
@@ -23,11 +23,14 @@ export interface UseDensityModeOptions {
  * reading localStorage as the fast default).
  */
 export function useDensityMode(
-  workspace: string,
+  workspace?: string,
   options: UseDensityModeOptions = {},
 ) {
   const { onPersistError } = options;
-  const storageKey = `${DENSITY_STORAGE_PREFIX}${workspace}`;
+  const workspaceCtx = useOptionalWorkspace();
+  const effectiveWorkspace =
+    workspace ?? workspaceCtx?.activeWorkspaceId ?? "default";
+  const storageKey = `${DENSITY_STORAGE_PREFIX}${effectiveWorkspace}`;
   const onPersistErrorRef = useRef(onPersistError);
   onPersistErrorRef.current = onPersistError;
 
@@ -62,22 +65,38 @@ export function useDensityMode(
       // 2. API persistence (fire-and-forget with rollback)
       request(API_BASE, {
         method: "PUT",
-        body: { workspace, density: mode },
-        parseAs: "void",
-      }).catch(() => {
-        // 3. Rollback on failure (HTTP or network error)
-        setDensityState(validatedPrevious);
-        try {
-          localStorage.setItem(storageKey, validatedPrevious);
-        } catch {
-          // ignore
-        }
-        onPersistErrorRef.current?.(
-          "Could not save density preference. Changes reverted.",
-        );
-      });
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: effectiveWorkspace, density: mode }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            // 3. Rollback on failure
+            setDensityState(validatedPrevious);
+            try {
+              localStorage.setItem(storageKey, validatedPrevious);
+            } catch {
+              // ignore
+            }
+            onPersistErrorRef.current?.(
+              "Could not save density preference. Changes reverted.",
+            );
+          }
+          // On success, do nothing — optimistic update is already applied
+        })
+        .catch(() => {
+          // Network error — rollback
+          setDensityState(validatedPrevious);
+          try {
+            localStorage.setItem(storageKey, validatedPrevious);
+          } catch {
+            // ignore
+          }
+          onPersistErrorRef.current?.(
+            "Could not save density preference. Changes reverted.",
+          );
+        });
     },
-    [storageKey],
+    [storageKey, effectiveWorkspace],
   );
 
   // On mount / workspace change, sync with localStorage and attempt server read
@@ -97,14 +116,14 @@ export function useDensityMode(
     }
 
     // Attempt to fetch server preference to sync across devices
-    request<{ density?: string }>(
-      `${API_BASE}?workspace=${encodeURIComponent(workspace)}`,
-      {
-        method: "GET",
-        signal: abortController.signal,
-      },
-    )
-      .then((data) => {
+    fetch(`${API_BASE}?workspace=${encodeURIComponent(effectiveWorkspace)}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      signal: abortController.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
         if (
           data?.density === "compact" ||
           data?.density === "comfortable"
@@ -125,7 +144,7 @@ export function useDensityMode(
     return () => {
       abortController.abort();
     };
-  }, [storageKey]);
+  }, [storageKey, effectiveWorkspace]);
 
   return { density, setDensity };
 }

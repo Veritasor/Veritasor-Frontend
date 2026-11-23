@@ -1,4 +1,3 @@
-import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import ProofShareModal from './ProofShareModal'
@@ -26,13 +25,13 @@ describe('ProofShareModal', () => {
 
   it('does not render when isOpen is false', () => {
     renderModal(false)
-    expect(screen.queryByRole('dialog')).not.toBeInDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('renders modal with correct title when open', () => {
     renderModal()
-    expect(screen.getByRole('dialog')).toBeInDocument()
-    expect(screen.getByText('Share Attestation Proof')).toBeInDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('Share Attestation Proof')).toBeInTheDocument()
   })
 
   it('closes when close button is clicked', () => {
@@ -51,7 +50,7 @@ describe('ProofShareModal', () => {
     renderModal()
     const generateBtn = screen.getByText('Generate Link')
     fireEvent.click(generateBtn)
-    expect(screen.getByLabelText('Generated link')).toBeInDocument()
+    expect(screen.getByLabelText('Generated link')).toBeInTheDocument()
   })
 
   it('shows error if password is too weak when password protected', () => {
@@ -66,7 +65,62 @@ describe('ProofShareModal', () => {
     
     // Toast should show "Please enter a stronger password."
     // We check that the link wasn't generated
-    expect(screen.queryByLabelText('Generated link')).not.toBeInDocument()
+    expect(screen.queryByLabelText('Generated link')).not.toBeInTheDocument()
+  })
+
+  it('blocks link generation if password fails password policy', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    // Missing symbol and uppercase
+    const passwordInput = screen.getByLabelText('Password')
+    fireEvent.change(passwordInput, { target: { value: 'abcdefgh1234' } })
+
+    const generateBtn = screen.getByText('Generate Link')
+    fireEvent.click(generateBtn)
+
+    expect(screen.queryByLabelText('Generated link')).not.toBeInTheDocument()
+  })
+
+  it('blocks link generation if password field is empty when password protected', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    const generateBtn = screen.getByText('Generate Link')
+    fireEvent.click(generateBtn)
+
+    expect(screen.queryByLabelText('Generated link')).not.toBeInTheDocument()
+  })
+
+  it('does not show failures list when input is empty', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    expect(screen.queryByLabelText('Password requirements')).not.toBeInTheDocument()
+  })
+
+  it('shows failures list from validatePassword when permission is password and input is non-empty', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    const passwordInput = screen.getByLabelText('Password')
+    fireEvent.change(passwordInput, { target: { value: 'weak' } })
+
+    expect(screen.getByLabelText('Password requirements')).toBeInTheDocument()
+    expect(screen.getByText('Use at least 12 characters.')).toBeInTheDocument()
+    expect(screen.getByText('Include an uppercase letter.')).toBeInTheDocument()
+    expect(screen.getByText('Include a number.')).toBeInTheDocument()
+    expect(screen.getByText('Include a symbol.')).toBeInTheDocument()
+  })
+
+  it('hides failures list when password satisfies all rules', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    const passwordInput = screen.getByLabelText('Password')
+    fireEvent.change(passwordInput, { target: { value: 'StrongPass123!' } })
+
+    expect(screen.queryByLabelText('Password requirements')).not.toBeInTheDocument()
   })
 
   it('generates password-protected link with strong password', () => {
@@ -79,7 +133,7 @@ describe('ProofShareModal', () => {
     const generateBtn = screen.getByText('Generate Link')
     fireEvent.click(generateBtn)
     
-    expect(screen.getByLabelText('Generated link')).toBeInDocument()
+    expect(screen.getByLabelText('Generated link')).toBeInTheDocument()
   })
 
   it('toggles password visibility', () => {
@@ -103,7 +157,7 @@ describe('ProofShareModal', () => {
     
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalled()
-      expect(screen.getByText(/Copied!/i)).toBeInDocument()
+      expect(screen.getByText(/Copied!/i)).toBeInTheDocument()
     })
   })
 })

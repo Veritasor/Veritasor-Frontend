@@ -3012,9 +3012,14 @@ input {
   animation: shimmer 2s infinite;
 }
 
+[data-reduced-motion="true"] .skeleton,
+.skeleton[data-reduced-motion="true"] {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
-    animation: pulse 2s infinite;
+    animation: none;
   }
 }
 
@@ -3915,6 +3920,11 @@ input {
 }
 
 /* ── Reduced-motion: instant swap, no transitions ─────────────────────── */
+.crossfade-root[data-reduced-motion="true"] .crossfade-skeleton-layer,
+.crossfade-root[data-reduced-motion="true"] .crossfade-content-layer {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .crossfade-root[data-loaded="true"] .crossfade-skeleton-layer,
   .crossfade-root[data-loaded="true"] .crossfade-content-layer,

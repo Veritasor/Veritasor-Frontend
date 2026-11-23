@@ -5,6 +5,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from 'react'
 import type { AttestationDetails } from '../components/AttestationConfirmModal'
@@ -57,15 +58,27 @@ export function attestationsReducer(
 
 interface AttestationsContextValue {
   list: Attestation[]
+  lastUpdated: string
   getById: (id: string) => Attestation | undefined
   trigger: (details: AttestationDetails) => Promise<Attestation>
+  refresh: () => void
 }
 
 const AttestationsContext = createContext<AttestationsContextValue | undefined>(undefined)
 
-export function AttestationsProvider({ children }: { children: ReactNode }) {
-  const [list, dispatch] = useReducer(attestationsReducer, MOCK_ATTESTATIONS)
+export function AttestationsProvider({
+  children,
+  initialAttestations = MOCK_ATTESTATIONS,
+}: {
+  children: ReactNode
+  initialAttestations?: Attestation[]
+}) {
+  const [list, dispatch] = useReducer(attestationsReducer, initialAttestations)
   const nextId = useRef(1)
+
+  const refresh = useCallback(() => {
+    setLastUpdated(new Date().toISOString())
+  }, [])
 
   const getById = useCallback(
     (id: string) => list.find((attestation) => attestation.id === id),
@@ -74,6 +87,7 @@ export function AttestationsProvider({ children }: { children: ReactNode }) {
 
   const trigger = useCallback(async (details: AttestationDetails) => {
     const now = new Date().toISOString()
+    setLastUpdated(now)
     const attestation: Attestation = {
       ...details,
       id: `att-${Date.now()}-${nextId.current++}`,
@@ -101,12 +115,13 @@ export function AttestationsProvider({ children }: { children: ReactNode }) {
     }
 
     dispatch({ type: 'transition', id: attestation.id, status: 'verified' })
+    setLastUpdated(new Date().toISOString())
     return { ...attestation, status: 'verified' as const }
   }, [])
 
   const value = useMemo(
-    () => ({ list, getById, trigger }),
-    [list, getById, trigger],
+    () => ({ list, lastUpdated, getById, trigger, refresh }),
+    [list, lastUpdated, getById, trigger, refresh],
   )
 
   return <AttestationsContext.Provider value={value}>{children}</AttestationsContext.Provider>

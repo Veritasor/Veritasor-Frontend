@@ -2,31 +2,49 @@
 
 **Framework:** React 18 + React Router 6 + Vite + TypeScript (vanilla CSS, no component library)
 **Standard:** WCAG 2.1 AA
-**Last updated:** 2026-03-30
+**Last updated:** 2026-11-23
 
-> **Codebase note:** This project is early-stage (~144 LOC, 6 source files). No accessibility
-> tooling, focus styles, aria attributes, or keyboard handlers currently exist. This checklist
-> is written both against the code that exists today **and** as a forward-looking guide for
-> every component added going forward.
+> **Codebase note:** The app is no longer early-stage: `src/` holds roughly 290 TypeScript
+> source files, and accessibility work is well under way. Automated axe checks run in
+> Playwright end-to-end tests (`e2e/rtl-visual.spec.ts` via `@axe-core/playwright`), and the
+> app ships an in-app audit UI (`src/components/a11y/A11yAuditPanel.tsx`) alongside a
+> component-to-WCAG coverage matrix (`src/components/a11y/A11yCoverageMatrix.tsx`, documented
+> in [`docs/uiux/a11y-coverage-matrix.md`](./uiux/a11y-coverage-matrix.md)).
+> Before building a new accessibility component, check the coverage matrix and the other
+> guides in `docs/uiux/` (for example `landmarks-and-skip-link.md`, `top-app-bar-a11y.md`
+> and `motion-reduced-motion-policy.md`) so you do not duplicate existing work.
+> The "Current state" notes in sections below were written against an earlier snapshot of
+> the code; treat the checklist items as the standard and verify the notes against the
+> source before relying on them.
 
 ---
 
 ## 0. Prerequisite Tooling
 
-Install these before working on any item below. None of them exist in the project today.
+Status of the tooling this checklist relies on:
+
+| Tool | Status | Where |
+|------|--------|-------|
+| `@axe-core/playwright` | **Installed** (devDependency) | `e2e/rtl-visual.spec.ts` runs `AxeBuilder` scans |
+| Vitest | **Installed** (`npm test`) | Component tests, including `A11yAuditPanel.test.tsx` |
+| In-app audit panel | **Available** | `src/components/a11y/A11yAuditPanel.tsx` (Settings, Accessibility tab) |
+| Coverage matrix | **Available** | `src/components/a11y/A11yCoverageMatrix.tsx`, see [a11y-coverage-matrix.md](./uiux/a11y-coverage-matrix.md) |
+| `eslint-plugin-jsx-a11y` | **Not installed yet** | Optional, see below |
+| `jest-axe` / `@axe-core/react` | **Not installed yet** | Optional, see below |
 
 ```bash
-# Automated linting (catches ~30–40% of WCAG issues at author time)
-npm install --save-dev eslint-plugin-jsx-a11y
-
-# Axe browser extension — install in Chrome/Firefox for manual page audits
+# Axe browser extension: install in Chrome/Firefox for manual page audits
 # https://www.deque.com/axe/browser-extensions/
 
-# Unit-test accessibility assertions (add when Jest/Vitest is configured)
-npm install --save-dev @axe-core/react jest-axe
+# Still to add (optional):
+# Automated linting (catches ~30-40% of WCAG issues at author time)
+npm install --save-dev eslint-plugin-jsx-a11y
+
+# Unit-test accessibility assertions (Vitest is already configured)
+npm install --save-dev jest-axe
 ```
 
-`eslint.config.js` (add the plugin):
+`eslint.config.js` (add the plugin once installed):
 ```js
 import jsxA11y from 'eslint-plugin-jsx-a11y'
 
@@ -581,7 +599,7 @@ Test steps:
 
 ## Appendix C: Priority Order for Implementation
 
-Given the project is early-stage, address in this order:
+When auditing an area that has not been covered yet, address items in this order (skip any that the coverage matrix already shows as done):
 
 1. **`src/index.css`** — Add `:focus-visible` ring + `.sr-only` utility (10 min, zero-risk)
 2. **`src/components/Layout.tsx`** — `aria-label` on `<nav>`, `id` on `<main>`, `NavLink` with `aria-current`, skip link (20 min)

@@ -3,6 +3,7 @@ import {
   EMPTY_FILTER_STATE,
   MAX_FILTERS_PER_WORKSPACE,
   MAX_FILTER_NAME_LENGTH,
+  filterAuditLogEntries,
   findMatchingSavedFilter,
   isFilterEmpty,
   isValidIsoDate,
@@ -365,6 +366,35 @@ describe('auditLogFilters', () => {
         location: { href: 'https://app.example.com/audit' },
       })
       expect(readFilterStateFromLocation()).toEqual({ ...EMPTY_FILTER_STATE })
+    })
+  })
+
+  describe('filterAuditLogEntries', () => {
+    const sampleEntries = [
+      { id: '1', timestamp: '2026-07-28T08:12:00Z', event: 'Attestation completed', details: 'Merkle root: 0x7f', severity: 'info' },
+      { id: '2', timestamp: '2026-07-27T14:30:00Z', event: 'Attestation failed', details: 'Timeout after 30s', severity: 'error' },
+      { id: '3', timestamp: '2026-07-26T10:00:00Z', event: 'API key rotated', severity: 'warn' },
+    ]
+
+    it('returns all entries when filter is undefined or empty', () => {
+      expect(filterAuditLogEntries(sampleEntries)).toEqual(sampleEntries)
+      expect(filterAuditLogEntries(sampleEntries, EMPTY_FILTER_STATE)).toEqual(sampleEntries)
+    })
+
+    it('filters by query substring across event, details, id, and severity', () => {
+      expect(filterAuditLogEntries(sampleEntries, { query: 'timeout' })).toEqual([sampleEntries[1]])
+      expect(filterAuditLogEntries(sampleEntries, { query: 'rotated' })).toEqual([sampleEntries[2]])
+    })
+
+    it('filters by activeChips matching severity or event keyword', () => {
+      expect(filterAuditLogEntries(sampleEntries, { activeChips: ['error'] })).toEqual([sampleEntries[1]])
+      expect(filterAuditLogEntries(sampleEntries, { activeChips: ['failed'] })).toEqual([sampleEntries[1]])
+    })
+
+    it('filters by inclusive dateFrom and dateTo bounds', () => {
+      expect(
+        filterAuditLogEntries(sampleEntries, { dateFrom: '2026-07-27', dateTo: '2026-07-27' }),
+      ).toEqual([sampleEntries[1]])
     })
   })
 })

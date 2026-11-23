@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import type { NewScheduleRule, ScheduleRule } from '../../store/scheduleStore'
 
 export type Cadence = 'daily' | 'weekly' | 'monthly'
 
@@ -17,8 +18,9 @@ function toLocalIsoDate(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
-function isLeapYear(year: number) {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+function fromLocalIsoDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day)
 }
 
 function addDaysLocal(date: Date, days: number) {
@@ -74,8 +76,9 @@ function describeRecurrence(args: {
   startDate: Date
   selectedDate: Date
   monthlyMode: 'dayOfMonth' | 'lastDay'
+  timeZone: string
 }) {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const tz = args.timeZone
   const startLocal = args.startDate
   const selLocal = args.selectedDate
 
@@ -113,28 +116,40 @@ export type AttestationCalendarProps = {
   scheduledDates?: (string | Date)[]
   initialMonth?: Date
   initialSelectedDate?: Date
+  initialRule?: ScheduleRule
+  onSave?: (rule: NewScheduleRule) => void
+  onCancelEdit?: () => void
 }
 
 export function AttestationCalendar({
   scheduledDates = [],
   initialMonth,
   initialSelectedDate,
+  initialRule,
+  onSave,
+  onCancelEdit,
 }: AttestationCalendarProps) {
   const today = useMemo(() => new Date(), [])
 
   const [monthCursor, setMonthCursor] = useState<Date>(() => {
-    const base = initialMonth ?? today
+    const base = initialMonth ?? (initialRule ? fromLocalIsoDate(initialRule.startDate) : today)
     return startOfMonthLocal(base)
   })
 
   const [selectedIsoDate, setSelectedIsoDate] = useState<string>(() => {
-    const base = initialSelectedDate ?? today
+    const base = initialRule
+      ? fromLocalIsoDate(initialRule.startDate)
+      : initialSelectedDate ?? today
     return toLocalIsoDate(base)
   })
 
   // Recurrence Builder state
-  const [cadence, setCadence] = useState<Cadence>('monthly')
-  const [monthlyMode, setMonthlyMode] = useState<'dayOfMonth' | 'lastDay'>('dayOfMonth')
+  const [cadence, setCadence] = useState<Cadence>(initialRule?.cadence ?? 'monthly')
+  const [monthlyMode, setMonthlyMode] = useState<'dayOfMonth' | 'lastDay'>(initialRule?.monthlyMode ?? 'dayOfMonth')
+  const [localTime, setLocalTime] = useState(initialRule?.localTime ?? '09:00')
+  const [timeZone, setTimeZone] = useState(
+    initialRule?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+  )
 
   const selectedDate = useMemo(() => {
     const [y, m, d] = selectedIsoDate.split('-').map((x) => Number(x))
@@ -217,7 +232,6 @@ export function AttestationCalendar({
   const activeCellIso = selectedIsoDate
 
   useEffect(() => {
-    // Keep focus aligned with selection when user selects via Enter/Space.
     const el = cellRefs.current.get(activeCellIso)
     if (el) el.focus()
   }, [activeCellIso])
@@ -312,34 +326,39 @@ export function AttestationCalendar({
     }
   }
 
+  function handleSave() {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(localTime)) {
+      announce('Enter a valid run time.')
+      return
+    }
+    try {
+      new Intl.DateTimeFormat(undefined, { timeZone })
+    } catch {
+      announce('Enter a valid IANA time zone, such as America/New_York.')
+      return
+    }
+    onSave?.({
+      startDate: selectedIsoDate,
+      cadence,
+      monthlyMode,
+      localTime,
+      timeZone,
+    })
+    announce(initialRule ? 'Attestation schedule updated.' : 'Attestation schedule saved.')
+  }
+
   const cadenceSummary = useMemo(() => {
     const normalized = normalizeSelectedForCadence({ cadence, selectedDate })
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    const humanStart = new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(startDate)
-
-    // Use selected date for weekly day and monthly day.
-    void humanStart
-    void tz
-
-    // Leap-day behavior handled in describeRecurrence for Feb 29.
     return describeRecurrence({
       cadence,
       startDate,
       selectedDate: normalized,
       monthlyMode,
+      timeZone,
     })
-  }, [cadence, monthlyMode, selectedDate, startDate])
+  }, [cadence, monthlyMode, selectedDate, startDate, timeZone])
 
   const labels = useMemo(() => weekdayShortLabels(), [])
-
-  const tzLabel = useMemo(() => {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    return tz
-  }, [])
 
   return (
     <section
@@ -376,7 +395,7 @@ export function AttestationCalendar({
             <div style={{ display: 'grid', gap: '0.25rem' }}>
               <strong style={{ fontSize: '1rem' }}>{formatMonthYear(monthCursor)}</strong>
               <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
-                Time zone: {tzLabel}
+                Time zone: {timeZone}
               </span>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -487,10 +506,6 @@ export function AttestationCalendar({
                     position: 'relative',
                     outline: 'none',
                   }}
-                  onFocus={() => {
-                    // Treat focus as highlight; announce lightly.
-                    announce(`Highlighted ${formatSelectedHuman(day.date)}.`)
-                  }}
                 >
                   <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{day.date.getDate()}</span>
                   {/* subtle scheduled indicator */}
@@ -534,8 +549,8 @@ export function AttestationCalendar({
         <aside
           aria-label="Recurrence builder"
           style={{
-            borderLeft: '1px solid var(--border)',
-            paddingLeft: 'var(--density-row-gap)',
+            borderInlineStart: '1px solid var(--border)',
+            paddingInlineStart: 'var(--density-row-gap)',
           }}
         >
           <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -544,6 +559,42 @@ export function AttestationCalendar({
               <div style={{ color: 'var(--muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>
                 Rule begins on the selected calendar date.
               </div>
+
+              <label style={{ display: 'grid', gap: '0.35rem', fontWeight: 700 }}>
+                Run at
+                <input
+                  type="time"
+                  value={localTime}
+                  onChange={(event) => setLocalTime(event.target.value)}
+                  aria-label="Run time"
+                  style={{
+                    minHeight: 44,
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--text)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'grid', gap: '0.35rem', fontWeight: 700 }}>
+                Time zone
+                <input
+                  value={timeZone}
+                  onChange={(event) => setTimeZone(event.target.value)}
+                  aria-label="Time zone"
+                  required
+                  style={{
+                    minHeight: 44,
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--text)',
+                  }}
+                />
+              </label>
             </div>
 
             <fieldset style={{ border: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
@@ -646,9 +697,7 @@ export function AttestationCalendar({
             <div style={{ display: 'grid', gap: '0.4rem', marginTop: '0.5rem' }}>
               <strong style={{ fontSize: '0.95rem' }}>Plain-English Summary</strong>
               <div
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
+                role="note"
                 style={{
                   border: '1px solid rgba(148, 163, 184, 0.22)',
                   background: 'rgba(148, 163, 184, 0.06)',
@@ -662,6 +711,45 @@ export function AttestationCalendar({
               >
                 {cadenceSummary}
               </div>
+
+              {onSave ? (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    style={{
+                      minHeight: 44,
+                      padding: '0.55rem 0.9rem',
+                      borderRadius: 10,
+                      border: '1px solid var(--accent)',
+                      background: 'var(--accent)',
+                      color: '#04111f',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {initialRule ? 'Update schedule' : 'Save schedule'}
+                  </button>
+                  {initialRule && onCancelEdit ? (
+                    <button
+                      type="button"
+                      onClick={onCancelEdit}
+                      style={{
+                        minHeight: 44,
+                        padding: '0.55rem 0.9rem',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        background: 'transparent',
+                        color: 'var(--text)',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel editing
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div
                 style={{
@@ -694,6 +782,12 @@ export function AttestationCalendar({
                   </li>
                   <li>
                     <strong>Leap days:</strong> if the recurrence targets Feb 29, non-leap years roll the run back to Feb 28 (never skipped).
+                  </li>
+                  <li>
+                    <strong>Mobile:</strong> below 820px, the recurrence builder stacks beneath the calendar.
+                  </li>
+                  <li>
+                    <strong>RTL:</strong> the builder divider follows the page direction; the calendar remains Monday-first regardless of locale.
                   </li>
                 </ul>
               </div>

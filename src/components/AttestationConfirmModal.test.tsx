@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import AttestationConfirmModal, {
   AttestationDetails,
@@ -286,6 +286,129 @@ describe('AttestationConfirmModal', () => {
       fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
 
       expect(getConfirmButton()).toHaveFocus()
+    })
+  })
+
+  describe('Double submission prevention and error recovery', () => {
+    it('disables confirm while async onConfirm is pending and prevents double submission', async () => {
+      let resolveConfirm!: () => void
+      const onConfirm = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveConfirm = resolve
+          }),
+      )
+
+      setup({ details, feeInfo, onConfirm })
+
+      const confirmBtn = getConfirmButton()
+      fireEvent.click(confirmBtn)
+      fireEvent.click(confirmBtn)
+      fireEvent.click(confirmBtn)
+
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', { name: 'Attesting…' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Attesting…' })).toHaveAttribute('aria-busy', 'true')
+      expect(getCancelButton()).toBeDisabled()
+
+      resolveConfirm()
+
+      await waitFor(() => {
+        expect(getConfirmButton()).not.toBeDisabled()
+      })
+      expect(getConfirmButton()).toHaveAttribute('aria-busy', 'false')
+    })
+
+    it('ignores backdrop clicks while async onConfirm is pending', async () => {
+      let resolveConfirm!: () => void
+      const onConfirm = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveConfirm = resolve
+          }),
+      )
+
+      const { onClose } = setup({ details, feeInfo, onConfirm })
+
+      fireEvent.click(getConfirmButton())
+
+      const backdrop = screen.getByRole('dialog').parentElement
+      fireEvent.click(backdrop as HTMLElement)
+      expect(onClose).not.toHaveBeenCalled()
+
+      resolveConfirm()
+      await waitFor(() => {
+        expect(getConfirmButton()).not.toBeDisabled()
+      })
+    })
+
+    it('announces rejection error and allows retry', async () => {
+      const onConfirm = vi
+        .fn<() => Promise<void>>()
+        .mockRejectedValueOnce(new Error('Stellar RPC timeout'))
+        .mockResolvedValueOnce(undefined)
+
+      setup({ details, feeInfo, onConfirm })
+
+      fireEvent.click(getConfirmButton())
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Stellar RPC timeout')
+      })
+      expect(getConfirmButton()).not.toBeDisabled()
+      expect(getCancelButton()).not.toBeDisabled()
+
+      fireEvent.click(getConfirmButton())
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      })
+      expect(onConfirm).toHaveBeenCalledTimes(2)
+    })
+
+    it('shows fallback error message for non-Error rejections', async () => {
+      const onConfirm = vi.fn<() => Promise<void>>().mockRejectedValueOnce(null)
+
+      setup({ details, feeInfo, onConfirm })
+
+      fireEvent.click(getConfirmButton())
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          /failed to submit attestation/i,
+        )
+      })
+    })
+
+    it('clears internal error when modal closes', async () => {
+      const onClose = vi.fn()
+      const onConfirm = vi
+        .fn<() => Promise<void>>()
+        .mockRejectedValueOnce(new Error('Network failure'))
+
+      const { rerender } = render(
+        <AttestationConfirmModal open onClose={onClose} onConfirm={onConfirm} details={details} />,
+      )
+
+      fireEvent.click(getConfirmButton())
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Network failure')
+      })
+
+      rerender(
+        <AttestationConfirmModal
+          open={false}
+          onClose={onClose}
+          onConfirm={onConfirm}
+          details={details}
+        />,
+      )
+      rerender(
+        <AttestationConfirmModal open onClose={onClose} onConfirm={onConfirm} details={details} />,
+      )
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 })

@@ -177,15 +177,23 @@ describe('vite-env.d.ts — vite/client ambient contract', () => {
   describe('ambient declaration drift guard', () => {
     const declaration = readFileSync(resolve(process.cwd(), 'src/vite-env.d.ts'), 'utf8')
 
-    it('contains exactly the vite/client reference directive', () => {
+    it('starts with the vite/client reference directive', () => {
       // Guards the fixture's public contract: if the ambient entry point is edited,
       // this suite fails loudly instead of letting capabilities silently disappear.
-      expect(declaration.trim()).toBe('/// <reference types="vite/client" />')
+      expect(declaration.trimStart().startsWith('/// <reference types="vite/client" />')).toBe(true)
     })
 
     it('declares no additional reference directives', () => {
       const directives = declaration.match(/\/\/\/\s*<reference/g) ?? []
       expect(directives).toHaveLength(1)
+    })
+
+    it('declares ImportMetaEnv with typed optional VITE_* variables', () => {
+      expect(declaration).toContain('interface ImportMetaEnv')
+      expect(declaration).toContain('readonly VITE_API_URL?: string')
+      expect(declaration).toContain('readonly VITE_SESSION_DURATION_MINUTES?: string')
+      expect(declaration).toContain('readonly VITE_SESSION_WARNING_BEFORE_MINUTES?: string')
+      expect(declaration).toContain('interface ImportMeta')
     })
   })
 })
