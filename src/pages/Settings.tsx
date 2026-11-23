@@ -1,8 +1,9 @@
 import { createContext, useContext, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useBlocker, useLocation, useNavigate } from 'react-router-dom'
+import { useIntl } from 'react-intl'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
-import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
+import { auditLogApi } from '../services/auditLogApi'
 import TokensExport from '../components/tokens/TokensExport'
 import TokensDiffViewer from '../components/tokens/TokensDiffViewer'
 import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
@@ -2997,98 +2998,10 @@ const MOCK_AUDIT_ENTRIES: AuditLogEntry[] = [
   },
 ];
 
-// Simulated detail data for each audit log entry.
-// In production this would be fetched from the API by entry id.
-const MOCK_AUDIT_DETAILS: Record<string, Partial<AuditLogEntryDetail>> = {
-  "1": {
-    actor: "joel@example.com",
-    ip: "203.0.113.42",
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    method: "POST",
-    path: "/api/v1/attestations",
-    statusCode: 200,
-    requestHeaders: {
-      "content-type": "application/json",
-      "authorization": "Bearer vrt_live_••••3f9a",
-      "x-request-id": "req_01j8abc123xyz",
-    },
-    requestPayload: {
-      source: "stripe",
-      period: "2026-06",
-      recordCount: 1247,
-    },
-    responsePayload: {
-      id: "att_01j8xyz",
-      merkleRoot: "0x7f3a2c9b1d8e4f06a5c2b7e3d1f09a4c",
-      status: "completed",
-      timestamp: "2026-07-28T08:12:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-      severity: "info",
-    },
-  },
-  "2": {
-    id: "2",
-    timestamp: "2026-07-28T08:14:00Z",
-    event: "Attestation completed",
-    details: "Merkle root: 0x7f...3a",
-    severity: "info",
-  },
-  "3": {
-    id: "3",
-    timestamp: "2026-07-28T08:15:00Z",
-    event: "Attestation completed",
-    details: "Merkle root: 0x7f...3a",
-    severity: "info",
-  },
-  "4": {
-    id: "4",
-    timestamp: "2026-07-28T09:00:00Z",
-    event: "Revenue source connected",
-    details: "Provider: Stripe",
-    severity: "info",
-  },
-  "5": {
-    id: "5",
-    timestamp: "2026-07-27T14:30:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "6": {
-    id: "6",
-    timestamp: "2026-07-27T14:31:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "7": {
-    id: "7",
-    timestamp: "2026-07-27T14:32:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "8": {
-    id: "8",
-    timestamp: "2026-07-27T14:33:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "9": {
-    id: "9",
-    timestamp: "2026-07-26T10:00:00Z",
-    event: "API key rotated",
-    severity: "warn",
-  },
-};
-
 function AuditLogPanel() {
-  const intl = { formatMessage: ({ defaultMessage }: { defaultMessage: string }) => defaultMessage };
+  const intl = useIntl();
   const handleFetchDetail = useCallback(async (id: string) => {
-    // TODO: Replace with actual API call
-    return MOCK_AUDIT_DETAILS[id] ?? { id };
+    return auditLogApi.getAuditEventDetail(id);
   }, []);
   return (
     <div>
