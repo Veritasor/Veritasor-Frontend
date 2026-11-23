@@ -57,7 +57,10 @@ function useCountdown(targetIso: string) {
   const [ms, setMs] = useState(getMs)
 
   useEffect(() => {
-    const id = window.setInterval(() => setMs(getMs()), 1000)
+    const id = window.setInterval(
+      () => setMs(new Date(targetIso).getTime() - Date.now()),
+      1000,
+    )
     return () => clearInterval(id)
   }, [targetIso])
 
@@ -86,15 +89,17 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
   return (
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-      <button
-        type="button"
-        className="wsr-copy-btn"
-        aria-label={label}
-        aria-describedby={statusId}
-        onClick={handleCopy}
-      >
-        {state === 'copied' ? '✓' : state === 'error' ? '✕' : '⎘'}
-      </button>
+      {value && (
+        <button
+          type="button"
+          className="wsr-copy-btn"
+          aria-label={label}
+          aria-describedby={statusId}
+          onClick={handleCopy}
+        >
+          {state === 'copied' ? '✓' : state === 'error' ? '✕' : '⎘'}
+        </button>
+      )}
       <span
         id={statusId}
         role="status"
@@ -133,6 +138,11 @@ function SecretRow({
           label={`Copy ${label.toLowerCase()} to clipboard`}
         />
       </div>
+      {label === 'New secret' && secret.full && (
+        <div className="wsr-secret-value-wrap" aria-label="New signing secret, shown once">
+          <code className="wsr-secret-value">{secret.full}</code>
+        </div>
+      )}
 
       <div className="wsr-secret-meta">
         {secret.lastUsedAt ? (
@@ -316,7 +326,7 @@ export default function WebhookSecretRotationDialog({
             type="button"
             className="modal-btn modal-btn-confirm"
             onClick={onConfirm}
-            aria-label="Confirm rotation — old secret will be invalidated immediately"
+            aria-label="Confirm rotation and close"
           >
             Confirm rotation
           </button>

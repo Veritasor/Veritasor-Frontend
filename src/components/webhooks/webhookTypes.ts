@@ -63,3 +63,43 @@ export interface UrlValidationResult {
   /** Whether the URL uses HTTPS (required for production webhooks) */
   isTls?: boolean
 }
+
+/** Validates that a webhook target is a well-formed HTTPS URL. */
+export function validateWebhookUrl(url: string): UrlValidationResult {
+  if (!url.trim()) return { valid: false, error: 'URL is required.' }
+
+  let parsed: URL
+  try {
+    parsed = new URL(url.trim())
+  } catch {
+    return {
+      valid: false,
+      error: 'Enter a valid URL (e.g. https://example.com/webhook).',
+    }
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return {
+      valid: false,
+      isTls: false,
+      error:
+        parsed.protocol === 'http:'
+          ? 'HTTP is not encrypted. Use HTTPS for production webhooks.'
+          : 'URL must use HTTPS protocol.',
+    }
+  }
+
+  return { valid: true, isTls: true }
+}
+
+/** Compares normalised URLs so equivalent endpoint targets cannot be duplicated. */
+export function isDuplicateWebhookUrl(url: string, existingUrls: string[]): boolean {
+  const validation = validateWebhookUrl(url)
+  if (!validation.valid) return false
+
+  const normalized = new URL(url.trim()).href
+  return existingUrls.some((existing) => {
+    const existingValidation = validateWebhookUrl(existing)
+    return existingValidation.valid && new URL(existing.trim()).href === normalized
+  })
+}

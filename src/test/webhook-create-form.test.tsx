@@ -20,6 +20,7 @@ function renderForm(overrides: {
   onSubmit?: (data: { url: string; description: string; events: string[] }) => void
   onCancel?: () => void
   isSubmitting?: boolean
+  existingUrls?: string[]
 } = {}) {
   const onSubmit = overrides.onSubmit ?? vi.fn()
   const onCancel = overrides.onCancel ?? vi.fn()
@@ -31,6 +32,7 @@ function renderForm(overrides: {
         onSubmit={onSubmit}
         onCancel={onCancel}
         isSubmitting={overrides.isSubmitting}
+        existingUrls={overrides.existingUrls}
       />,
     ),
   }
@@ -155,6 +157,18 @@ describe('WebhookCreateForm — URL validation', () => {
     fireEvent.click(screen.getByLabelText(/attestation completed/i))
     fireEvent.click(screen.getByRole('button', { name: /create endpoint/i }))
 
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a URL that duplicates an existing endpoint', () => {
+    const { onSubmit } = renderForm({ existingUrls: ['https://EXAMPLE.com:443/webhook'] })
+    fireEvent.change(screen.getByLabelText(/endpoint url/i), {
+      target: { value: 'https://example.com/webhook' },
+    })
+    fireEvent.click(screen.getByLabelText(/attestation completed/i))
+    fireEvent.click(screen.getByRole('button', { name: /create endpoint/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/already exists/i)
     expect(onSubmit).not.toHaveBeenCalled()
   })
 })
