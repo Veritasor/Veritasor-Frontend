@@ -10,7 +10,13 @@ import type { FileMap } from './onboarding/DocumentUploadStep'
 import BankDetailsStep from './onboarding/BankDetailsStep'
 import ReviewSubmitStep from './onboarding/ReviewSubmitStep'
 import type { OnboardingDraft, BusinessDetails, OwnerDetails, SelfieCapture, DocumentUpload, BankDetails } from '../hooks/useOnboardingDraft'
-import { submitOnboardingApplication } from '../services/onboardingApi'
+import {
+  generateIdempotencyKey,
+  isAbortError,
+  OnboardingSubmitError,
+  submitOnboardingApplication,
+  type UploadProgress,
+} from '../services/onboardingApi'
 import Breadcrumb from '../components/Breadcrumb'
 
 const TOTAL_STEPS = 6
@@ -29,6 +35,10 @@ export default function OnboardingWizard() {
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({})
+  const idempotencyKeyRef = useRef<string>(generateIdempotencyKey())
+  const abortControllerRef = useRef<AbortController | null>(null)
   const [selfieFile, setSelfieFile] = useState<File | null>(null)
   const [documentFiles, setDocumentFiles] = useState<FileMap>({
     registrationCert: [],
@@ -169,6 +179,12 @@ export default function OnboardingWizard() {
       rafIdRef.current = null
     }
     pendingUpdatersRef.current = []
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    idempotencyKeyRef.current = generateIdempotencyKey()
+    setSubmitError(null)
+    setFileErrors({})
+    setUploadProgress(null)
     clearDraft()
   }
 
@@ -198,22 +214,58 @@ export default function OnboardingWizard() {
     setDraft(prev => ({ ...prev, bank: data, step: 6 }))
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(retryFiles?: string[]) {
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setSubmitting(true)
     setSubmitError(null)
+    if (!retryFiles) {
+      setFileErrors({})
+    }
+    setUploadProgress({ loaded: 0, total: 0, percent: 0 })
+
     try {
       await submitOnboardingApplication({
         draft,
         selfieFile,
         documentFiles,
+        idempotencyKey: idempotencyKeyRef.current,
+        onProgress: setUploadProgress,
+        signal: controller.signal,
+        retryFiles,
       })
       clearDraft()
+      idempotencyKeyRef.current = generateIdempotencyKey()
+      setFileErrors({})
+      setUploadProgress(null)
       setSubmitted(true)
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Submission failed. Please try again.')
+      if (isAbortError(err)) {
+        setSubmitError('Upload cancelled. Your draft has been preserved.')
+      } else if (err instanceof OnboardingSubmitError) {
+        setSubmitError(err.message)
+        if (Object.keys(err.fileErrors).length > 0) {
+          setFileErrors(err.fileErrors)
+        }
+      } else {
+        setSubmitError(err instanceof Error ? err.message : 'Submission failed. Please try again.')
+      }
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
+      }
       setSubmitting(false)
     }
+  }
+
+  function handleCancelSubmit() {
+    abortControllerRef.current?.abort()
+  }
+
+  function handleRetryFile(fieldKey: string) {
+    void handleSubmit([fieldKey])
   }
 
   if (submitted) {
@@ -346,10 +398,14 @@ export default function OnboardingWizard() {
               <ReviewSubmitStep
                 draft={draft}
                 onBack={() => goTo(5)}
-                onSubmit={handleSubmit}
+                onSubmit={() => { void handleSubmit() }}
                 submitting={submitting}
                 submitError={submitError}
-                onRetry={handleSubmit}
+                onRetry={() => { void handleSubmit() }}
+                onCancel={handleCancelSubmit}
+                uploadProgress={uploadProgress}
+                fileErrors={fileErrors}
+                onRetryFile={handleRetryFile}
               />
             )}
           </div>

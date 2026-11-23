@@ -43,5 +43,18 @@ Here is a copy-ready JSON-LD sample of what the component outputs for a nested p
 
 ## Validation
 
-- Ensure that any `href` provided to the component resolves to a fully qualified absolute URL when the JSON-LD is generated (the component uses `window.location.origin` as a base).
+- Ensure that any `href` provided to the component resolves to a fully qualified `http:` or `https:` URL when the JSON-LD is generated (the component uses `window.location.origin` as a base). Malformed URLs and unsafe schemes (`javascript:`, `data:`, `vbscript:`) are neither linked in the DOM nor emitted in JSON-LD.
 - The final current-page item intentionally omits the `item` URL property in the JSON-LD, per schema.org best practices for the current page.
+
+## Dynamic & Unknown Segments
+
+Untrusted route parameters (such as `attestations/:id`) and unrecognized path segments appear directly in navigation chrome and must be normalized safely:
+
+- **Dynamic segments (`attestations/:id`)**:
+  - Decoded with a non-throwing percent-decoder (`sanitizeDynamicSegment`).
+  - Stripped of ASCII control characters (`\u0000`–`\u001F`, `\u007F`) and Unicode BiDi override/isolate characters (`\u202A`–`\u202E`, `\u2066`–`\u2069`).
+  - Escaped automatically in the DOM by React and in inline JSON-LD via `serializeJsonLd` (`<`, `>`, `&`, `\u2028`, `\u2029`).
+  - Truncated to `maxLabelLength` (default `24` characters, with trailing `…`) while keeping the full label on the `title` attribute.
+  - Falls back to `"Unknown"` if no printable characters remain after sanitization.
+- **Unknown static segments**:
+  - Segments not present in `KNOWN_SEGMENT_LABELS` fall back to a humanised label via `humanizeSegment` (percent-decoded, control/BiDi characters stripped, hyphens/underscores converted to spaces, title-cased; e.g. `my_custom-page` → `My Custom Page`), or `"Unknown"` if empty.

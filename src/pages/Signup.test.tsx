@@ -287,6 +287,33 @@ describe('Signup – submit state machine', () => {
     expect(screen.getByText('Onboarding Page')).toBeInTheDocument()
   })
 
+  it('focuses the password field and does not navigate for an invalid password', () => {
+    renderSignup()
+    fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: 'Alex Morgan' } })
+    fireEvent.change(screen.getByLabelText(/company/i), { target: { value: 'Acme Corp' } })
+    fireEvent.change(screen.getByLabelText(/work email/i), { target: { value: 'alex@acme.com' } })
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'short' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /review changes/i }))
+    fireEvent.click(screen.getByLabelText(/i have reviewed version v2\.4\.0/i))
+    fireEvent.click(screen.getByRole('button', { name: /acknowledge and continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(screen.getByLabelText(/^password$/i)).toHaveFocus()
+    expect(screen.queryByText('Onboarding Page')).not.toBeInTheDocument()
+  })
+
+  it('ignores malformed onboarding draft data and still navigates', () => {
+    vi.useFakeTimers()
+    localStorage.setItem('veritasor_onboarding_draft', '{invalid json')
+    renderSignup()
+    acknowledgeAndSubmit()
+
+    act(() => { vi.advanceTimersByTime(SUBMIT_DEMO_MS) })
+
+    expect(screen.getByText('Onboarding Page')).toBeInTheDocument()
+  })
+
   it('does not show a spinner before the form is submitted', () => {
     renderSignup()
     fireEvent.click(screen.getByRole('button', { name: /review changes/i }))
