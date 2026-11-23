@@ -1,10 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Attestations, { PAGE_SIZE } from './Attestations'
 import { ToastProvider } from '../components/ToastContext'
 import { AttestationsProvider, type Attestation } from '../state/attestations'
 import { createMockAttestations } from '../state/attestationMocks'
+import { scheduleStore } from '../store/scheduleStore'
+
+beforeEach(() => {
+  scheduleStore.reset()
+})
 
 function renderPage(options?: {
   initialEntries?: string[]
@@ -58,8 +63,8 @@ describe('Attestations Page', () => {
     renderPage()
     const chart = screen.getByRole('figure', { name: /attestation history/i })
     expect(chart).toBeInTheDocument()
-    expect(screen.getAllByText(/success/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/failure/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/verified/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/failed/i).length).toBeGreaterThan(0)
   })
 
   it('renders date-axis labels and includes missing days in the trend', () => {
@@ -78,14 +83,14 @@ describe('Attestations Page', () => {
     renderPage()
     const toggle = screen.getByRole('button', { name: /view as table/i })
     expect(toggle).toBeInTheDocument()
-    toggle.click()
+    fireEvent.click(toggle)
     expect(screen.getByRole('table', { name: /attestation history/i })).toBeInTheDocument()
   })
 
   it('supports keyboard navigation on chart data points', () => {
     renderPage()
     const chart = screen.getByRole('figure', { name: /attestation history/i })
-    const focusable = chart.querySelectorAll('button, [tabindex], a')
+    const focusable = chart.querySelectorAll<HTMLElement>('button, [tabindex], a')
     expect(focusable.length).toBeGreaterThan(0)
     focusable[0].focus()
     expect(focusable[0]).toHaveFocus()
@@ -101,6 +106,56 @@ describe('Attestations Page', () => {
     expect(firstBar).not.toBeNull()
     fireEvent.mouseEnter(firstBar!)
     expect(status).toHaveTextContent(initialStatus!)
+  })
+
+  it('creates, persists, edits, and deletes a schedule from the Schedule tab', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: 'Schedule' }))
+
+    expect(screen.getByRole('region', { name: /schedule periodic attestation runs/i })).toBeInTheDocument()
+    const startDate = new Date()
+    startDate.setDate(15)
+    startDate.setMonth(startDate.getMonth() + 1)
+    const startDateLabel = new Intl.DateTimeFormat(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(startDate)
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${startDateLabel}`) }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Daily' }))
+    fireEvent.change(screen.getByLabelText('Time zone'), {
+      target: { value: 'America/New_York' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schedule' }))
+
+    const saved = JSON.parse(localStorage.getItem('veritasor-schedules-v1') ?? '{}')
+    expect(saved.version).toBe(1)
+    expect(saved.schedules).toHaveLength(1)
+    expect(saved.schedules[0].cadence).toBe('daily')
+    expect(saved.schedules[0].startDate).toBe(
+      `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-15`,
+    )
+    expect(screen.getByRole('region', { name: 'Saved attestation schedules' })).toHaveTextContent(
+      'daily schedule (America/New_York)',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const editedCalendar = screen.getByRole('region', { name: /schedule periodic attestation runs/i })
+    const selectedDate = within(editedCalendar)
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-selected') === 'true')
+    expect(selectedDate?.getAttribute('aria-label')).toContain(startDateLabel)
+    fireEvent.change(screen.getByLabelText('Run time'), {
+      target: { value: '10:30' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update schedule' }))
+    expect(JSON.parse(localStorage.getItem('veritasor-schedules-v1') ?? '{}').schedules[0].localTime)
+      .toBe('10:30')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByText('No schedules saved yet.')).toBeInTheDocument()
   })
 })
 

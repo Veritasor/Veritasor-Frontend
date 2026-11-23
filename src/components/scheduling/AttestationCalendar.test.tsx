@@ -288,6 +288,11 @@ describe('AttestationCalendar - keyboard navigation', () => {
     fireEvent.keyDown(grid, { key: 'Enter' })
     expect(screen.getByText(/Scheduled date selected: .*Thursday, January 15, 2026/)).toBeInTheDocument()
   })
+
+  it('uses one live region for calendar interactions', () => {
+    renderAt(new Date(2026, 0, 15))
+    expect(getSection().querySelectorAll('[aria-live]')).toHaveLength(1)
+  })
 })
 
 describe('AttestationCalendar - Cadence', () => {

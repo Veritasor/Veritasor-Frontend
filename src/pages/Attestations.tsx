@@ -9,6 +9,13 @@ import SearchFilter, { parseFilterState, type ChipDef } from '../components/Sear
 import { useToast } from '../components/ToastContext'
 import { useAttestations, type Attestation } from '../state/attestations'
 import { DEFAULT_TRIGGER_DETAILS } from '../state/attestationMocks'
+import {
+  generateOccurrences,
+  getDateInTimeZone,
+  scheduleStore,
+  useSchedules,
+  type ScheduleRule,
+} from '../store/scheduleStore'
 
 export const PAGE_SIZE = 50
 
@@ -17,8 +24,6 @@ const STATUS_CHIPS: ChipDef[] = [
   { id: 'pending', label: 'Pending', color: 'warning' },
   { id: 'failed', label: 'Failed', color: 'danger' },
 ]
-
-const SCHEDULED_DATES = ['2026-05-15', '2026-05-28']
 
 const MOCK_FEE_INFO: FeeInfo = {
   total: 2.5,
@@ -359,7 +364,7 @@ const AttestationTrendChart = memo(function AttestationTrendChart({
 
       {view === 'table' ? (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <table aria-label="Attestation history" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
             <caption style={{ textAlign: 'left', marginBottom: '0.5rem', color: 'var(--muted)' }}>Attestation volume by date and status</caption>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)', textAlign: 'left' }}>
@@ -385,6 +390,7 @@ const AttestationTrendChart = memo(function AttestationTrendChart({
         </div>
       ) : (
         <>
+          <figure aria-label="Attestation history" style={{ margin: 0 }}>
           <div role="status" style={{ minHeight: '1.5rem', fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
             {selected
               ? `${selected.label}: ${selected.total} attestations, ${selected.counts.verified} verified, ${selected.counts.pending} pending, ${selected.counts.failed} failed`
@@ -491,6 +497,7 @@ const AttestationTrendChart = memo(function AttestationTrendChart({
               );
             })}
           </div>
+          </figure>
         </>
       )}
     </section>
@@ -616,6 +623,128 @@ const TimelineRow = memo(function TimelineRow({ item }: { item: AttestationListI
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
+function getUpcomingOccurrences(rule: ScheduleRule, count: number) {
+  const now = new Date()
+  return generateOccurrences(rule, {
+    fromDate: getDateInTimeZone(now, rule.timeZone),
+    after: now.toISOString(),
+    count,
+  })
+}
+
+function AttestationScheduleView() {
+  const schedules = useSchedules()
+  const [editingRule, setEditingRule] = useState<ScheduleRule | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+
+  const scheduledDates = useMemo(
+    () =>
+      schedules.flatMap((rule) =>
+        getUpcomingOccurrences(rule, 10).map(({ date }) => date),
+      ),
+    [schedules],
+  )
+
+  const upcomingRuns = useMemo(
+    () =>
+      schedules
+        .flatMap((rule) =>
+          getUpcomingOccurrences(rule, 5).map((occurrence) => ({ rule, occurrence })),
+        )
+        .sort((a, b) => a.occurrence.scheduledAt.localeCompare(b.occurrence.scheduledAt))
+        .slice(0, 10),
+    [schedules],
+  )
+
+  function saveRule(rule: Parameters<typeof scheduleStore.add>[0]) {
+    if (editingRule) {
+      scheduleStore.update(editingRule.id, rule)
+      setEditingRule(null)
+    } else {
+      scheduleStore.add(rule)
+    }
+  }
+
+  function deleteRule(rule: ScheduleRule) {
+    scheduleStore.remove(rule.id)
+    if (editingRule?.id === rule.id) setEditingRule(null)
+    setAnnouncement('Attestation schedule deleted.')
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: '1.25rem', marginTop: '1.25rem' }}>
+      <AttestationCalendar
+        key={editingRule?.id ?? 'new-schedule'}
+        scheduledDates={scheduledDates}
+        initialRule={editingRule ?? undefined}
+        onSave={saveRule}
+        onCancelEdit={() => setEditingRule(null)}
+      />
+
+      <section
+        aria-label="Saved attestation schedules"
+        style={{
+          padding: 'var(--density-padding)',
+          borderRadius: 14,
+          border: '1px solid var(--border)',
+          background: 'var(--surface)',
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Upcoming runs</h2>
+        {upcomingRuns.length === 0 ? (
+          <p style={{ color: 'var(--muted)' }}>No schedules saved yet.</p>
+        ) : (
+          <ol style={{ display: 'grid', gap: '0.65rem', paddingLeft: '1.25rem' }}>
+            {upcomingRuns.map(({ rule, occurrence }) => (
+              <li key={`${rule.id}-${occurrence.scheduledAt}`}>
+                <time dateTime={occurrence.scheduledAt}>
+                  {new Intl.DateTimeFormat(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                    timeZone: rule.timeZone,
+                  }).format(new Date(occurrence.scheduledAt))}
+                </time>
+                {' — '}
+                {rule.cadence} schedule ({rule.timeZone})
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {schedules.length > 0 && (
+          <div style={{ display: 'grid', gap: '0.65rem', marginTop: '1rem' }}>
+            {schedules.map((rule) => (
+              <div
+                key={rule.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap',
+                  borderTop: '1px solid var(--border)',
+                  paddingTop: '0.75rem',
+                }}
+              >
+                <span>
+                  {rule.cadence} from {rule.startDate} at {rule.localTime} ({rule.timeZone})
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" onClick={() => setEditingRule(rule)}>Edit</button>
+                  <button type="button" onClick={() => deleteRule(rule)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </div>
+    </div>
+  )
+}
+
 export default function Attestations() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -624,6 +753,7 @@ export default function Attestations() {
   const { list: attestations, trigger } = useAttestations()
   const { addToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [activeView, setActiveView] = useState<'overview' | 'schedule'>('overview')
 
   const filters = useMemo(() => parseFilterState(searchParams), [searchParams])
 
@@ -718,11 +848,63 @@ export default function Attestations() {
           </p>
         </header>
 
-        <AttestationCalendar scheduledDates={SCHEDULED_DATES} />
+        <div
+          role="tablist"
+          aria-label="Attestations sections"
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            const nextView = activeView === 'overview' ? 'schedule' : 'overview'
+            setActiveView(nextView)
+            document.getElementById(`attestations-tab-${nextView}`)?.focus()
+          }}
+          style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', borderBottom: '1px solid var(--border)' }}
+        >
+          {(['overview', 'schedule'] as const).map((view) => (
+            <button
+              key={view}
+              id={`attestations-tab-${view}`}
+              type="button"
+              role="tab"
+              aria-selected={activeView === view}
+              aria-controls={`attestations-panel-${view}`}
+              tabIndex={activeView === view ? 0 : -1}
+              onClick={() => setActiveView(view)}
+              style={{
+                minHeight: 44,
+                padding: '0.55rem 0.9rem',
+                border: 0,
+                borderBottom: activeView === view ? '2px solid var(--accent)' : '2px solid transparent',
+                background: 'transparent',
+                color: activeView === view ? 'var(--text)' : 'var(--muted)',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              {view === 'overview' ? 'Overview' : 'Schedule'}
+            </button>
+          ))}
+        </div>
 
-        {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
+        <section
+          id="attestations-panel-schedule"
+          role="tabpanel"
+          aria-labelledby="attestations-tab-schedule"
+          tabIndex={0}
+          hidden={activeView !== 'schedule'}
+        >
+          <AttestationScheduleView />
+        </section>
+        <section
+          id="attestations-panel-overview"
+          role="tabpanel"
+          aria-labelledby="attestations-tab-overview"
+          tabIndex={0}
+          hidden={activeView !== 'overview'}
+        >
+          {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
 
-        <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
+          <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
           {attestations.length === 0 ? (
             <EmptyState onRunReport={handleOpenModal} />
           ) : (
@@ -814,6 +996,7 @@ export default function Attestations() {
               )}
             </>
           )}
+          </section>
         </section>
       </div>
 
