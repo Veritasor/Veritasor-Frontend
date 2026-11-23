@@ -19,6 +19,7 @@ import HelpArticle from './pages/HelpArticle'
 import RevenueSources from './pages/RevenueSources'
 import Settings from './pages/Settings'
 import ConsentPreferences from './pages/ConsentPreferences'
+import VerifyProof from './pages/VerifyProof'
 import {
   ConnectSourceWizard,
   SelectSourceProviderStep,
@@ -36,6 +37,7 @@ const router = createBrowserRouter([
   { path: '/forgot-password', element: <ForgotPassword /> },
   { path: '/onboarding', element: <OnboardingWizard /> },
   { path: '/500', element: <ServerError /> },
+  { path: '/proof/:id', element: <VerifyProof /> },
   {
     element: <Layout />,
     children: [
