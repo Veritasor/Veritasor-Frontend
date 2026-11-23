@@ -16,6 +16,21 @@ import DirtyStateBanner from '../components/DirtyStateBanner'
 import { useDirtyForm, type SaveStatus } from '../hooks/useDirtyForm'
 import { validatePassword } from '../utils/passwordPolicy'
 import { useOptionalWorkspace } from '../state/workspace'
+import {
+  useBilling,
+  type CardBrand,
+  type InvoiceStatus,
+  type PaymentMethod,
+  type PaymentMethodStatus,
+} from '../components/BillingContext'
+import {
+  PLANS,
+  PLAN_FEATURES,
+  getPrice,
+  formatProratedImpact,
+  type PlanId,
+  type PlanMeta,
+} from '../components/billing/plans'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -558,17 +573,6 @@ function ApiKeysPanel() {
   );
 }
 
-type InvoiceStatus = "paid" | "open" | "overdue" | "void";
-
-interface Invoice {
-  id: string;
-  period: string;
-  amount: number;
-  status: InvoiceStatus;
-  dueDate: string;
-  pdfUrl: string;
-}
-
 const INVOICE_STATUS_META: Record<
   InvoiceStatus,
   { label: string; bg: string; border: string; color: string; dot: string }
@@ -602,105 +606,6 @@ const INVOICE_STATUS_META: Record<
     dot: "var(--muted)",
   },
 };
-
-const MOCK_INVOICES: Invoice[] = [
-  {
-    id: "inv_001",
-    period: "June 2026",
-    amount: 49.0,
-    status: "paid",
-    dueDate: "2026-06-01",
-    pdfUrl: "#invoice-001",
-  },
-  {
-    id: "inv_002",
-    period: "May 2026",
-    amount: 49.0,
-    status: "paid",
-    dueDate: "2026-05-01",
-    pdfUrl: "#invoice-002",
-  },
-  {
-    id: "inv_003",
-    period: "April 2026",
-    amount: 49.0,
-    status: "paid",
-    dueDate: "2026-04-01",
-    pdfUrl: "#invoice-003",
-  },
-  {
-    id: "inv_004",
-    period: "July 2026",
-    amount: 49.0,
-    status: "open",
-    dueDate: "2026-07-15",
-    pdfUrl: "#invoice-004",
-  },
-  {
-    id: "inv_005",
-    period: "March 2026",
-    amount: 29.0,
-    status: "overdue",
-    dueDate: "2026-03-15",
-    pdfUrl: "#invoice-005",
-  },
-  {
-    id: "inv_006",
-    period: "February 2026",
-    amount: 29.0,
-    status: "void",
-    dueDate: "2026-02-15",
-    pdfUrl: "#invoice-006",
-  },
-  {
-    id: "inv_007",
-    period: "January 2026",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2026-01-15",
-    pdfUrl: "#invoice-007",
-  },
-  {
-    id: "inv_008",
-    period: "December 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-12-15",
-    pdfUrl: "#invoice-008",
-  },
-  {
-    id: "inv_009",
-    period: "November 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-11-15",
-    pdfUrl: "#invoice-009",
-  },
-  {
-    id: "inv_010",
-    period: "October 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-10-15",
-    pdfUrl: "#invoice-010",
-  },
-  {
-    id: "inv_011",
-    period: "September 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-09-15",
-    pdfUrl: "#invoice-011",
-  },
-  {
-    id: "inv_012",
-    period: "August 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-08-15",
-    pdfUrl: "#invoice-012",
-  },
-];
 
 const INVOICES_PER_PAGE = 5;
 
@@ -810,10 +715,11 @@ const inputStyle: React.CSSProperties = {
 };
 
 function InvoiceList() {
+  const { invoices } = useBilling();
   const [page, setPage] = useState(1);
-  const totalPages = Math.ceil(MOCK_INVOICES.length / INVOICES_PER_PAGE);
+  const totalPages = Math.ceil(invoices.length / INVOICES_PER_PAGE);
   const startIdx = (page - 1) * INVOICES_PER_PAGE;
-  const pageInvoices = MOCK_INVOICES.slice(
+  const pageInvoices = invoices.slice(
     startIdx,
     startIdx + INVOICES_PER_PAGE,
   );
@@ -851,8 +757,8 @@ function InvoiceList() {
         </div>
         <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
           Showing {startIdx + 1}–
-          {Math.min(startIdx + INVOICES_PER_PAGE, MOCK_INVOICES.length)} of{" "}
-          {MOCK_INVOICES.length}
+          {Math.min(startIdx + INVOICES_PER_PAGE, invoices.length)} of{" "}
+          {invoices.length}
         </div>
       </div>
 
@@ -1029,19 +935,6 @@ function InvoiceList() {
   );
 }
 
-type CardBrand = "visa" | "mastercard" | "amex" | "discover";
-type PaymentMethodStatus = "ok" | "expiring" | "expired";
-
-interface PaymentMethod {
-  id: string;
-  brand: CardBrand;
-  last4: string;
-  expMonth: number;
-  expYear: number;
-  status: PaymentMethodStatus;
-  isDefault: boolean;
-}
-
 const CARD_BRAND_META: Record<
   CardBrand,
   { label: string; gradient: string; pattern: string }
@@ -1067,36 +960,6 @@ const CARD_BRAND_META: Record<
     pattern: "■",
   },
 };
-
-const MOCK_PAYMENT_METHODS: PaymentMethod[] = [
-  {
-    id: "pm_001",
-    brand: "visa",
-    last4: "4242",
-    expMonth: 12,
-    expYear: 2028,
-    status: "ok",
-    isDefault: true,
-  },
-  {
-    id: "pm_002",
-    brand: "mastercard",
-    last4: "5678",
-    expMonth: 8,
-    expYear: 2026,
-    status: "expiring",
-    isDefault: false,
-  },
-  {
-    id: "pm_003",
-    brand: "amex",
-    last4: "0005",
-    expMonth: 3,
-    expYear: 2025,
-    status: "expired",
-    isDefault: false,
-  },
-];
 
 function getPaymentStatusMeta(status: PaymentMethodStatus) {
   if (status === "expired")
@@ -1177,15 +1040,11 @@ function CardArt({ method }: { method: PaymentMethod }) {
 }
 
 function PaymentMethodsPanel() {
-  const [methods, setMethods] = useState<PaymentMethod[]>(MOCK_PAYMENT_METHODS);
+  const { paymentMethods: methods, setDefaultMethod, removeMethod } = useBilling();
   const [showAdd, setShowAdd] = useState(false);
 
   function setDefault(id: string) {
-    setMethods((prev) => prev.map((m) => ({ ...m, isDefault: m.id === id })));
-  }
-
-  function removeMethod(id: string) {
-    setMethods((prev) => prev.filter((m) => m.id !== id));
+    setDefaultMethod(id);
   }
 
   return (
@@ -1514,119 +1373,6 @@ function PaymentMethodsPanel() {
 
 // ─── Plan Comparison ─────────────────────────────────────────────────────────
 
-type PlanId = "starter" | "growth" | "enterprise";
-
-interface PlanFeature {
-  label: string;
-  values: Record<PlanId, string | boolean>;
-}
-
-interface PlanMeta {
-  id: PlanId;
-  name: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  description: string;
-  badge?: string;
-  recommended?: boolean;
-}
-
-const PLANS: PlanMeta[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    monthlyPrice: 29,
-    annualPrice: 290,
-    description: "For small teams getting started with attestations.",
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    monthlyPrice: 49,
-    annualPrice: 490,
-    description: "For growing businesses that need more capacity.",
-    badge: "Current plan",
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    monthlyPrice: 99,
-    annualPrice: 990,
-    description: "For organizations with advanced compliance needs.",
-    recommended: true,
-  },
-];
-
-const PLAN_FEATURES: PlanFeature[] = [
-  {
-    label: "Attestations per month",
-    values: { starter: "1,000", growth: "10,000", enterprise: "Unlimited" },
-  },
-  {
-    label: "Team members",
-    values: { starter: "3", growth: "10", enterprise: "Unlimited" },
-  },
-  {
-    label: "API access",
-    values: { starter: true, growth: true, enterprise: true },
-  },
-  {
-    label: "Webhook integrations",
-    values: { starter: "5", growth: "20", enterprise: "Unlimited" },
-  },
-  {
-    label: "Audit log retention",
-    values: { starter: "30 days", growth: "90 days", enterprise: "365 days" },
-  },
-  {
-    label: "Custom branding",
-    values: { starter: false, growth: true, enterprise: true },
-  },
-  {
-    label: "Priority support",
-    values: { starter: false, growth: "Email", enterprise: "24/7 Phone + Email" },
-  },
-  {
-    label: "SSO / SAML",
-    values: { starter: false, growth: false, enterprise: true },
-  },
-  {
-    label: "Dedicated account manager",
-    values: { starter: false, growth: false, enterprise: true },
-  },
-  {
-    label: "SLA guarantee",
-    values: { starter: "99.5%", growth: "99.9%", enterprise: "99.99%" },
-  },
-];
-
-const CURRENT_PLAN_ID: PlanId = "growth";
-const BILLING_CYCLE = "monthly";
-
-function getPrice(plan: PlanMeta, cycle: string) {
-  return cycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
-}
-
-function formatProratedImpact(from: PlanMeta, to: PlanMeta): {
-  label: string;
-  amount: string;
-  isCredit: boolean;
-} {
-  const fromPrice = getPrice(from, BILLING_CYCLE);
-  const toPrice = getPrice(to, BILLING_CYCLE);
-  const diff = Math.abs(toPrice - fromPrice);
-  const isCredit = toPrice < fromPrice;
-  // Prorate for remaining ~15 days in a 30-day cycle
-  const prorated = ((diff / 30) * 15).toFixed(2);
-  return {
-    label: isCredit
-      ? `Prorated credit for remaining billing period`
-      : `Prorated charge for remaining billing period`,
-    amount: `$${prorated}`,
-    isCredit,
-  };
-}
-
 function PlanCard({
   plan,
   isCurrent,
@@ -1638,12 +1384,11 @@ function PlanCard({
   onSelect: (id: PlanId) => void;
   selected: PlanId | null;
 }) {
-  const price = getPrice(plan, BILLING_CYCLE);
+  const { currentPlan, billingCycle } = useBilling();
+  const price = getPrice(plan, billingCycle);
   const isSelected = selected === plan.id;
-  const isDowngrade =
-    !isCurrent && plan.id !== CURRENT_PLAN_ID && plan.monthlyPrice < PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
-  const isUpgrade =
-    !isCurrent && plan.monthlyPrice > PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+  const isDowngrade = !isCurrent && plan.monthlyPrice < currentPlan.monthlyPrice;
+  const isUpgrade = !isCurrent && plan.monthlyPrice > currentPlan.monthlyPrice;
 
   return (
     <div
@@ -1673,7 +1418,7 @@ function PlanCard({
       }}
     >
       {/* Badges */}
-      {plan.badge && (
+      {isCurrent && (
         <span
           aria-label={`Current plan: ${plan.name}`}
           style={{
@@ -1691,7 +1436,7 @@ function PlanCard({
             textTransform: "uppercase",
           }}
         >
-          {plan.badge}
+          Current plan
         </span>
       )}
       {plan.recommended && !isCurrent && (
@@ -1776,10 +1521,7 @@ function PlanCard({
           >
             <span style={{ color: "var(--muted)", fontSize: "0.82rem" }}>
               {(() => {
-                const impact = formatProratedImpact(
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
-                  plan,
-                );
+                const impact = formatProratedImpact(currentPlan, plan, billingCycle);
                 return impact.label;
               })()}
             </span>
@@ -1791,10 +1533,7 @@ function PlanCard({
               }}
             >
               {(() => {
-                const impact = formatProratedImpact(
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
-                  plan,
-                );
+                const impact = formatProratedImpact(currentPlan, plan, billingCycle);
                 return `${impact.isCredit ? "−" : "+"}${impact.amount}`;
               })()}
             </span>
@@ -1869,7 +1608,9 @@ function PlanComparisonTable({
 }: {
   selectedPlan: PlanId | null;
 }) {
-  const isComparing = selectedPlan != null && selectedPlan !== CURRENT_PLAN_ID;
+  const { plan: currentPlanId, billingCycle } = useBilling();
+  const isComparing = selectedPlan != null && selectedPlan !== currentPlanId;
+  void isComparing;
 
   return (
     <section aria-labelledby="plan-comparison-heading">
@@ -1913,7 +1654,7 @@ function PlanComparisonTable({
                     ...thStyle,
                     width: "23.33%",
                     color:
-                      plan.id === CURRENT_PLAN_ID
+                      plan.id === currentPlanId
                         ? "var(--accent)"
                         : plan.recommended
                           ? "var(--accent)"
@@ -1931,7 +1672,7 @@ function PlanComparisonTable({
                       marginTop: "0.15rem",
                     }}
                   >
-                    ${getPrice(plan, BILLING_CYCLE)}/mo
+                    ${getPrice(plan, billingCycle)}/{billingCycle === "annual" ? "yr" : "mo"}
                   </div>
                 </th>
               ))}
@@ -1964,11 +1705,11 @@ function PlanComparisonTable({
                     style={{
                       ...tdStyle,
                       color:
-                        plan.id === CURRENT_PLAN_ID
+                        plan.id === currentPlanId
                           ? "var(--accent)"
                           : "var(--text)",
                       fontWeight:
-                        plan.id === CURRENT_PLAN_ID ? 600 : 400,
+                        plan.id === currentPlanId ? 600 : 400,
                     }}
                   >
                     {typeof feature.values[plan.id] === "boolean" ? (
@@ -2028,7 +1769,7 @@ function PlanComparisonTable({
               padding: "1rem",
               borderRadius: "var(--radius-sm)",
               border: `1px solid ${
-                plan.id === CURRENT_PLAN_ID
+                plan.id === currentPlanId
                   ? "var(--border-strong)"
                   : "var(--border)"
               }`,
@@ -2040,13 +1781,13 @@ function PlanComparisonTable({
                 margin: 0,
                 fontSize: "1rem",
                 color:
-                  plan.id === CURRENT_PLAN_ID
+                  plan.id === currentPlanId
                     ? "var(--accent)"
                     : "var(--text)",
               }}
             >
               {plan.name}
-              {plan.id === CURRENT_PLAN_ID && (
+              {plan.id === currentPlanId && (
                 <span
                   style={{
                     fontSize: "0.72rem",
@@ -2068,9 +1809,9 @@ function PlanComparisonTable({
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              ${getPrice(plan, BILLING_CYCLE)}
+              ${getPrice(plan, billingCycle)}
               <span style={{ fontSize: "0.85rem", fontWeight: 400, color: "var(--muted)" }}>
-                /mo
+                /{billingCycle === "annual" ? "yr" : "mo"}
               </span>
             </div>
             <ul
@@ -2120,6 +1861,7 @@ function PlanComparisonTable({
 }
 
 function PlanComparison() {
+  const { plan: currentPlanId, currentPlan, billingCycle, changePlan } = useBilling();
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
 
   return (
@@ -2159,7 +1901,7 @@ function PlanComparison() {
           <PlanCard
             key={plan.id}
             plan={plan}
-            isCurrent={plan.id === CURRENT_PLAN_ID}
+            isCurrent={plan.id === currentPlanId}
             onSelect={setSelectedPlan}
             selected={selectedPlan}
           />
@@ -2170,7 +1912,7 @@ function PlanComparison() {
       <PlanComparisonTable selectedPlan={selectedPlan} />
 
       {/* Action footer when a plan is selected */}
-      {selectedPlan && selectedPlan !== CURRENT_PLAN_ID && (
+      {selectedPlan && selectedPlan !== currentPlanId && (
         <div
           role="status"
           aria-live="polite"
@@ -2196,9 +1938,7 @@ function PlanComparison() {
             >
               {(() => {
                 const plan = PLANS.find((p) => p.id === selectedPlan)!;
-                const isUpgrade =
-                  plan.monthlyPrice >
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+                const isUpgrade = plan.monthlyPrice > currentPlan.monthlyPrice;
                 return isUpgrade
                   ? `Ready to upgrade to ${plan.name}?`
                   : `Ready to downgrade to ${plan.name}?`;
@@ -2208,10 +1948,7 @@ function PlanComparison() {
               Changes will apply to your next billing cycle.{" "}
               {(() => {
                 const plan = PLANS.find((p) => p.id === selectedPlan)!;
-                const impact = formatProratedImpact(
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
-                  plan,
-                );
+                const impact = formatProratedImpact(currentPlan, plan, billingCycle);
                 return `${impact.label}: ${impact.isCredit ? "−" : "+"}${impact.amount}`;
               })()}
             </div>
@@ -2235,6 +1972,10 @@ function PlanComparison() {
             </button>
             <button
               type="button"
+              onClick={() => {
+                changePlan(selectedPlan);
+                setSelectedPlan(null);
+              }}
               className="app-button app-button-primary"
               style={{
                 width: "auto",
@@ -2245,9 +1986,7 @@ function PlanComparison() {
             >
               {(() => {
                 const plan = PLANS.find((p) => p.id === selectedPlan)!;
-                const isUpgrade =
-                  plan.monthlyPrice >
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+                const isUpgrade = plan.monthlyPrice > currentPlan.monthlyPrice;
                 return `Confirm ${isUpgrade ? "upgrade" : "downgrade"}`;
               })()}
             </button>
@@ -2259,6 +1998,10 @@ function PlanComparison() {
 }
 
 function BillingPanel() {
+  const { currentPlan, billingCycle } = useBilling();
+  const price = getPrice(currentPlan, billingCycle);
+  const periodUnit = billingCycle === "annual" ? "year" : "month";
+
   return (
     <div style={{ display: "grid", gap: "2rem" }}>
       <div>
@@ -2276,7 +2019,7 @@ function BillingPanel() {
           }}
         >
           <dt style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Plan</dt>
-          <dd style={{ margin: 0, fontWeight: 600 }}>Growth</dd>
+          <dd style={{ margin: 0, fontWeight: 600 }}>{currentPlan.name}</dd>
           <dt style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
             Next billing date
           </dt>
@@ -2289,7 +2032,7 @@ function BillingPanel() {
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            $49.00 / month
+            {formatCurrency(price)} / {periodUnit}
           </dd>
         </dl>
       </div>
