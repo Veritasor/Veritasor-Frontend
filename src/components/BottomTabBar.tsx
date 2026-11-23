@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { ROUTES } from '../routes'
 
 interface TabItem {
   path: string
@@ -45,10 +46,10 @@ function SettingsIcon() {
 }
 
 const tabs: TabItem[] = [
-  { path: '/dashboard', label: 'Home', icon: <HomeIcon /> },
-  { path: '/attestations', label: 'Attestations', icon: <AttestationIcon /> },
-  { path: '/sources', label: 'Sources', icon: <SourcesIcon /> },
-  { path: '/settings', label: 'Settings', icon: <SettingsIcon /> },
+  { path: ROUTES.dashboard, label: 'Home', icon: <HomeIcon /> },
+  { path: ROUTES.attestations, label: 'Attestations', icon: <AttestationIcon /> },
+  { path: ROUTES.sources, label: 'Sources', icon: <SourcesIcon /> },
+  { path: ROUTES.settings, label: 'Settings', icon: <SettingsIcon /> },
 ]
 
 export default function BottomTabBar() {

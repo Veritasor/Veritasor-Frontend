@@ -12,6 +12,7 @@ import { useSession } from "../hooks/useSession";
 import { SessionExpiryWarning } from "./SessionExpiryWarning";
 import { ReauthModal } from "./ReauthModal";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { ROUTES } from "../routes";
 
 const configuredSessionDuration = Number(
   import.meta.env.VITE_SESSION_DURATION_MINUTES
@@ -36,13 +37,13 @@ const WARNING_BEFORE_MINUTES =
 // ---------------------------------------------------------------------------
 
 const ROUTE_TITLES: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/attestations': 'Attestations',
-  '/sources': 'Revenue Sources',
-  '/api-keys': 'API Keys',
-  '/help': 'Help',
-  '/settings': 'Settings',
-  '/consent-preferences': 'Cookie Preferences',
+  [ROUTES.dashboard]: 'Dashboard',
+  [ROUTES.attestations]: 'Attestations',
+  [ROUTES.sources]: 'Revenue Sources',
+  [ROUTES.apiKeys]: 'API Keys',
+  [ROUTES.help]: 'Help',
+  [ROUTES.settings]: 'Settings',
+  [ROUTES.consentPreferences]: 'Cookie Preferences',
 }
 
 function getPageTitle(pathname: string): string {
@@ -98,7 +99,7 @@ function LayoutInner() {
   const [helpSearchOpen, setHelpSearchOpen] = useState(false);
   const [openWsSwitcherInSearchMode, setOpenWsSwitcherInSearchMode] = useState(false);
   const handleSessionExpiry = useCallback(() => {
-    navigate("/login", {
+    navigate(ROUTES.login, {
       replace: true,
       state: { from: location },
     });
@@ -115,7 +116,7 @@ function LayoutInner() {
     );
   }, []);
   const handleReauthClose = useCallback(() => {
-    navigate("/login", {
+    navigate(ROUTES.login, {
       replace: true,
       state: { from: location },
     });
@@ -126,10 +127,10 @@ function LayoutInner() {
 
   // Centralized keyboard shortcuts
   useKeyboardShortcuts({
-    onNavigateDashboard: () => navigate('/dashboard'),
-    onNavigateAttestations: () => navigate('/attestations'),
-    onNavigateSources: () => navigate('/sources'),
-    onConnectRevenueSource: () => navigate('/connect-source/provider'),
+    onNavigateDashboard: () => navigate(ROUTES.dashboard),
+    onNavigateAttestations: () => navigate(ROUTES.attestations),
+    onNavigateSources: () => navigate(ROUTES.sources),
+    onConnectRevenueSource: () => navigate(ROUTES.connectSourceProvider),
     onOpenHelpSearch: () => setHelpSearchOpen(true),
     onToggleShortcuts: () => setShortcutsOpen((o) => !o),
     onOpenCommandPalette: () => {
@@ -186,7 +187,7 @@ function LayoutInner() {
         <aside id="app-sidebar" className={`app-sidebar${sidebarOpen ? " app-sidebar-open" : ""}`} aria-label="Site navigation">
           <nav aria-label="Main navigation">
             <NavLink
-              to="/dashboard"
+              to={ROUTES.dashboard}
               end
               className={({ isActive }) =>
                 `sidebar-link${isActive ? " sidebar-link-active" : ""}`
@@ -195,7 +196,7 @@ function LayoutInner() {
               Dashboard
             </NavLink>
             <NavLink
-              to="/attestations"
+              to={ROUTES.attestations}
               className={({ isActive }) =>
                 `sidebar-link${isActive ? " sidebar-link-active" : ""}`
               }
@@ -203,7 +204,7 @@ function LayoutInner() {
               Attestations
             </NavLink>
             <NavLink
-              to="/sources"
+              to={ROUTES.sources}
               className={({ isActive }) =>
                 `sidebar-link${isActive ? " sidebar-link-active" : ""}`
               }
@@ -211,7 +212,7 @@ function LayoutInner() {
               Revenue Sources
             </NavLink>
             <NavLink
-              to="/settings"
+              to={ROUTES.settings}
               className={({ isActive }) =>
                 `sidebar-link${isActive ? " sidebar-link-active" : ""}`
               }
@@ -219,7 +220,7 @@ function LayoutInner() {
               Settings
             </NavLink>
             <NavLink
-              to="/api-keys"
+              to={ROUTES.apiKeys}
               className={({ isActive }) =>
                 `sidebar-link${isActive ? " sidebar-link-active" : ""}`
               }
@@ -228,7 +229,7 @@ function LayoutInner() {
             </NavLink>
           </nav>
           <div className="sidebar-footer">
-            <button type="button" className="sidebar-cookie-btn" onClick={() => navigate('/consent-preferences')} aria-label="Open cookie settings">Cookie settings</button>
+            <button type="button" className="sidebar-cookie-btn" onClick={() => navigate(ROUTES.consentPreferences)} aria-label="Open cookie settings">Cookie settings</button>
             <button type="button" className="sidebar-help-btn" onClick={() => setHelpSearchOpen(true)} aria-label="Open help search (Ctrl+H)">Help &amp; support</button>
             <a className="sidebar-help-btn sidebar-github" href="https://github.com/Veritasor/Veritasor-Frontend" target="_blank" rel="noreferrer">GitHub</a>
           </div>

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import LocalePicker from "./LocalePicker/LocalePicker";
 import { useEnvironment } from "./EnvironmentContext";
 import ConfirmDialog from "./ConfirmDialog";
+import { ROUTES } from "../routes";
 
 export interface WorkspaceMetadata {
   id: string;
@@ -997,11 +998,11 @@ export default function TopAppBar({
                     role="menuitem"
                     tabIndex={0}
                     className="disclosure-item"
-                    onClick={() => handleAccountNavigate("/settings")}
+                    onClick={() => handleAccountNavigate(ROUTES.settings)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        handleAccountNavigate("/settings");
+                        handleAccountNavigate(ROUTES.settings);
                       }
                     }}
                   >
@@ -1011,11 +1012,11 @@ export default function TopAppBar({
                     role="menuitem"
                     tabIndex={0}
                     className="disclosure-item"
-                    onClick={() => handleAccountNavigate("/api-keys")}
+                    onClick={() => handleAccountNavigate(ROUTES.apiKeys)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        handleAccountNavigate("/api-keys");
+                        handleAccountNavigate(ROUTES.apiKeys);
                       }
                     }}
                   >

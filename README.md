@@ -44,11 +44,17 @@ Requires Node 18+ (CI uses Node 22).
 
 ## Environment variables
 
-Optional `.env`:
+All environment variables are optional and typed in [`src/vite-env.d.ts`](src/vite-env.d.ts). Copy [`.env.example`](.env.example) to `.env` to customize local settings (never commit secrets):
 
+```bash
+cp .env.example .env
 ```
-VITE_API_URL=http://localhost:3000
-```
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:3000` | Base URL for backend API requests |
+| `VITE_SESSION_DURATION_MINUTES` | `30` | Session timeout duration in minutes |
+| `VITE_SESSION_WARNING_BEFORE_MINUTES` | `5` | Minutes before session expiry to show the warning modal |
 
 ## Deploy
 

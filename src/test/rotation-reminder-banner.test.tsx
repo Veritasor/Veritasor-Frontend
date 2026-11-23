@@ -11,9 +11,18 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-import RotationReminderBanner, { shouldShowRotationReminder } from '../../components/api-keys/RotationReminderBanner'
-import type { ApiKey } from '../../components/api-keys/apiKeyTypes'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import RotationReminderBanner, { shouldShowRotationReminder } from '../components/api-keys/RotationReminderBanner'
+import type { ApiKey } from '../components/api-keys/apiKeyTypes'
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-07-28T10:08:33Z'))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 function addDays(days: number): string {
   const d = new Date()
