@@ -36,7 +36,21 @@ Requires Node 18+ (CI uses Node 22).
 | `npm run typecheck` | `tsc -b` (currently reports pre-existing type errors, mostly in tests) |
 | `npm run lint` | ESLint |
 | `npm test` | Vitest unit tests |
+| `npm run test:coverage` | Vitest unit tests with V8 coverage thresholds |
 | `npm run test:e2e` | Playwright end-to-end tests |
+
+## Testing & Coverage Policy
+
+Unit tests run with Vitest and V8 coverage (`npm run test:coverage`). Coverage thresholds (`>= 90%` for statements, branches, functions, and lines) are enforced in `vite.config.ts` across core UI components/pages as well as logic modules:
+
+- `src/hooks/**`
+- `src/state/**`
+- `src/utils/**`
+- `src/services/**`
+- `src/store/**`
+- `src/i18n/config.ts`
+
+All unit tests must mock network calls (`fetch`) and use fake timers (`vi.useFakeTimers()`) instead of real timers to avoid flakiness.
 
 ## Routes
 
