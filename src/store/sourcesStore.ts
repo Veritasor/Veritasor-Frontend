@@ -7,6 +7,7 @@
  */
 
 import { useSyncExternalStore } from 'react'
+import { newId } from '../utils/secureRandom'
 
 // ---------------------------------------------------------------------------
 // Types (exported so pages don't need to re-declare them)
@@ -226,5 +227,5 @@ export function useSources(): Source[] {
 // ---------------------------------------------------------------------------
 
 export function generateSourceId(): string {
-  return `src-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  return newId('src-')
 }

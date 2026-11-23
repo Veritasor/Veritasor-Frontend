@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { ToastSeverity } from './toastRules';
+import { newId } from '../utils/secureRandom';
 
 export type ToastType = ToastSeverity;
 
@@ -66,7 +67,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       groupId?: string,
       count?: number,
     ) => {
-      const id = Math.random().toString(36).substring(2, 9);
+      const id = newId('toast-');
       setToasts((prev) => [
         ...prev,
         { id, message, type, duration, onUndo, undoLabel, groupId, count },

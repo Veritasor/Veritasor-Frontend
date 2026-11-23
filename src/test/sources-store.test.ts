@@ -10,8 +10,10 @@ import {
   sourcesStore,
   INITIAL_SOURCES,
   SOURCES_SCHEMA_VERSION,
+  generateSourceId,
   type Source,
 } from '../store/sourcesStore'
+import { newId } from '../utils/secureRandom'
 
 const STORAGE_KEY = 'veritasor-sources-v1'
 
@@ -285,5 +287,41 @@ describe('sourcesStore — cross-tab storage event sync', () => {
     )
     dispatchStorage(null)
     expect(sourcesStore.getAll().map((s) => s.id)).toEqual(['from-storage'])
+  })
+})
+
+// ─── ID generation ────────────────────────────────────────────────────────
+
+describe('generateSourceId & newId', () => {
+  it('generates 1000 unique prefixed source ids with no collisions', () => {
+    const ids = new Set<string>()
+    for (let i = 0; i < 1000; i++) {
+      const id = generateSourceId()
+      expect(id.startsWith('src-')).toBe(true)
+      ids.add(id)
+    }
+    expect(ids.size).toBe(1000)
+  })
+
+  it('generates 1000 unique prefixed ids via newId fallback when randomUUID is unavailable', () => {
+    const originalRandomUUID = globalThis.crypto?.randomUUID
+    Object.defineProperty(globalThis.crypto, 'randomUUID', {
+      value: undefined,
+      configurable: true,
+    })
+    try {
+      const ids = new Set<string>()
+      for (let i = 0; i < 1000; i++) {
+        const id = newId('toast-')
+        expect(id.startsWith('toast-')).toBe(true)
+        ids.add(id)
+      }
+      expect(ids.size).toBe(1000)
+    } finally {
+      Object.defineProperty(globalThis.crypto, 'randomUUID', {
+        value: originalRandomUUID,
+        configurable: true,
+      })
+    }
   })
 })
