@@ -231,6 +231,16 @@ describe('RevenueSources — pointer drag reorder', () => {
     expect(getAnnouncement().textContent).toMatch(/grabbed stripe/i)
   })
 
+  it('does not turn a pointer drag release into keyboard grab mode', () => {
+    renderPage()
+    const list = screen.getByRole('list', { name: /connected revenue sources/i })
+    const stripeHandle = screen.getByRole('button', { name: /reorder stripe/i })
+    fireEvent.pointerDown(stripeHandle)
+    fireEvent.pointerUp(list)
+    fireEvent.click(stripeHandle, { detail: 1 })
+    expect(stripeHandle).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('pointerup without pointerenter resets grabbed state', () => {
     renderPage()
     const list = screen.getByRole('list', { name: /connected revenue sources/i })
@@ -285,7 +295,7 @@ describe('RevenueSources — pointer drag reorder', () => {
     fireEvent.pointerDown(stripeHandle)
     fireEvent.pointerCancel(list)
     expect(stripeHandle).toHaveAttribute('aria-pressed', 'false')
-    expect(getAnnouncement().textContent).toMatch(/drop cancelled/i)
+    expect(getAnnouncement().textContent).toMatch(/reorder cancelled/i)
   })
 })
 

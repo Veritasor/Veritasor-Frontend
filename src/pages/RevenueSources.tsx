@@ -484,7 +484,9 @@ function DragHandle({ label, isGrabbed, onPointerDown, onKeyDown, onClick }: Dra
       data-testid="drag-handle"
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
-      onClick={onClick}
+      onClick={(e) => {
+        if (e.detail === 0) onClick()
+      }}
       style={{
         flexShrink: 0,
         width: HANDLE_SIZE + 16,
@@ -700,7 +702,7 @@ function SourceRow({
 // Keyboard interaction model (WCAG 2.1 AA):
 //
 // 1. Drag handle (six-dot grip)
-//    - Click/Tap         → Enter keyboard-reorder mode (grab)
+//    - Keyboard activation → Enter keyboard-reorder mode (grab)
 //    - Pointer drag      → Drag-and-drop reorder
 //    - When grabbed: Arrow Up/Down to move, Enter/Space to drop, Escape to cancel
 //
@@ -751,7 +753,9 @@ export default function RevenueSources() {
     announcement,
     handlePointerDown,
     handlePointerEnter,
+    handlePointerMove,
     handlePointerUp,
+    handlePointerCancel,
     handleKeyboardGrab,
     handleKeyDown,
     moveUp,
@@ -855,7 +859,8 @@ export default function RevenueSources() {
         <ul
           aria-label="Connected revenue sources"
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onPointerMove={handlePointerMove}
           style={{ listStyle: 'none', margin: '2rem 0 0', padding: 0, display: 'grid', gap: '0.75rem' }}
         >
           {sources.map((source, index) => (
