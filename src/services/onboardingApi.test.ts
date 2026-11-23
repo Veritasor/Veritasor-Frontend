@@ -76,10 +76,13 @@ describe('submitOnboardingApplication', () => {
 
     expect(result).toEqual({ success: true, id: 'app-123' })
     expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockFetch).toHaveBeenCalledWith('/api/onboarding/submit', {
-      method: 'POST',
-      body: expect.any(FormData),
-    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/onboarding/submit',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.any(FormData),
+      }),
+    )
 
     expect(sentBody).toBeInstanceOf(FormData)
     const draftString = sentBody!.get('draft')

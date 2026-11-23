@@ -10,6 +10,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Proxy all backend API routes (e.g. /api/onboarding/*, /api/v1/preferences/density)
       '/api/': { target: 'http://localhost:3000', changeOrigin: true },
     },
   },

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { ApiError, request } from "../services/apiClient";
 
 export type DensityMode = "comfortable" | "compact";
 
 const DENSITY_STORAGE_PREFIX = "veritasor_density_";
-const API_BASE = "/v1/preferences/density";
+const API_BASE = "/api/v1/preferences/density";
 
 export interface UseDensityModeOptions {
   /** Called when server persistence fails — use for toast notification */
@@ -14,11 +15,11 @@ export interface UseDensityModeOptions {
  * useDensityMode — manages density preference with optimistic server persistence.
  *
  * 1. Updates localStorage and React state immediately (optimistic).
- * 2. Fires PUT /v1/preferences/density to persist on the server.
+ * 2. Fires PUT /api/v1/preferences/density to persist on the server.
  * 3. On success: no additional UI change needed.
  * 4. On failure: reverts to the previous value and calls onPersistError.
  *
- * Also reads from GET /v1/preferences/density on initial load (after
+ * Also reads from GET /api/v1/preferences/density on initial load (after
  * reading localStorage as the fast default).
  */
 export function useDensityMode(
@@ -59,38 +60,22 @@ export function useDensityMode(
       }
 
       // 2. API persistence (fire-and-forget with rollback)
-      fetch(`${API_BASE}`, {
+      request(API_BASE, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspace, density: mode }),
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            // 3. Rollback on failure
-            setDensityState(validatedPrevious);
-            try {
-              localStorage.setItem(storageKey, validatedPrevious);
-            } catch {
-              // ignore
-            }
-            onPersistErrorRef.current?.(
-              "Could not save density preference. Changes reverted.",
-            );
-          }
-          // On success, do nothing — optimistic update is already applied
-        })
-        .catch(() => {
-          // Network error — rollback
-          setDensityState(validatedPrevious);
-          try {
-            localStorage.setItem(storageKey, validatedPrevious);
-          } catch {
-            // ignore
-          }
-          onPersistErrorRef.current?.(
-            "Could not save density preference. Changes reverted.",
-          );
-        });
+        body: { workspace, density: mode },
+        parseAs: "void",
+      }).catch(() => {
+        // 3. Rollback on failure (HTTP or network error)
+        setDensityState(validatedPrevious);
+        try {
+          localStorage.setItem(storageKey, validatedPrevious);
+        } catch {
+          // ignore
+        }
+        onPersistErrorRef.current?.(
+          "Could not save density preference. Changes reverted.",
+        );
+      });
     },
     [storageKey],
   );
@@ -112,14 +97,14 @@ export function useDensityMode(
     }
 
     // Attempt to fetch server preference to sync across devices
-    fetch(`${API_BASE}?workspace=${encodeURIComponent(workspace)}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      signal: abortController.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json();
+    request<{ density?: string }>(
+      `${API_BASE}?workspace=${encodeURIComponent(workspace)}`,
+      {
+        method: "GET",
+        signal: abortController.signal,
+      },
+    )
+      .then((data) => {
         if (
           data?.density === "compact" ||
           data?.density === "comfortable"
@@ -133,7 +118,7 @@ export function useDensityMode(
         }
       })
       .catch((err) => {
-        if (err.name === "AbortError") return;
+        if (err instanceof ApiError && err.code === "ABORTED") return;
         // Server unavailable — keep localStorage value
       });
 

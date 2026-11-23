@@ -13,7 +13,7 @@ The density preference (Comfortable / Compact) should persist per user across se
 
 ## Proposed API Endpoint
 
-### `GET /v1/preferences/density`
+### `GET /api/v1/preferences/density`
 
 Returns the user's density preference for a given workspace.
 
@@ -37,7 +37,7 @@ Returns the user's density preference for a given workspace.
 
 ---
 
-### `PUT /v1/preferences/density`
+### `PUT /api/v1/preferences/density`
 
 Updates the user's density preference for a given workspace.
 
@@ -76,7 +76,7 @@ The frontend should update the UI **immediately** before the API call completes:
    - Updates `localStorage`
    - Updates React state
    - Applies `data-density` attribute to `<html>`
-3. Frontend fires `PUT /v1/preferences/density`
+3. Frontend fires `PUT /api/v1/preferences/density`
 4. **On success:** No additional UI change needed (already applied optimistically)
 5. **On failure:**
    - Revert the density to the previous value

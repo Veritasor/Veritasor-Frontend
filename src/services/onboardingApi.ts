@@ -1,5 +1,6 @@
 import type { OnboardingDraft } from '../hooks/useOnboardingDraft'
 import type { FileMap } from '../pages/onboarding/DocumentUploadStep'
+import { ApiError, request } from './apiClient'
 
 export interface SubmitOnboardingPayload {
   draft: OnboardingDraft
@@ -29,28 +30,25 @@ export async function submitOnboardingApplication({
     }
   }
 
-  let res: Response
   try {
-    res = await fetch('/api/onboarding/submit', {
+    return await request('/api/onboarding/submit', {
       method: 'POST',
       body: formData,
     })
-  } catch {
-    throw new Error('Network error: unable to submit onboarding application. Please check your connection and try again.')
-  }
-
-  if (!res.ok) {
-    throw new Error(`Submission failed with status ${res.status}: ${res.statusText || 'Server error'}`)
-  }
-
-  const contentType = res.headers.get('content-type') || ''
-  if (!contentType.includes('application/json')) {
-    throw new Error('Invalid response from server: expected JSON response.')
-  }
-
-  try {
-    return await res.json()
-  } catch {
-    throw new Error('Invalid response from server: failed to parse JSON response.')
+  } catch (err) {
+    if (err instanceof ApiError) {
+      if (err.code === 'NETWORK_ERROR' || err.code === 'TIMEOUT') {
+        throw new Error(
+          'Network error: unable to submit onboarding application. Please check your connection and try again.',
+        )
+      }
+      if (err.status > 0 && err.code !== 'INVALID_RESPONSE') {
+        throw new Error(`Submission failed with status ${err.status}: ${err.message || 'Server error'}`)
+      }
+      throw new Error(err.message)
+    }
+    throw new Error(
+      'Network error: unable to submit onboarding application. Please check your connection and try again.',
+    )
   }
 }
