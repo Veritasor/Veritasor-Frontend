@@ -284,14 +284,6 @@ const dayHeaderStyle: CSSProperties = {
   borderBottom: '1px solid var(--border)',
 }
 
-const entryStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: 'var(--space-2)',
-  padding: 'var(--space-1) 0',
-  borderBottom: '1px solid var(--border)',
-}
-
 const burstStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -350,6 +342,40 @@ export default function AuditLogTimeline({
 
   const [activeDetail, setActiveDetail] = useState<AuditLogEntryDetail | null>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  function handleEventKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    const container = containerRef.current
+    if (!container) return
+
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[data-audit-event]'),
+    )
+    if (buttons.length === 0) return
+
+    const currentIndex = buttons.indexOf(e.currentTarget)
+    if (currentIndex === -1) return
+
+    let nextIndex = currentIndex
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault()
+      nextIndex = (currentIndex + 1) % buttons.length
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault()
+      nextIndex = (currentIndex - 1 + buttons.length) % buttons.length
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      nextIndex = 0
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      nextIndex = buttons.length - 1
+    }
+
+    if (nextIndex !== currentIndex) {
+      buttons[nextIndex]?.focus()
+    }
+  }
 
   const filteredEntries = useMemo(
     () => filterAuditLogEntries(entries, filterState),
@@ -452,7 +478,7 @@ export default function AuditLogTimeline({
     const days = groupByDay(filteredEntries)
     return (
       <>
-        <div role="log" aria-label="Audit log timeline" aria-live="polite">
+        <div ref={containerRef} role="log" aria-label="Audit log timeline" aria-live="polite">
           {toolbar}
           {days.map((day) => {
             const bursts = collapseBursts(day.entries, burstThreshold)
@@ -480,8 +506,10 @@ export default function AuditLogTimeline({
                       <li key={entry.id} role="listitem" style={{ listStyle: 'none' }}>
                         <button
                           type="button"
+                          data-audit-event
                           aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
                           onClick={(e) => openDrawer(entry, e.currentTarget)}
+                          onKeyDown={handleEventKeyDown}
                           style={rowButtonStyle}
                         >
                           <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
@@ -517,23 +545,33 @@ export default function AuditLogTimeline({
 
   return (
     <>
-      <div role="log" aria-label="Audit log timeline" aria-live="polite">
+      <div ref={containerRef} role="log" aria-label="Audit log timeline" aria-live="polite">
         {toolbar}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {filteredEntries.map((entry) => (
-            <li key={entry.id} style={entryStyle} role="listitem">
-              <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
-              {entry.severity && (
-                <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
-                  <SeverityChip severity={entry.severity} />
-                </span>
-              )}
-              <div>
-                <span style={eventStyle}>{entry.event}</span>
-                {entry.details && (
-                  <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+            <li key={entry.id} role="listitem" style={{ listStyle: 'none' }}>
+              <button
+                type="button"
+                data-audit-event
+                aria-label={`View details for ${entry.event} at ${formatTime(entry.timestamp)}`}
+                onClick={(e) => openDrawer(entry, e.currentTarget)}
+                onKeyDown={handleEventKeyDown}
+                style={rowButtonStyle}
+              >
+                <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
+                {entry.severity && (
+                  <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+                    <SeverityChip severity={entry.severity} />
+                  </span>
                 )}
-              </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={eventStyle}>{entry.event}</span>
+                  {entry.details && (
+                    <p style={{ ...detailStyle, margin: '0.15rem 0 0' }}>{entry.details}</p>
+                  )}
+                </div>
+                <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.75rem', paddingTop: '0.05rem', flexShrink: 0 }}>›</span>
+              </button>
             </li>
           ))}
         </ul>
