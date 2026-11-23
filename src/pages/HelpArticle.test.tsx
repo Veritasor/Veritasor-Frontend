@@ -50,14 +50,51 @@ describe('HelpArticle', () => {
   });
 });
 
-// These async userEvent tests require @testing-library/user-event v14+
-// and are skipped here pending environment setup
-describe('HelpArticle — async feedback (skipped)', () => {
+// Deterministic with fake timers: Date.now() is frozen so the 60s
+// rate-limit window does not advance between submissions.
+describe('HelpArticle — async feedback', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
-  it.skip('handles feedback submission (success state transition)', () => {});
-  it.skip('handles negative feedback with a valid comment', () => {});
-  it.skip('handles invalid input: comment exceeds 500 characters', () => {});
-  it.skip('handles invalid input: rate limiting on submissions', () => {});
+  it('handles feedback submission (success state transition)', () => {
+    render(<MemoryRouter><HelpArticle /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /this article was helpful/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
+    expect(screen.getByRole('status')).toHaveTextContent(/thanks for your feedback/i);
+  });
+
+  it('handles negative feedback with a valid comment', () => {
+    render(<MemoryRouter><HelpArticle /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /this article was not helpful/i }));
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Needs more detail on the onboarding step.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
+    expect(screen.getByText(/thanks for your feedback/i)).toBeInTheDocument();
+  });
+
+  it('handles invalid input: comment exceeds 500 characters', () => {
+    render(<MemoryRouter><HelpArticle /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /this article was not helpful/i }));
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'a'.repeat(501) },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
+    expect(screen.getByRole('alert')).toHaveTextContent(/500 characters or fewer/i);
+    expect(screen.queryByText(/thanks for your feedback/i)).not.toBeInTheDocument();
+  });
+
+  it('handles invalid input: rate limiting on submissions', () => {
+    render(<MemoryRouter><HelpArticle /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /this article was helpful/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
+    expect(screen.getByText(/thanks for your feedback/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /submit different feedback/i }));
+    fireEvent.click(screen.getByRole('button', { name: /this article was helpful/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/please wait/i);
+    expect(screen.queryByText(/thanks for your feedback/i)).not.toBeInTheDocument();
+  });
 });

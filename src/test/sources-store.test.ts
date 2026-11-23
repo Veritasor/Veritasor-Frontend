@@ -5,10 +5,20 @@
  * localStorage persistence, and corrupt-storage fallback.
  */
 
-import { beforeEach, describe, it, expect } from 'vitest'
-import { sourcesStore, INITIAL_SOURCES, type Source } from '../store/sourcesStore'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
+import {
+  sourcesStore,
+  INITIAL_SOURCES,
+  SOURCES_SCHEMA_VERSION,
+  type Source,
+} from '../store/sourcesStore'
 
 const STORAGE_KEY = 'veritasor-sources-v1'
+
+interface PersistedPayload {
+  version: number
+  sources: Source[]
+}
 
 function makeSource(overrides: Partial<Source> = {}): Source {
   return {
@@ -19,6 +29,10 @@ function makeSource(overrides: Partial<Source> = {}): Source {
     lastSync: null,
     ...overrides,
   }
+}
+
+function readPersisted(): PersistedPayload {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY)!)
 }
 
 beforeEach(() => {
@@ -67,10 +81,8 @@ describe('sourcesStore — add', () => {
   it('persists the new source to localStorage', () => {
     const source = makeSource({ id: 'persist-1' })
     sourcesStore.add(source)
-    const raw = localStorage.getItem(STORAGE_KEY)
-    expect(raw).not.toBeNull()
-    const parsed = JSON.parse(raw!)
-    expect(parsed[0].id).toBe('persist-1')
+    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+    expect(readPersisted().sources[0].id).toBe('persist-1')
   })
 })
 
@@ -91,8 +103,7 @@ describe('sourcesStore — remove', () => {
   it('persists removal to localStorage', () => {
     const id = INITIAL_SOURCES[0].id
     sourcesStore.remove(id)
-    const parsed: Source[] = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
-    expect(parsed.find((s) => s.id === id)).toBeUndefined()
+    expect(readPersisted().sources.find((s) => s.id === id)).toBeUndefined()
   })
 })
 
@@ -145,56 +156,134 @@ describe('sourcesStore — setAll (reorder)', () => {
   it('persists the new order to localStorage', () => {
     const reversed = [...INITIAL_SOURCES].reverse()
     sourcesStore.setAll(reversed)
-    const parsed: Source[] = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
-    expect(parsed.map((s) => s.id)).toEqual(reversed.map((s) => s.id))
+    expect(readPersisted().sources.map((s) => s.id)).toEqual(reversed.map((s) => s.id))
   })
 })
 
 // ─── localStorage persistence ──────────────────────────────────────────────
 
-describe('sourcesStore — persistence', () => {
-  it('restores state from localStorage after reset', () => {
-    const source = makeSource({ id: 'persisted-1' })
-    sourcesStore.add(source)
+/** Re-import the module so its module-level `readStorage()` runs again. */
+async function loadFreshStore() {
+  vi.resetModules()
+  return import('../store/sourcesStore')
+}
 
-    // Simulate a fresh module load by resetting state to what's in storage
-    // We do this by calling reset() then add() so storage reflects the data,
-    // then directly writing our persisted item back.
-    const storedRaw = localStorage.getItem(STORAGE_KEY)!
-    const stored: Source[] = JSON.parse(storedRaw)
-    expect(stored[0].id).toBe('persisted-1')
+describe('sourcesStore — persistence', () => {
+  it('writes a versioned envelope to localStorage', () => {
+    sourcesStore.add(makeSource({ id: 'persisted-1' }))
+    const payload = readPersisted()
+    expect(payload.version).toBe(SOURCES_SCHEMA_VERSION)
+    expect(payload.sources[0].id).toBe('persisted-1')
+  })
+
+  it('rehydrates the persisted list on a fresh module load (survives reload)', async () => {
+    sourcesStore.add(makeSource({ id: 'reload-1' }))
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll().map((s) => s.id)).toEqual([
+      'reload-1',
+      ...INITIAL_SOURCES.map((s) => s.id),
+    ])
+  })
+
+  it('rehydrates an empty list without re-seeding', async () => {
+    sourcesStore.setAll([])
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual([])
   })
 })
 
-// ─── corrupt storage fallback ─────────────────────────────────────────────
+// ─── corrupt / missing storage fallback ───────────────────────────────────
 
 describe('sourcesStore — corrupt storage fallback', () => {
-  it('falls back to INITIAL_SOURCES when storage contains invalid JSON', () => {
+  it('falls back to INITIAL_SOURCES when storage contains invalid JSON', async () => {
     localStorage.setItem(STORAGE_KEY, '{ this is not json }')
-    sourcesStore.reset()
-    // After reset we explicitly re-seed, but we can test the readStorage logic
-    // by verifying the module-level fallback via a direct read of INITIAL_SOURCES
-    expect(INITIAL_SOURCES).toBeDefined()
-    expect(INITIAL_SOURCES.length).toBeGreaterThan(0)
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual(fresh.INITIAL_SOURCES)
   })
 
-  it('falls back to INITIAL_SOURCES when storage contains a non-array', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ not: 'an array' }))
-    // The store validation rejects non-arrays; after the next write it normalizes
-    sourcesStore.reset()
-    const all = sourcesStore.getAll()
-    expect(all).toEqual(INITIAL_SOURCES)
+  it('falls back to INITIAL_SOURCES when storage holds a non-array', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ not: 'a list' }))
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual(fresh.INITIAL_SOURCES)
   })
 
-  it('falls back when an item is missing required fields', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: 'x' }]))
-    // Re-read by simulating what the store does on load
-    const raw = localStorage.getItem(STORAGE_KEY)!
-    const parsed: unknown = JSON.parse(raw)
+  it('falls back when an item is missing required fields', async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ version: SOURCES_SCHEMA_VERSION, sources: [{ id: 'x' }] }),
+    )
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual(fresh.INITIAL_SOURCES)
+  })
 
-    // isValidSources would return false for this — confirm the fallback behavior
-    // by asserting a single-field item doesn't have all required Source fields
-    const item = (parsed as unknown[])[0] as Record<string, unknown>
-    expect(typeof item.provider).not.toBe('string')
+  it('falls back when an item has an invalid status', async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: SOURCES_SCHEMA_VERSION,
+        sources: [makeSource({ status: 'bogus' as never })],
+      }),
+    )
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual(fresh.INITIAL_SOURCES)
+  })
+
+  it('migrates a legacy bare-array payload', async () => {
+    const legacy = [makeSource({ id: 'legacy-1' })]
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy))
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual(legacy)
+  })
+
+  it('falls back when the persisted version is unknown', async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ version: 999, sources: [makeSource({ id: 'future-1' })] }),
+    )
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual(fresh.INITIAL_SOURCES)
+  })
+
+  it('does not crash when reading storage throws', async () => {
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage blocked')
+    })
+    const fresh = await loadFreshStore()
+    expect(fresh.sourcesStore.getAll()).toEqual(fresh.INITIAL_SOURCES)
+    spy.mockRestore()
+  })
+})
+
+// ─── cross-tab sync (storage event) ───────────────────────────────────────
+
+describe('sourcesStore — cross-tab storage event sync', () => {
+  function dispatchStorage(newValue: string | null, key: string = STORAGE_KEY) {
+    window.dispatchEvent(new StorageEvent('storage', { key, newValue }))
+  }
+
+  it('adopts a valid payload pushed from another tab', () => {
+    const incoming = [makeSource({ id: 'other-tab-1', provider: 'PayPal' })]
+    dispatchStorage(JSON.stringify({ version: SOURCES_SCHEMA_VERSION, sources: incoming }))
+    expect(sourcesStore.getAll()).toEqual(incoming)
+  })
+
+  it('ignores storage events for unrelated keys', () => {
+    const before = sourcesStore.getAll()
+    dispatchStorage(JSON.stringify({ version: SOURCES_SCHEMA_VERSION, sources: [] }), 'other-key')
+    expect(sourcesStore.getAll()).toBe(before)
+  })
+
+  it('falls back to INITIAL_SOURCES when the incoming payload is corrupt', () => {
+    dispatchStorage('{ broken json')
+    expect(sourcesStore.getAll()).toEqual(INITIAL_SOURCES)
+  })
+
+  it('re-reads storage when the key is removed (newValue null)', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ version: SOURCES_SCHEMA_VERSION, sources: [makeSource({ id: 'from-storage' })] }),
+    )
+    dispatchStorage(null)
+    expect(sourcesStore.getAll().map((s) => s.id)).toEqual(['from-storage'])
   })
 })

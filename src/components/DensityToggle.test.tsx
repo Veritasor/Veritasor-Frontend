@@ -3,10 +3,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import DensityToggle from "./DensityToggle";
 
 describe("DensityToggle", () => {
-  let fetchMock: any;
+  let fetchMock: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (url: any, options?: RequestInit) => {
+    fetchMock = vi.spyOn(global, "fetch").mockImplementation(async () => {
       return {
         ok: true,
         json: async () => ({ density: "comfortable" }),
@@ -53,7 +53,7 @@ describe("DensityToggle", () => {
   });
 
   it("handles server failure and rolls back state", async () => {
-    fetchMock.mockImplementation(async (url: any, options?: RequestInit) => {
+    fetchMock.mockImplementation(async (_url: unknown, options?: RequestInit) => {
       if (options?.method === 'PUT') {
          return { ok: false } as Response;
       }
@@ -79,7 +79,7 @@ describe("DensityToggle", () => {
   });
 
   it("handles network error and rolls back state", async () => {
-    fetchMock.mockImplementation(async (url: any, options?: RequestInit) => {
+    fetchMock.mockImplementation(async (_url: unknown, options?: RequestInit) => {
       if (options?.method === 'PUT') {
          return Promise.reject(new Error("Network Error"));
       }
@@ -101,7 +101,7 @@ describe("DensityToggle", () => {
   });
 
   it("works gracefully when onPersistError is not provided and an error occurs", async () => {
-    fetchMock.mockImplementation(async (url: any, options?: RequestInit) => {
+    fetchMock.mockImplementation(async (_url: unknown, options?: RequestInit) => {
       if (options?.method === 'PUT') {
          return { ok: false } as Response;
       }
@@ -123,5 +123,61 @@ describe("DensityToggle", () => {
     render(<DensityToggle workspace="" />);
     const comfortable = screen.getByRole("radio", { name: /Comfortable/i });
     expect(comfortable).toBeInTheDocument();
+  });
+
+  it("implements roving tabindex with only the selected radio tabbable", () => {
+    render(<DensityToggle workspace="test-ws" />);
+    const comfortable = screen.getByRole("radio", { name: /Comfortable/i });
+    const compact = screen.getByRole("radio", { name: /Compact/i });
+
+    expect(comfortable).toHaveAttribute("tabindex", "0");
+    expect(compact).toHaveAttribute("tabindex", "-1");
+
+    fireEvent.click(compact);
+
+    expect(comfortable).toHaveAttribute("tabindex", "-1");
+    expect(compact).toHaveAttribute("tabindex", "0");
+  });
+
+  it("changes selection and moves focus with arrow keys, Home, and End", () => {
+    render(<DensityToggle workspace="test-ws" />);
+    const comfortable = screen.getByRole("radio", { name: /Comfortable/i });
+    const compact = screen.getByRole("radio", { name: /Compact/i });
+
+    comfortable.focus();
+    fireEvent.keyDown(comfortable, { key: "ArrowRight" });
+    expect(compact).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(compact);
+
+    fireEvent.keyDown(compact, { key: "ArrowLeft" });
+    expect(comfortable).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(comfortable);
+
+    fireEvent.keyDown(comfortable, { key: "ArrowDown" });
+    expect(compact).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(compact);
+
+    fireEvent.keyDown(compact, { key: "ArrowUp" });
+    expect(comfortable).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(comfortable);
+
+    fireEvent.keyDown(comfortable, { key: "End" });
+    expect(compact).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(compact);
+
+    fireEvent.keyDown(compact, { key: "Home" });
+    expect(comfortable).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(comfortable);
+  });
+
+  it("announces density changes politely in a status live region", () => {
+    render(<DensityToggle workspace="test-ws" />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent("");
+
+    const comfortable = screen.getByRole("radio", { name: /Comfortable/i });
+    fireEvent.keyDown(comfortable, { key: "ArrowRight" });
+    expect(status).toHaveTextContent("Display density changed to Compact");
   });
 });

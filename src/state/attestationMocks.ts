@@ -50,3 +50,41 @@ export const MOCK_ATTESTATIONS: Attestation[] = [
     remediation: 'Verify network connectivity and retry the attestation proof submission.',
   },
 ]
+
+const MOCK_STATUSES: Attestation['status'][] = ['verified', 'pending', 'failed']
+const MOCK_SOURCES = ['Stripe Connect API', 'Square POS', 'Shopify Payments', 'PayPal Commerce']
+
+export function createMockAttestations(count = 2000): Attestation[] {
+  const baseTime = Date.UTC(2026, 4, 28, 12, 0, 0)
+  const items: Attestation[] = []
+
+  for (let i = 0; i < count; i += 1) {
+    const index = i + 1
+    const status = MOCK_STATUSES[i % MOCK_STATUSES.length]
+    const createdAt = new Date(baseTime - i * 3_600_000).toISOString()
+    const hexSuffix = index.toString(16).padStart(8, '0')
+    const source = MOCK_SOURCES[i % MOCK_SOURCES.length]
+
+    items.push({
+      id: `att-${String(index).padStart(4, '0')}`,
+      status,
+      createdAt,
+      timestamp: createdAt,
+      merkleRoot: `0x${hexSuffix.repeat(8)}`,
+      stellarTxHash: hexSuffix.repeat(8),
+      recordCount: 50 + (i % 500),
+      totalRevenue: `${(10_000 + i * 25).toLocaleString('en-US')}.00`,
+      currency: 'USD',
+      source,
+      period: 'May 2026',
+      ...(status === 'failed'
+        ? {
+            failureReason: 'Stellar network timeout during transaction submission.',
+            remediation: 'Verify network connectivity and retry the attestation proof submission.',
+          }
+        : {}),
+    })
+  }
+
+  return items
+}

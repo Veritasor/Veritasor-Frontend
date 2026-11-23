@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useToast } from './ToastContext'
+import { ROUTES } from '../routes'
 
 type PaletteScope = 'global' | 'page'
 
@@ -38,7 +39,7 @@ export const COMMANDS: Command[] = [
     description: 'Navigate to the business dashboard analytics overview',
     shortcut: ['G', 'D'],
     category: 'Navigation',
-    pageRoutes: ['/attestations', '/sources', '/settings', '/revenue-sources'],
+    pageRoutes: [ROUTES.attestations, ROUTES.sources, ROUTES.settings],
   },
   {
     id: 'nav-attestations',
@@ -46,7 +47,7 @@ export const COMMANDS: Command[] = [
     description: 'View and manage revenue proof attestations',
     shortcut: ['G', 'A'],
     category: 'Navigation',
-    pageRoutes: ['/', '/sources', '/settings', '/revenue-sources'],
+    pageRoutes: [ROUTES.home, ROUTES.sources, ROUTES.settings],
   },
   {
     id: 'nav-sources',
@@ -54,7 +55,7 @@ export const COMMANDS: Command[] = [
     description: 'View connected integrations and revenue flow',
     shortcut: ['G', 'S'],
     category: 'Navigation',
-    pageRoutes: ['/', '/attestations', '/settings', '/revenue-sources'],
+    pageRoutes: [ROUTES.home, ROUTES.attestations, ROUTES.settings],
   },
   {
     id: 'action-workspace-jump',
@@ -69,7 +70,7 @@ export const COMMANDS: Command[] = [
     description: 'Integrate Stripe, Shopify, or other platforms',
     shortcut: ['C', 'S'],
     category: 'Actions',
-    pageRoutes: ['/', '/sources', '/revenue-sources'],
+    pageRoutes: [ROUTES.home, ROUTES.sources],
   },
   {
     id: 'action-create-attestation',
@@ -77,7 +78,7 @@ export const COMMANDS: Command[] = [
     description: 'Trigger a new revenue proof attestation',
     shortcut: ['N', 'A'],
     category: 'Actions',
-    pageRoutes: ['/', '/attestations'],
+    pageRoutes: [ROUTES.home, ROUTES.attestations],
   },
   {
     id: 'action-toggle-theme',
@@ -115,22 +116,22 @@ const executeCommand = (
 ) => {
   switch (id) {
     case 'nav-dashboard':
-      navigate('/')
+      navigate(ROUTES.home)
       break
     case 'nav-attestations':
-      navigate('/attestations')
+      navigate(ROUTES.attestations)
       break
     case 'nav-sources':
-      navigate('/sources')
+      navigate(ROUTES.sources)
       break
     case 'action-workspace-jump':
       onWorkspaceJump?.()
       break
     case 'action-connect-source':
-      navigate('/sources?connect=true')
+      navigate(`${ROUTES.sources}?connect=true`)
       break
     case 'action-create-attestation':
-      navigate('/attestations?new=true')
+      navigate(`${ROUTES.attestations}?new=true`)
       break
     case 'action-toggle-theme': {
       const current = document.documentElement.getAttribute('data-theme')
@@ -147,7 +148,7 @@ const executeCommand = (
       break
     case 'action-sign-out':
       addToast('Signed out successfully', 'success')
-      navigate('/login')
+      navigate(ROUTES.login)
       break
     default:
       break
@@ -175,22 +176,28 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
   const scopeRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  // Load recents on mount and when palette opens
+  // Reset the palette on open and return focus to the opener on close.
   useEffect(() => {
-    if (isOpen) {
-      const stored = localStorage.getItem('veritasor-recent-commands')
-      if (stored) {
-        try {
-          setRecents(JSON.parse(stored))
-        } catch {
-          setRecents([])
-        }
+    if (!isOpen) return
+    const previousFocus = document.activeElement
+    const stored = localStorage.getItem('veritasor-recent-commands')
+    if (stored) {
+      try {
+        setRecents(JSON.parse(stored))
+      } catch {
+        setRecents([])
       }
-      setQuery('')
-      setActiveIndex(0)
-      setScope(loadScope)
-      // Small timeout to ensure input is mounted
-      setTimeout(() => inputRef.current?.focus(), 10)
+    }
+    setQuery('')
+    setActiveIndex(0)
+    setScope(loadScope)
+
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 10)
+    return () => {
+      window.clearTimeout(focusTimer)
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected && document.activeElement === document.body) {
+        previousFocus.focus({ preventScroll: true })
+      }
     }
   }, [isOpen])
 
@@ -304,7 +311,11 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
       if (visibleItems[activeIndex]) {
         handleSelect(visibleItems[activeIndex])
       }
-    } else if (e.key === 'Escape') {
+    }
+  }
+
+  const handleDialogKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
       e.preventDefault()
       onClose()
     } else if (e.key === 'Tab') {
@@ -375,6 +386,7 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
+        onKeyDown={handleDialogKeyDown}
       >
         {/* Scope segmented control */}
         <div

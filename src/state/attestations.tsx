@@ -66,9 +66,14 @@ interface AttestationsContextValue {
 
 const AttestationsContext = createContext<AttestationsContextValue | undefined>(undefined)
 
-export function AttestationsProvider({ children }: { children: ReactNode }) {
-  const [list, dispatch] = useReducer(attestationsReducer, MOCK_ATTESTATIONS)
-  const [lastUpdated, setLastUpdated] = useState(() => new Date().toISOString())
+export function AttestationsProvider({
+  children,
+  initialAttestations = MOCK_ATTESTATIONS,
+}: {
+  children: ReactNode
+  initialAttestations?: Attestation[]
+}) {
+  const [list, dispatch] = useReducer(attestationsReducer, initialAttestations)
   const nextId = useRef(1)
 
   const refresh = useCallback(() => {

@@ -17,13 +17,13 @@
  *   - Lead-time chip mirrors the scope badge pattern in KeyRow
  */
 
+import { useEffect, useReducer } from 'react'
 import type { ApiKey } from './apiKeyTypes'
 
 /** Number of days before rotationDue at which the banner appears. */
 const LEAD_TIME_DAYS = 14
 
-/** Snooze duration in milliseconds (24 h). */
-const SNOOZE_MS = 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
 
 interface Props {
   keyItem: ApiKey
@@ -31,13 +31,10 @@ interface Props {
   onSnooze: (id: string) => void
 }
 
-/**
- * Returns the number of whole days between now and a future ISO-8601 date.
- * Negative when the date is in the past.
- */
-function daysUntil(isoDate: string): number {
-  const diff = new Date(isoDate).getTime() - Date.now()
-  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+function snoozeUntil({ snoozedAt, rotationDue }: ApiKey): number {
+  if (!snoozedAt || !rotationDue) return 0
+  const end = Math.min(Date.parse(snoozedAt) + DAY_MS, Date.parse(rotationDue))
+  return Number.isFinite(end) ? end : 0
 }
 
 /**
@@ -46,30 +43,30 @@ function daysUntil(isoDate: string): number {
  *  2. has a rotationDue within the lead-time window
  *  3. is not currently snoozed
  */
-export function shouldShowRotationReminder(keyItem: ApiKey): boolean {
-  if (keyItem.status !== 'active') return false
-  if (!keyItem.rotationDue) return false
-
-  const days = daysUntil(keyItem.rotationDue)
-  if (days > LEAD_TIME_DAYS || days < 0) return false
-
-  if (keyItem.snoozedAt) {
-    const snoozeExpiry = new Date(keyItem.snoozedAt).getTime() + SNOOZE_MS
-    // Cap the snooze to the rotation deadline itself
-    const cap = new Date(keyItem.rotationDue).getTime()
-    if (Date.now() < Math.min(snoozeExpiry, cap)) return false
-  }
-
-  return true
+export function shouldShowRotationReminder(keyItem: ApiKey, now = Date.now()): boolean {
+  if (keyItem.status !== 'active' || !keyItem.rotationDue) return false
+  const remaining = Date.parse(keyItem.rotationDue) - now
+  return remaining >= 0 && remaining <= LEAD_TIME_DAYS * DAY_MS && now >= snoozeUntil(keyItem)
 }
 
 export default function RotationReminderBanner({ keyItem, onRotate, onSnooze }: Props) {
-  if (!shouldShowRotationReminder(keyItem)) return null
+  const [, refresh] = useReducer((version: number) => version + 1, 0)
+  const snoozeEnd = keyItem.status === 'active' ? snoozeUntil(keyItem) : 0
 
-  const days = daysUntil(keyItem.rotationDue!)
+  useEffect(() => {
+    const remaining = snoozeEnd - Date.now()
+    if (remaining <= 0) return
+    const timer = window.setTimeout(refresh, remaining)
+    return () => window.clearTimeout(timer)
+  }, [snoozeEnd])
+
+  const now = Date.now()
+  if (!keyItem.rotationDue || !shouldShowRotationReminder(keyItem, now)) return null
+
+  const days = Math.ceil((Date.parse(keyItem.rotationDue) - now) / DAY_MS)
   const isUrgent = days <= 3
 
-  const dueLabel = new Date(keyItem.rotationDue!).toLocaleDateString(undefined, {
+  const dueLabel = new Date(keyItem.rotationDue).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: '2-digit',

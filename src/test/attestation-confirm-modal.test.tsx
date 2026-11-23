@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MemoryRouter } from 'react-router-dom'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import AttestationConfirmModal from '../components/AttestationConfirmModal'
 import Dashboard from '../pages/Dashboard'
@@ -557,6 +557,101 @@ describe('AttestationConfirmModal', () => {
 
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(document.activeElement).toBe(trigger)
+    })
+  })
+
+  describe('double submission prevention and error recovery', () => {
+    it('invokes onConfirm only once when clicked repeatedly while pending', async () => {
+      let resolveConfirm!: () => void
+      const onConfirm = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveConfirm = resolve
+          }),
+      )
+
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={onConfirm}
+          details={DEMO_DETAILS}
+        />,
+      )
+
+      const confirmButton = screen.getByRole('button', { name: /confirm & attest/i })
+      fireEvent.click(confirmButton)
+      fireEvent.click(confirmButton)
+
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', { name: /attesting/i })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /attesting/i })).toHaveAttribute(
+        'aria-busy',
+        'true',
+      )
+
+      await act(async () => {
+        resolveConfirm()
+      })
+
+      expect(screen.getByRole('button', { name: /confirm & attest/i })).not.toBeDisabled()
+    })
+
+    it('announces error on rejection and allows retry to succeed', async () => {
+      const onConfirm = vi
+        .fn<() => Promise<void>>()
+        .mockRejectedValueOnce(new Error('Transaction rejected'))
+        .mockResolvedValueOnce(undefined)
+
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={onConfirm}
+          details={DEMO_DETAILS}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /confirm & attest/i }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Transaction rejected')
+      })
+
+      const retryButton = screen.getByRole('button', { name: /confirm & attest/i })
+      expect(retryButton).not.toBeDisabled()
+
+      fireEvent.click(retryButton)
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      })
+      expect(onConfirm).toHaveBeenCalledTimes(2)
+    })
+
+    it('announces error if onConfirm throws synchronously and allows retry', () => {
+      const onConfirm = vi
+        .fn<() => void>()
+        .mockImplementationOnce(() => {
+          throw new Error('Wallet disconnected')
+        })
+        .mockImplementationOnce(() => undefined)
+
+      renderWithRouter(
+        <AttestationConfirmModal
+          open
+          onClose={vi.fn()}
+          onConfirm={onConfirm}
+          details={DEMO_DETAILS}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /confirm & attest/i }))
+      expect(screen.getByRole('alert')).toHaveTextContent('Wallet disconnected')
+
+      fireEvent.click(screen.getByRole('button', { name: /confirm & attest/i }))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(onConfirm).toHaveBeenCalledTimes(2)
     })
   })
 })
