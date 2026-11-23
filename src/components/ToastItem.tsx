@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Toast } from './ToastContext'
 import { resolveAutoDismissMs } from './toastRules'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 export type ToastAnimationState = 'entering' | 'idle' | 'exiting'
 
@@ -16,6 +17,8 @@ interface ToastItemProps {
 
 export default function ToastItem({ toast, onRemove, disableMotion = false }: ToastItemProps) {
   const { id, type, message, duration, onUndo, undoLabel = 'Undo', count } = toast
+  const prefersReducedMotion = usePrefersReducedMotion()
+  const effectiveDisableMotion = disableMotion || prefersReducedMotion
 
   // Auto-dismiss duration: success/info default to 5000ms, warning/error persist
   // (0) unless explicitly overridden. ToastItem.tsx consults `toastRules` so the
@@ -25,7 +28,9 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
 
   const [timeLeft, setTimeLeft] = useState(initialDuration)
   const [isPaused, setIsPaused] = useState(false)
-  const [animationState, setAnimationState] = useState<ToastAnimationState>('entering')
+  const [animationState, setAnimationState] = useState<ToastAnimationState>(
+    effectiveDisableMotion ? 'idle' : 'entering',
+  )
   const timerRef = useRef<number | null>(null)
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastTickRef = useRef<number>(Date.now())
@@ -33,7 +38,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
 
   // Mark entrance complete after animation duration
   useEffect(() => {
-    if (disableMotion) {
+    if (effectiveDisableMotion) {
       setAnimationState('idle')
       return
     }
@@ -44,7 +49,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
       return () => clearTimeout(timer)
     })
     return () => cancelAnimationFrame(frame)
-  }, [disableMotion])
+  }, [effectiveDisableMotion])
 
   // Cleanup exit timer on unmount
   useEffect(() => {
@@ -60,7 +65,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
   const handleRemove = useCallback(() => {
     if (removingRef.current) return
     removingRef.current = true
-    if (disableMotion) {
+    if (effectiveDisableMotion) {
       onRemove(id)
       return
     }
@@ -75,7 +80,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
     exitTimerRef.current = setTimeout(() => {
       onRemove(id)
     }, 200) // matches motion.duration.sm for fast exit
-  }, [id, onRemove, disableMotion])
+  }, [id, onRemove, effectiveDisableMotion])
 
   // Countdown timer logic
   useEffect(() => {
@@ -183,7 +188,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
   const progressPercent = initialDuration > 0 ? (timeLeft / initialDuration) * 100 : 0
   const ariaRole = type === 'error' ? 'alert' : 'status'
 
-  const animationClass = disableMotion
+  const animationClass = effectiveDisableMotion
     ? ''
     : animationState === 'entering'
     ? 'toast-entering'
@@ -195,6 +200,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
     <div
       className={`toast toast-${type} ${animationClass}`.trim()}
       role={ariaRole}
+      data-reduced-motion={prefersReducedMotion ? 'true' : 'false'}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onFocus={handleFocus}

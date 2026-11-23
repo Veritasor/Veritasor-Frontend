@@ -51,6 +51,7 @@
  */
 
 import React from 'react'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 // ─── CrossfadeReveal ─────────────────────────────────────────────────────────
 
@@ -104,6 +105,7 @@ export function CrossfadeReveal({
   className,
   style,
 }: CrossfadeRevealProps) {
+  const reducedMotion = usePrefersReducedMotion()
   const cssVars = {
     '--crossfade-index': staggerIndex,
     ...style,
@@ -113,6 +115,7 @@ export function CrossfadeReveal({
     <div
       className={['crossfade-root', 'crossfade-stagger-item', className].filter(Boolean).join(' ')}
       data-loaded={loaded ? 'true' : 'false'}
+      data-reduced-motion={reducedMotion ? 'true' : 'false'}
       style={cssVars}
     >
       {/* Skeleton layer – hidden from AT once content is loaded */}
@@ -149,12 +152,14 @@ export interface DashboardSkeletonProps {
 }
 
 export function DashboardSkeleton({ loaded, children }: DashboardSkeletonProps = {}) {
+  const reducedMotion = usePrefersReducedMotion()
   const skeleton = (
     <div
       className="loading-region"
       aria-busy="true"
       aria-label="Loading dashboard metrics"
       role="status"
+      data-reduced-motion={reducedMotion ? 'true' : 'false'}
     >
       <h2 style={{ marginTop: 0, fontSize: '1rem' }} className="skeleton skeleton-text" />
 
@@ -225,12 +230,14 @@ export interface AttestationsSkeletonProps {
 }
 
 export function AttestationsSkeleton({ loaded, children }: AttestationsSkeletonProps = {}) {
+  const reducedMotion = usePrefersReducedMotion()
   const skeleton = (
     <div
       className="loading-region"
       aria-busy="true"
       aria-label="Loading attestations list"
       role="status"
+      data-reduced-motion={reducedMotion ? 'true' : 'false'}
     >
       <h2 style={{ marginTop: 0, fontSize: '1rem' }} className="skeleton skeleton-text" />
 
@@ -279,8 +286,9 @@ export function AttestationsSkeleton({ loaded, children }: AttestationsSkeletonP
 // ─── MetricCardSkeleton ──────────────────────────────────────────────────────
 
 export function MetricCardSkeleton() {
+  const reducedMotion = usePrefersReducedMotion()
   return (
-    <div className="skeleton-metric">
+    <div className="skeleton-metric" data-reduced-motion={reducedMotion ? 'true' : 'false'}>
       <div className="skeleton skeleton-metric-label" />
       <div className="skeleton skeleton-metric-value" />
     </div>
@@ -290,8 +298,9 @@ export function MetricCardSkeleton() {
 // ─── AttestationRowSkeleton ──────────────────────────────────────────────────
 
 export function AttestationRowSkeleton() {
+  const reducedMotion = usePrefersReducedMotion()
   return (
-    <div className="skeleton-row">
+    <div className="skeleton-row" data-reduced-motion={reducedMotion ? 'true' : 'false'}>
       <div className="skeleton skeleton-text" />
       <div className="skeleton skeleton-text" />
       <div className="skeleton skeleton-text" />
