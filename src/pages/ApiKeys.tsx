@@ -4,6 +4,7 @@ import KeyRow from '../components/api-keys/KeyRow'
 import RotationReminderBanner from '../components/api-keys/RotationReminderBanner'
 import type { ApiKey, ApiKeyStatus } from '../components/api-keys/apiKeyTypes'
 import { useToast } from '../components/ToastContext'
+import { useMutation } from '../hooks/useMutation'
 
 // 14-day lead-time window relative to today (2026-07-28)
 const today = new Date('2026-07-28T10:08:33Z')
@@ -56,6 +57,33 @@ export default function ApiKeys() {
   const [createOpen, setCreateOpen] = useState(false)
   const [mintedOnce, setMintedOnce] = useState<null | { keyId: string; fullKey: string }>(null)
   const { addToast } = useToast()
+  const revokeMutation = useMutation<string, ApiKeyStatus>({
+    mutationKey: 'api-key-revoke',
+    mutationFn: async (id) => {
+      const response = await fetch(`/v1/api-keys/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        throw new Error(`Could not revoke API key (HTTP ${response.status}).`)
+      }
+    },
+    onMutate: (id) => {
+      const previousStatus = keys.find((key) => key.id === id)?.status ?? 'active'
+      setKeys((previous) =>
+        previous.map((key) => (key.id === id ? { ...key, status: 'revoked' } : key)),
+      )
+      setMintedOnce(null)
+      return previousStatus
+    },
+    onError: (error, id, previousStatus) => {
+      setKeys((previous) =>
+        previous.map((key) =>
+          key.id === id ? { ...key, status: previousStatus } : key,
+        ),
+      )
+      addToast(error.message, 'error')
+    },
+  })
 
   const sortedKeys = useMemo(() => {
     return [...keys].sort((a, b) => {
@@ -213,10 +241,7 @@ export default function ApiKeys() {
                     onCopyMasked={() => {}}
                     mintedOnce={mintedOnce?.keyId === key.id ? mintedOnce.fullKey : null}
                     onRotate={handleRotate}
-                    onRevoke={(id) => {
-                      setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, status: 'revoked' } : k)))
-                      setMintedOnce(null)
-                    }}
+                    onRevoke={(id) => void revokeMutation.mutate(id)}
                   />
                 </li>
               ))}
