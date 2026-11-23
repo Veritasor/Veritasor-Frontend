@@ -1,0 +1,957 @@
+import { useEffect, useId, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import AuthShell from "../../components/AuthShell";
+import { useToast } from "../../components/ToastContext";
+import MfaMethodChooser, {
+  type MfaMethod,
+} from "../../components/MfaMethodChooser";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import SubmitButton from "../../components/SubmitButton";
+import {
+  verifyRecoveryCode,
+  remainingCodeCount,
+  generateRecoveryCodes,
+} from "../../services/mockAuth";
+import RecoveryProgress from "./RecoveryProgress";
+import type {
+  LoginMachineAction,
+  RecoveryPath,
+  RecoveryStep,
+} from "./loginMachine";
+import { useTimeout } from "./useTimeout";
+
+const METHOD_DISPLAY: Record<MfaMethod, string> = {
+  totp: "Authenticator app",
+  sms: "SMS text message",
+  "security-key": "Security key",
+};
+
+export default function MfaRecoveryFlowState({
+  step,
+  path,
+  dispatch,
+  onBack,
+  onSuccess,
+}: {
+  step: RecoveryStep;
+  path: RecoveryPath | null;
+  dispatch: React.Dispatch<LoginMachineAction>;
+  onBack: () => void;
+  onSuccess: () => void;
+}) {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+
+  // Recovery-code step state
+  // `codes` is populated with a fresh crypto-generated set when the user
+  // reaches the "complete" step after re-enrollment.  It is empty until then.
+  const [codes, setCodes] = useState<string[]>([]);
+  const [codeValue, setCodeValue] = useState("");
+  const [codeTried, setCodeTried] = useState(false);
+  const [codeValid, setCodeValid] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [codesRemaining, setCodesRemaining] = useState<number>(
+    remainingCodeCount,
+  );
+
+  // Support step state
+  const [supportName, setSupportName] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
+  const [supportReason, setSupportReason] = useState("lost-device");
+  const [supportDetails, setSupportDetails] = useState("");
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+
+  // Re-enroll step state
+  const [chosenMethod, setChosenMethod] = useState<MfaMethod | null>(null);
+
+  const codeId = useId();
+  const supportNameId = useId();
+  const supportEmailId = useId();
+
+  const autoAdvanceTimer = useTimeout();
+  const reenrollTimer = useTimeout();
+  const codeSubmitTimer = useTimeout();
+  const supportSubmitTimer = useTimeout();
+
+  // When recovery code succeeds, go to success screen then auto-advance
+  useEffect(() => {
+    if (step !== "recovery-code-success") return;
+    autoAdvanceTimer.schedule(
+      () => dispatch({ type: "RECOVERY_CODE_AUTO_ADVANCE" }),
+      1800,
+    );
+    return () => autoAdvanceTimer.clear();
+  }, [step, autoAdvanceTimer, dispatch]);
+
+  // When re-enroll picks a method, go to complete — generate fresh codes first
+  useEffect(() => {
+    if (step !== "reenroll-method" || !chosenMethod) return;
+    reenrollTimer.schedule(() => {
+      setCodes(generateRecoveryCodes());
+      dispatch({ type: "REENROLL_COMPLETED" });
+    }, 500);
+    return () => reenrollTimer.clear();
+  }, [step, chosenMethod, reenrollTimer, dispatch]);
+
+  const handleSubmitCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCodeTried(true);
+    setIsSubmitting(true);
+
+    const valid = verifyRecoveryCode(codeValue);
+    codeSubmitTimer.schedule(() => {
+      setCodeValid(valid);
+      setIsSubmitting(false);
+      if (valid) {
+        setCodesRemaining(remainingCodeCount());
+        addToast("Recovery code accepted. Proceeding…", "success");
+        dispatch({ type: "RECOVERY_CODE_ACCEPTED" });
+      } else {
+        addToast(
+          "That code does not match any unused recovery code. Try again or use support verification.",
+          "error",
+        );
+      }
+    }, 800);
+  };
+
+  const handleSubmitSupport = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supportName.trim() || !supportEmail.trim()) {
+      addToast("Please provide your full name and verified email.", "error");
+      return;
+    }
+    setIsSubmitting(true);
+    supportSubmitTimer.schedule(() => {
+      setIsSubmitting(false);
+      addToast(
+        "Verification request submitted. Support will reply within 1 business day.",
+        "success",
+      );
+      // For demo flow, proceed so user can see full UX; production would
+      // actually wait for support to verify and send a magic link.
+      dispatch({ type: "SUPPORT_REQUEST_SUBMITTED" });
+    }, 1200);
+  };
+
+  return (
+    <AuthShell
+      eyebrow="Account recovery"
+      title="Lost your MFA device?"
+      description="Use one of the paths below to verify your identity, then enroll a new second-factor method to regain access."
+      footerPrompt="Back to sign in?"
+      footerLinkLabel="Return to sign in"
+      footerLinkHref="/login"
+      sideTitle="Safe recovery — no dead ends"
+      sideDescription="Users who lose a phone or security key can self-serve via recovery codes, or open a verified ticket. Both paths end with guided re-enrollment so the workspace stays protected."
+      sideHighlights={[
+        "Visible progress indicator across every recovery branch",
+        "Support-verification fallback for users without recovery codes",
+        "Mandatory re-enrollment step before the workspace is accessible again",
+      ]}
+    >
+      <RecoveryProgress current={step} />
+
+      {/* Step 1: Choose path */}
+      {step === "choose-path" && (
+        <form
+          className="auth-form"
+          onSubmit={(e) => e.preventDefault()}
+          style={{ gap: "0.875rem" }}
+        >
+          <div
+            role="group"
+            aria-labelledby="recovery-choose-title"
+            style={{ display: "grid", gap: "0.5rem" }}
+          >
+            <h2 id="recovery-choose-title" className="sr-only">
+              Choose a recovery method
+            </h2>
+          </div>
+
+          <div
+            role="radiogroup"
+            aria-label="Recovery path"
+            style={{ display: "grid", gap: "0.65rem" }}
+          >
+            {[
+              {
+                id: "recovery-code" as RecoveryPath,
+                icon: "🛡",
+                title: "Use a recovery code",
+                description:
+                  "Enter one of the 10 single-use codes saved when you set up 2FA. This is the fastest way back in.",
+                recommended: true,
+              },
+              {
+                id: "support" as RecoveryPath,
+                icon: "🎧",
+                title: "Verify with support",
+                description:
+                  "Don't have your recovery codes? Submit a verification request. Support will confirm your identity via your registered email and/or phone.",
+                recommended: false,
+              },
+            ].map((opt) => {
+              const isActive = path === opt.id;
+              return (
+                <label
+                  key={opt.id}
+                  className="wizard-choice-card"
+                  style={{ display: "block" }}
+                >
+                  <input
+                    type="radio"
+                    name="recovery-path"
+                    className="wizard-choice-input sr-only"
+                    checked={isActive}
+                    onChange={() =>
+                      dispatch({ type: "SELECT_RECOVERY_PATH", path: opt.id })
+                    }
+                    aria-label={opt.title}
+                  />
+                  <div
+                    className="wizard-choice-surface"
+                    style={{
+                      minHeight: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "0.875rem",
+                      padding: "1rem",
+                      borderRadius: "var(--radius-sm)",
+                      border: isActive
+                        ? "1.5px solid var(--border-strong)"
+                        : "1px solid var(--border)",
+                      background: isActive
+                        ? "rgba(94, 234, 212, 0.06)"
+                        : "rgba(15, 23, 42, 0.72)",
+                      cursor: "pointer",
+                      transition:
+                        "border-color 140ms ease, background-color 140ms ease",
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: "2.5rem",
+                        height: "2.5rem",
+                        borderRadius: "var(--radius-sm)",
+                        background: "var(--surface-strong)",
+                        border: "1px solid var(--border)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1.2rem",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {opt.icon}
+                    </span>
+                    <div style={{ display: "grid", gap: "0.25rem" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span style={{ fontWeight: 700 }}>{opt.title}</span>
+                        {opt.recommended && (
+                          <span
+                            style={{
+                              fontSize: "0.72rem",
+                              fontWeight: 800,
+                              padding: "0.12rem 0.5rem",
+                              borderRadius: 999,
+                              background: "rgba(94, 234, 212, 0.14)",
+                              border: "1px solid rgba(94, 234, 212, 0.35)",
+                              color: "var(--accent)",
+                              letterSpacing: "0.04em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Fastest
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "var(--muted)",
+                          fontSize: "0.88rem",
+                          lineHeight: 1.55,
+                        }}
+                      >
+                        {opt.description}
+                      </p>
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="auth-actions" style={{ gap: "0.5rem" }}>
+            <button
+              type="button"
+              className="auth-button auth-button-secondary"
+              onClick={onBack}
+            >
+              ← Back to sign in
+            </button>
+            <button
+              type="button"
+              className="auth-button auth-button-primary"
+              disabled={!path}
+              onClick={() => dispatch({ type: "CONTINUE_FROM_CHOOSE_PATH" })}
+            >
+              Continue
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Step 2a: Recovery code entry */}
+      {step === "recovery-code-entry" && (
+        <form
+          className="auth-form"
+          onSubmit={handleSubmitCode}
+          noValidate
+          style={{ gap: "1rem" }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gap: "0.5rem",
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "1.15rem",
+                fontWeight: 700,
+              }}
+            >
+              Enter a recovery code
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--muted)",
+                fontSize: "0.9rem",
+                lineHeight: 1.6,
+              }}
+            >
+              Recovery codes were displayed when you first enabled two-factor
+              authentication. Each code can be used once.
+            </p>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--muted)",
+                fontSize: "0.85rem",
+              }}
+            >
+              {codesRemaining === 10
+                ? "10 codes remaining."
+                : codesRemaining === 1
+                  ? "1 code remaining."
+                  : `${codesRemaining} codes remaining.`}
+            </p>
+          </div>
+
+          <div className="auth-message auth-message-warning" role="note">
+            <span aria-hidden="true" className="auth-message-icon">
+              ⚠
+            </span>
+            After using a recovery code, all other MFA methods on your account
+            will be suspended until you enroll a replacement.
+          </div>
+
+          <div className="auth-input-group">
+            <label className="auth-label" htmlFor={codeId}>
+              Recovery code
+            </label>
+            <input
+              id={codeId}
+              className={
+                "auth-input" +
+                (codeTried && !codeValid && codeValue.length > 0
+                  ? " auth-input-error"
+                  : "")
+              }
+              type="text"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="one-time-code"
+              placeholder="XXXX-XXXX-XXXX"
+              value={codeValue}
+              onChange={(e) => {
+                setCodeValue(e.target.value.toUpperCase());
+                if (codeTried) setCodeTried(false);
+              }}
+              aria-invalid={
+                codeTried && !codeValid && codeValue.length > 0
+                  ? "true"
+                  : undefined
+              }
+              aria-describedby={
+                "recovery-code-help" +
+                (codeTried && !codeValid ? " recovery-code-error" : "")
+              }
+              style={{
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                letterSpacing: "0.12em",
+                textAlign: "center" as const,
+                fontSize: "1.1rem",
+              }}
+              maxLength={16}
+              disabled={isSubmitting}
+            />
+            <p
+              id="recovery-code-help"
+              className="auth-message auth-message-help"
+            >
+              Codes are case-insensitive. Hyphens are added automatically.
+            </p>
+            {codeTried && !codeValid && codeValue.length > 0 && (
+              <p
+                id="recovery-code-error"
+                className="auth-message auth-message-error"
+                role="alert"
+              >
+                <span aria-hidden="true" className="auth-message-icon">
+                  !
+                </span>
+                That code wasn&apos;t recognized. Double-check the characters
+                (avoid 0 vs O, 1 vs I, 5 vs S).
+              </p>
+            )}
+          </div>
+
+          <div className="auth-actions" style={{ gap: "0.5rem" }}>
+            <button
+              type="button"
+              className="auth-button auth-button-ghost"
+              onClick={() => dispatch({ type: "RECOVERY_BACK" })}
+            >
+              ← Try a different method
+            </button>
+            <SubmitButton
+              idleLabel="Verify code"
+              busyLabel="Verifying code…"
+              busy={isSubmitting}
+              disabled={
+                isSubmitting ||
+                codeValue.trim().replace(/[^A-Z0-9]/g, "").length < 8
+              }
+            />
+          </div>
+        </form>
+      )}
+
+      {/* Step 2a success — auto-advances */}
+      {step === "recovery-code-success" && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: "grid",
+            gap: "1rem",
+            padding: "1.25rem 0",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.875rem",
+              padding: "1rem",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid rgba(52, 211, 153, 0.35)",
+              background: "var(--success-soft)",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: "2.75rem",
+                height: "2.75rem",
+                borderRadius: 999,
+                background: "var(--accent)",
+                color: "#04111f",
+                fontWeight: 800,
+                fontSize: "1.25rem",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              ✓
+            </span>
+            <div style={{ display: "grid", gap: "0.15rem" }}>
+              <div style={{ fontWeight: 700, color: "var(--text)" }}>
+                Recovery code accepted
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--muted)",
+                  fontSize: "0.9rem",
+                  lineHeight: 1.5,
+                }}
+              >
+                Preparing the re-enrollment screen…
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2b: Support verification */}
+      {step === "support-verify" && (
+        <form
+          className="auth-form"
+          onSubmit={handleSubmitSupport}
+          noValidate
+          style={{ gap: "0.875rem" }}
+        >
+          <div style={{ display: "grid", gap: "0.35rem" }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "1.15rem",
+                fontWeight: 700,
+              }}
+            >
+              Verify with support
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--muted)",
+                fontSize: "0.9rem",
+                lineHeight: 1.6,
+              }}
+            >
+              Submit a verification request. Our team will reply within 1
+              business day to confirm your identity and unlock account recovery.
+            </p>
+          </div>
+
+          <div
+            className="auth-message auth-message-info"
+            role="note"
+            style={{
+              padding: "0.75rem 0.875rem",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid rgba(96, 165, 250, 0.32)",
+              background: "rgba(96, 165, 250, 0.12)",
+              color: "#e0f2ff",
+              fontSize: "0.88rem",
+              lineHeight: 1.5,
+            }}
+          >
+            <span aria-hidden="true" style={{ marginRight: "0.4rem" }}>
+              ℹ
+            </span>
+            To protect your workspace from account-takeover attempts,
+            support-assisted recovery requires verification via your registered
+            email address and one additional factor (phone, billing, or
+            workspace-admin confirmation).
+          </div>
+
+          <div className="auth-grid">
+            <div className="auth-input-group">
+              <label className="auth-label" htmlFor={supportNameId}>
+                Full name
+              </label>
+              <input
+                id={supportNameId}
+                className="auth-input"
+                type="text"
+                autoComplete="name"
+                placeholder="Joel Agboola"
+                value={supportName}
+                onChange={(e) => setSupportName(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="auth-input-group">
+              <label className="auth-label" htmlFor={supportEmailId}>
+                Verified email
+              </label>
+              <input
+                id={supportEmailId}
+                className="auth-input"
+                type="email"
+                autoComplete="email"
+                placeholder="joel@example.com"
+                value={supportEmail}
+                onChange={(e) => setSupportEmail(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          <div className="auth-input-group">
+            <label className="auth-label" htmlFor="support-reason">
+              What do you need help with?
+            </label>
+            <select
+              id="support-reason"
+              className="auth-input"
+              value={supportReason}
+              onChange={(e) => setSupportReason(e.target.value)}
+              disabled={isSubmitting}
+              style={{ appearance: "auto" }}
+            >
+              <option value="lost-device">Lost or stolen MFA device</option>
+              <option value="new-phone">
+                Got a new phone — didn&apos;t transfer TOTP seeds
+              </option>
+              <option value="no-codes">
+                Never saved or cannot find recovery codes
+              </option>
+              <option value="broken-key">
+                Hardware security key is broken or damaged
+              </option>
+              <option value="other">Other / not sure</option>
+            </select>
+          </div>
+
+          <div className="auth-input-group">
+            <label className="auth-label" htmlFor="support-details">
+              Additional details (optional)
+            </label>
+            <textarea
+              id="support-details"
+              className="auth-input"
+              rows={3}
+              placeholder="Anything that can help verify your account faster…"
+              value={supportDetails}
+              onChange={(e) => setSupportDetails(e.target.value)}
+              disabled={isSubmitting}
+              style={{
+                minHeight: "5.5rem",
+                resize: "vertical",
+                lineHeight: 1.5,
+              }}
+            />
+          </div>
+
+          <label className="auth-checkbox">
+            <input type="checkbox" required disabled={isSubmitting} />
+            <span>
+              I understand support will <strong>never</strong> ask me for my
+              password or recovery codes over email or chat.
+            </span>
+          </label>
+
+          <div className="auth-actions" style={{ gap: "0.5rem" }}>
+            <button
+              type="button"
+              className="auth-button auth-button-ghost"
+              onClick={() => dispatch({ type: "RECOVERY_BACK" })}
+            >
+              ← Back
+            </button>
+            <SubmitButton
+              idleLabel="Submit request"
+              busyLabel="Submitting…"
+              busy={isSubmitting}
+            />
+          </div>
+        </form>
+      )}
+
+      {/* Step 3: Re-enroll a new MFA method */}
+      {step === "reenroll-method" && (
+        <div className="auth-form" style={{ gap: "1rem" }}>
+          <div style={{ display: "grid", gap: "0.35rem" }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "1.15rem",
+                fontWeight: 700,
+              }}
+            >
+              Enroll a new second factor
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--muted)",
+                fontSize: "0.9rem",
+                lineHeight: 1.6,
+              }}
+            >
+              To keep your workspace secure, you must enroll a new MFA method
+              now. Old methods have been revoked.
+            </p>
+          </div>
+
+          <div
+            className="auth-message auth-message-warning"
+            role="alert"
+            aria-live="polite"
+          >
+            <span aria-hidden="true" className="auth-message-icon">
+              ⚠
+            </span>
+            You will not be able to access the workspace until a new method is
+            configured. After enrollment, save a fresh set of recovery codes in
+            a safe place.
+          </div>
+
+          <MfaMethodChooser
+            value={chosenMethod}
+            onChange={(m) => setChosenMethod(m)}
+            aria-label="Choose a new second-factor method to enroll"
+          />
+
+          <div className="auth-actions" style={{ gap: "0.5rem" }}>
+            <button
+              type="button"
+              className="auth-button auth-button-ghost"
+              onClick={() => setShowConfirmCancel(true)}
+            >
+              Cancel recovery
+            </button>
+            <button
+              type="button"
+              className="auth-button auth-button-primary"
+              disabled={!chosenMethod}
+              onClick={() => {
+                if (!chosenMethod) return;
+                addToast(
+                  `${METHOD_DISPLAY[chosenMethod]} enrolled successfully.`,
+                  "success",
+                );
+                setCodes(generateRecoveryCodes());
+                dispatch({ type: "REENROLL_COMPLETED" });
+              }}
+            >
+              {chosenMethod
+                ? `Enroll ${METHOD_DISPLAY[chosenMethod]}`
+                : "Select a method above"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Complete */}
+      {step === "complete" && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: "grid",
+            gap: "1.25rem",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gap: "0.75rem",
+              padding: "1.25rem",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid rgba(52, 211, 153, 0.35)",
+              background:
+                "linear-gradient(180deg, rgba(52, 211, 153, 0.08), rgba(96, 165, 250, 0.04))",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.875rem",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "3rem",
+                  height: "3rem",
+                  borderRadius: 999,
+                  background: "linear-gradient(135deg, var(--accent), #60a5fa)",
+                  color: "#04111f",
+                  fontWeight: 800,
+                  fontSize: "1.4rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                ✓
+              </span>
+              <div style={{ display: "grid", gap: "0.2rem" }}>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "1.1rem",
+                  }}
+                >
+                  Recovery complete
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--muted)",
+                    fontSize: "0.9rem",
+                    lineHeight: 1.55,
+                  }}
+                >
+                  Your account is secured with a fresh second-factor method.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            role="region"
+            aria-label="Fresh recovery codes"
+            style={{
+              display: "grid",
+              gap: "0.75rem",
+              padding: "1rem",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              background: "var(--surface-strong)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "grid", gap: "0.2rem" }}>
+                <div style={{ fontWeight: 700 }}>
+                  Save these new recovery codes
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--muted)",
+                    fontSize: "0.88rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Each code below is single-use. Store them in a password
+                  manager or print them out.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="auth-inline-link"
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: 6,
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  cursor: "pointer",
+                  justifyContent: "flex-start",
+                  fontWeight: 600,
+                  minHeight: "2.25rem",
+                }}
+                onClick={() => {
+                  const text = codes.join("\n");
+                  navigator.clipboard
+                    ?.writeText(text)
+                    .then(() =>
+                      addToast(
+                        "Recovery codes copied to clipboard.",
+                        "success",
+                      ),
+                    )
+                    .catch(() => {});
+                }}
+              >
+                📋 Copy all
+              </button>
+            </div>
+            <ol
+              role="list"
+              style={{
+                margin: 0,
+                padding: "0.75rem",
+                borderRadius: "calc(var(--radius-sm) - 0.2rem)",
+                background: "rgba(15, 23, 42, 0.7)",
+                border: "1px solid var(--border)",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))",
+                gap: "0.5rem 1rem",
+                listStyle: "none",
+              }}
+            >
+              {codes.map((c, i) => (
+                <li
+                  key={c}
+                  style={{
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontSize: "0.85rem",
+                    color: "var(--text)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: "1.25rem",
+                      color: "var(--muted)",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    {String(i + 1).padStart(2, "0")}.
+                  </span>
+                  <code>{c}</code>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="auth-actions" style={{ gap: "0.5rem" }}>
+            <button
+              type="button"
+              className="auth-button auth-button-secondary"
+              onClick={() => navigate("/settings#security")}
+            >
+              Go to Security settings
+            </button>
+            <button
+              type="button"
+              className="auth-button auth-button-primary"
+              onClick={onSuccess}
+            >
+              Continue to dashboard
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={showConfirmCancel}
+        title="Cancel recovery and return to sign in?"
+        description="Any progress you made in this recovery flow (such as recovery code or support information you typed) will not be saved. You can restart recovery at any time from the sign-in screen."
+        confirmText="Cancel recovery"
+        cancelText="Stay in recovery flow"
+        tone="danger"
+        onConfirm={() => {
+          setShowConfirmCancel(false);
+          onBack();
+        }}
+        onClose={() => setShowConfirmCancel(false)}
+      />
+    </AuthShell>
+  );
+}
