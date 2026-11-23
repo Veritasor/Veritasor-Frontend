@@ -33,25 +33,18 @@
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiKeyDetailPanel } from './ApiKeyDetailPanel'
-import type { ApiKey } from '../../pages/ApiKeyManagement'
+import type { ApiKey } from './apiKeyTypes'
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
 
-const CALL_VOLUME = Array.from({ length: 14 }, (_, i) => ({
-  date: `2026-06-${String(i + 1).padStart(2, '0')}`,
-  count: 100 + i * 10,
-}))
-
 const sampleKey: ApiKey = {
   id: 'key_abc123',
-  name: 'Test Production Key',
-  prefix: 'vts_live_abc1...',
-  scopes: ['read', 'write'],
+  label: 'Test Production Key',
+  maskedKey: 'vtsr_live_abc1…1234',
+  scopes: ['read:attestations', 'write:attestations'],
   status: 'active',
-  createdAt: '2026-05-01',
-  lastUsedAt: '2026-06-20',
-  recentIps: ['192.0.2.1', '198.51.100.5'],
-  callVolume: CALL_VOLUME,
+  createdAt: '2026-05-01T00:00:00Z',
+  expiresAt: '2026-08-01T00:00:00Z',
 }
 
 function makeKey(overrides: Partial<ApiKey> = {}): ApiKey {
@@ -99,9 +92,9 @@ describe('ApiKeyDetailPanel – open / rendered state (happy path)', () => {
     expect(screen.getByText('Test Production Key')).toBeInTheDocument()
   })
 
-  it('displays the key prefix below the name', () => {
+  it('displays the masked key below the label', () => {
     render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
-    expect(screen.getByText('vts_live_abc1...')).toBeInTheDocument()
+    expect(screen.getByText('vtsr_live_abc1…1234')).toBeInTheDocument()
   })
 
   it('displays the status badge with correct text', () => {
@@ -112,19 +105,13 @@ describe('ApiKeyDetailPanel – open / rendered state (happy path)', () => {
 
   it('displays all allowed scopes as badges', () => {
     render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
-    expect(screen.getByText('read')).toBeInTheDocument()
-    expect(screen.getByText('write')).toBeInTheDocument()
+    expect(screen.getByText('read:attestations')).toBeInTheDocument()
+    expect(screen.getByText('write:attestations')).toBeInTheDocument()
   })
 
   it('displays the key ID in the metadata section', () => {
     render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
     expect(screen.getByText('key_abc123')).toBeInTheDocument()
-  })
-
-  it('displays each recent IP address', () => {
-    render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
-    expect(screen.getByText('192.0.2.1')).toBeInTheDocument()
-    expect(screen.getByText('198.51.100.5')).toBeInTheDocument()
   })
 
   it('renders a close button with accessible label', () => {
@@ -144,14 +131,10 @@ describe('ApiKeyDetailPanel – open / rendered state (happy path)', () => {
     expect(screen.getByText(/usage details/i)).toBeInTheDocument()
   })
 
-  it('renders the "Recent Calling IPs" section heading', () => {
+  it('displays the key expiry date', () => {
     render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
-    expect(screen.getByText(/recent calling ips/i)).toBeInTheDocument()
-  })
-
-  it('renders the "Call Volume" section heading', () => {
-    render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
-    expect(screen.getByText(/call volume/i)).toBeInTheDocument()
+    expect(screen.getByText(/expires/i)).toBeInTheDocument()
+    expect(screen.getByText('Aug 01, 2026')).toBeInTheDocument()
   })
 })
 
@@ -178,26 +161,6 @@ describe('ApiKeyDetailPanel – boundary inputs', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('renders with empty recentIps array without crashing', () => {
-    render(
-      <ApiKeyDetailPanel
-        keyData={makeKey({ recentIps: [] })}
-        onClose={() => {}}
-      />,
-    )
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-  })
-
-  it('renders with empty callVolume array without crashing', () => {
-    render(
-      <ApiKeyDetailPanel
-        keyData={makeKey({ callVolume: [] })}
-        onClose={() => {}}
-      />,
-    )
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-  })
-
   it('renders with a single scope without crashing', () => {
     render(
       <ApiKeyDetailPanel
@@ -208,10 +171,10 @@ describe('ApiKeyDetailPanel – boundary inputs', () => {
     expect(screen.getByText('admin')).toBeInTheDocument()
   })
 
-  it('handles lastUsedAt = "Never" without crashing', () => {
+  it('renders the expiration timestamp without crashing', () => {
     render(
       <ApiKeyDetailPanel
-        keyData={makeKey({ lastUsedAt: 'Never' })}
+        keyData={makeKey({ expiresAt: '2026-08-01T00:00:00Z' })}
         onClose={() => {}}
       />,
     )
@@ -279,12 +242,5 @@ describe('ApiKeyDetailPanel – accessibility', () => {
     const labelEl = document.getElementById(labelId!)
     expect(labelEl).toBeInTheDocument()
     expect(labelEl!.textContent).toBe('Test Production Key')
-  })
-
-  it('sparkline has role="img" with an aria-label', () => {
-    render(<ApiKeyDetailPanel keyData={sampleKey} onClose={() => {}} />)
-    const sparkline = document.querySelector('[role="img"]')
-    expect(sparkline).toBeInTheDocument()
-    expect(sparkline).toHaveAttribute('aria-label')
   })
 })

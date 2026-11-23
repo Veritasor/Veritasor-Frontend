@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from '../ConfirmDialog'
 import { useToast } from '../ToastContext'
+import type { ApiKey } from './apiKeyTypes'
+import { generateApiKeyCredentials } from '../../utils/apiKeyCredentials'
 
 // ─── Scope definitions ─────────────────────────────────────────────────
 
@@ -54,6 +56,14 @@ const SCOPE_GROUPS: ScopeGroup[] = [
       { id: 'write:keys', label: 'Write API keys', description: 'Create, rotate, and revoke API keys.' },
     ],
   },
+  {
+    id: 'administration',
+    label: 'Administration',
+    description: 'Grant full administrative access',
+    scopes: [
+      { id: 'admin', label: 'Administrator access', description: 'Manage all Veritasor resources and settings.' },
+    ],
+  },
 ]
 
 /** Flat map of every scope id for quick lookup. */
@@ -81,7 +91,7 @@ export default function CreateApiKeyModal({
 }: {
   open: boolean
   onClose: () => void
-  onMinted: (keyId: string, fullKey: string) => void
+  onMinted: (key: ApiKey, fullKey: string) => void
 }) {
   const { addToast } = useToast()
   const [label, setLabel] = useState('Admin key')
@@ -195,14 +205,30 @@ export default function CreateApiKeyModal({
     setConfirmOpen(true)
   }
 
-  const keyId = useMemo(() => `key_${Math.random().toString(36).slice(2, 8)}`, [])
-
   function mint() {
-    // Demo-only: generate a fake secret.
-    // Real implementation would come from backend and only reveal it once.
-    const fullKey = `vtsr_live_${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 10)}_${Math.random().toString(16).slice(2, 6)}`
+    let credentials: ReturnType<typeof generateApiKeyCredentials>
+    try {
+      credentials = generateApiKeyCredentials()
+    } catch {
+      const message = 'Unable to securely generate an API key in this browser.'
+      setError(message)
+      addToast(message, 'error', 0)
+      setConfirmOpen(false)
+      return
+    }
+
+    const createdAt = new Date()
+    const key: ApiKey = {
+      id: credentials.keyId,
+      label: label.trim(),
+      status: 'active',
+      createdAt: createdAt.toISOString(),
+      expiresAt: new Date(createdAt.getTime() + expiryDays * 86400000).toISOString(),
+      scopes: [...selected],
+      maskedKey: `${credentials.fullKey.slice(0, 12)}…${credentials.fullKey.slice(-4)}`,
+    }
     setConfirmOpen(false)
-    onMinted(keyId, fullKey)
+    onMinted(key, credentials.fullKey)
   }
 
   return (
