@@ -51,8 +51,34 @@ function statusOrder(s: ApiKeyStatus) {
   return s === 'active' ? 0 : s === 'expired' ? 1 : 2
 }
 
+function snoozeStorageKey(id: string) {
+  return `veritasor:api-key-rotation-snooze:${id}`
+}
+
+function restoreSnooze(key: ApiKey): ApiKey {
+  try {
+    const snoozedAt = window.localStorage.getItem(snoozeStorageKey(key.id))
+    return snoozedAt ? { ...key, snoozedAt } : key
+  } catch {
+    return key
+  }
+}
+
+function saveSnooze(id: string, snoozedAt?: string) {
+  try {
+    const key = snoozeStorageKey(id)
+    if (snoozedAt) {
+      window.localStorage.setItem(key, snoozedAt)
+    } else {
+      window.localStorage.removeItem(key)
+    }
+  } catch {
+    // The in-memory snooze still works when browser storage is unavailable.
+  }
+}
+
 export default function ApiKeys() {
-  const [keys, setKeys] = useState<ApiKey[]>(INITIAL_KEYS)
+  const [keys, setKeys] = useState(() => INITIAL_KEYS.map(restoreSnooze))
   const [createOpen, setCreateOpen] = useState(false)
   const [mintedOnce, setMintedOnce] = useState<null | { keyId: string; fullKey: string }>(null)
   const { addToast } = useToast()
@@ -103,15 +129,18 @@ export default function ApiKeys() {
   }
 
   function handleSnooze(id: string) {
+    const snoozedAt = new Date().toISOString()
+    saveSnooze(id, snoozedAt)
     setKeys((prev) =>
       prev.map((k) =>
-        k.id === id ? { ...k, snoozedAt: new Date().toISOString() } : k,
+        k.id === id ? { ...k, snoozedAt } : k,
       ),
     )
     addToast('Rotation reminder snoozed for 24 h', 'info', 4000)
   }
 
   function handleRotate(id: string) {
+    saveSnooze(id)
     setKeys((prev) =>
       prev.map((k) =>
         k.id === id
@@ -214,6 +243,7 @@ export default function ApiKeys() {
                     mintedOnce={mintedOnce?.keyId === key.id ? mintedOnce.fullKey : null}
                     onRotate={handleRotate}
                     onRevoke={(id) => {
+                      saveSnooze(id)
                       setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, status: 'revoked' } : k)))
                       setMintedOnce(null)
                     }}
