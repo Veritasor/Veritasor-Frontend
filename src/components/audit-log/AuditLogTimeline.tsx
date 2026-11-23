@@ -1,8 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useDensityMode } from '../../hooks/useDensityMode'
 import type { CSSProperties } from 'react'
 import AuditLogDetailDrawer from './AuditLogDetailDrawer'
 import type { AuditLogEntryDetail } from './AuditLogDetailDrawer'
+import { toCsv, type CsvColumn } from '../../utils/csv'
+import { filterAuditLogEntries, type FilterState } from '../../utils/auditLogFilters'
+import { FORMAT_META } from '../data-export/exportTypes'
 
 export type SeverityLevel = 'info' | 'warn' | 'error' | 'critical'
 
@@ -237,9 +240,27 @@ function collapseBursts(entries: AuditLogEntry[], threshold: number): (AuditLogE
   return result
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const AUDIT_LOG_CSV_COLUMNS: readonly CsvColumn<AuditLogEntry>[] = [
+  { key: 'id', header: 'id' },
+  { key: 'timestamp', header: 'timestamp' },
+  { key: 'severity', header: 'severity', accessor: (e) => e.severity ?? '' },
+  { key: 'event', header: 'event' },
+  { key: 'details', header: 'details', accessor: (e) => e.details ?? '' },
+]
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function serializeAuditLogCsv(entries: readonly AuditLogEntry[]): string {
+  return toCsv(entries, AUDIT_LOG_CSV_COLUMNS)
+}
+
 interface AuditLogTimelineProps {
   entries: AuditLogEntry[]
   burstThreshold?: number
+  /** Optional active filter state applied to entries before rendering and CSV export */
+  filterState?: Partial<FilterState>
+  /** Optional callback invoked with the generated CSV string and filtered entries on export */
+  onExportCsv?: (csv: string, entries: AuditLogEntry[]) => void
   /** Provide enriched entry detail on demand; falls back to base entry if omitted */
   onFetchDetail?: (id: string) => AuditLogEntryDetail | Promise<AuditLogEntryDetail>
 }
@@ -319,6 +340,8 @@ const badgeStyle: CSSProperties = {
 export default function AuditLogTimeline({
   entries,
   burstThreshold = burstThresholdDefault,
+  filterState,
+  onExportCsv,
   onFetchDetail,
 }: AuditLogTimelineProps) {
   const { density } = useDensityMode('default')
@@ -327,6 +350,37 @@ export default function AuditLogTimeline({
 
   const [activeDetail, setActiveDetail] = useState<AuditLogEntryDetail | null>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
+
+  const filteredEntries = useMemo(
+    () => filterAuditLogEntries(entries, filterState),
+    [entries, filterState],
+  )
+
+  function handleExportCsv() {
+    const csv = serializeAuditLogCsv(filteredEntries)
+    onExportCsv?.(csv, filteredEntries)
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+    try {
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const urlApi = window.URL as Partial<typeof URL> | undefined
+      const url =
+        typeof urlApi?.createObjectURL === 'function'
+          ? urlApi.createObjectURL(blob)
+          : `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `audit-log${FORMAT_META.csv.extension}`
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      if (typeof urlApi?.revokeObjectURL === 'function' && url.startsWith('blob:')) {
+        urlApi.revokeObjectURL(url)
+      }
+    } catch {
+      // Ignore DOM download errors in constrained environments
+    }
+  }
 
   async function openDrawer(entry: AuditLogEntry, triggerEl: HTMLElement) {
     triggerRef.current = triggerEl
@@ -356,7 +410,22 @@ export default function AuditLogTimeline({
     transition: 'background 100ms ease',
   }
 
-  if (entries.length === 0) {
+  const exportButtonStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    padding: '0.25rem 0.6rem',
+    borderRadius: 6,
+    border: '1px solid var(--border)',
+    background: 'var(--surface-strong)',
+    color: 'var(--text)',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background 120ms',
+  }
+
+  if (filteredEntries.length === 0) {
     return (
       <div role="status" aria-live="polite" style={{ padding: 'var(--density-padding)', color: 'var(--muted)' }}>
         No audit log entries.
@@ -364,14 +433,27 @@ export default function AuditLogTimeline({
     )
   }
 
+  const toolbar = (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: isCompact ? '0.5rem' : '0.75rem' }}>
+      <button
+        type="button"
+        onClick={handleExportCsv}
+        aria-label={`Export ${FORMAT_META.csv.label}`}
+        style={exportButtonStyle}
+      >
+        <span aria-hidden="true">⬇️</span>
+        Export {FORMAT_META.csv.label}
+      </button>
+      <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
+    </div>
+  )
+
   if (isCompact) {
-    const days = groupByDay(entries)
+    const days = groupByDay(filteredEntries)
     return (
       <>
         <div role="log" aria-label="Audit log timeline" aria-live="polite">
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-            <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
-          </div>
+          {toolbar}
           {days.map((day) => {
             const bursts = collapseBursts(day.entries, burstThreshold)
             return (
@@ -436,11 +518,9 @@ export default function AuditLogTimeline({
   return (
     <>
       <div role="log" aria-label="Audit log timeline" aria-live="polite">
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
-          <SeverityLegend open={legendOpen} onToggle={() => setLegendOpen((p) => !p)} />
-        </div>
+        {toolbar}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {entries.map((entry) => (
+          {filteredEntries.map((entry) => (
             <li key={entry.id} style={entryStyle} role="listitem">
               <span style={timeStyle}>{formatTime(entry.timestamp)}</span>
               {entry.severity && (

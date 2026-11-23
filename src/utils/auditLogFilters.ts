@@ -210,3 +210,56 @@ export function findMatchingSavedFilter(
   if (!target) return undefined
   return saved.find((f) => f.searchParams === target)
 }
+
+export interface FilterableAuditLogEntry {
+  id: string
+  timestamp: string
+  event: string
+  details?: string
+  severity?: string
+}
+
+/**
+ * Filters audit log entries against an active `FilterState`.
+ * - `query`: case-insensitive substring match against `event`, `details`, `id`, or `severity`
+ * - `activeChips`: matches `severity` or status keywords in `event` / `severity`
+ * - `dateFrom`: inclusive YYYY-MM-DD start bound (UTC date prefix of `timestamp`)
+ * - `dateTo`: inclusive YYYY-MM-DD end bound (UTC date prefix of `timestamp`)
+ */
+export function filterAuditLogEntries<T extends FilterableAuditLogEntry>(
+  entries: readonly T[],
+  filter?: Partial<FilterState>,
+): T[] {
+  if (!filter) return [...entries]
+  const query = (filter.query ?? '').trim().toLowerCase()
+  const chips = (filter.activeChips ?? []).map((c) => c.trim().toLowerCase()).filter(Boolean)
+  const dateFrom = filter.dateFrom && isValidIsoDate(filter.dateFrom) ? filter.dateFrom : ''
+  const dateTo = filter.dateTo && isValidIsoDate(filter.dateTo) ? filter.dateTo : ''
+
+  if (!query && chips.length === 0 && !dateFrom && !dateTo) {
+    return [...entries]
+  }
+
+  return entries.filter((entry) => {
+    if (query) {
+      const haystack = `${entry.event} ${entry.details ?? ''} ${entry.id} ${entry.severity ?? ''}`.toLowerCase()
+      if (!haystack.includes(query)) return false
+    }
+
+    if (chips.length > 0) {
+      const sev = (entry.severity ?? '').toLowerCase()
+      const evt = entry.event.toLowerCase()
+      const matchesChip = chips.some((chip) => sev === chip || evt.includes(chip))
+      if (!matchesChip) return false
+    }
+
+    if (dateFrom || dateTo) {
+      const entryDate = entry.timestamp.slice(0, 10)
+      if (dateFrom && entryDate < dateFrom) return false
+      if (dateTo && entryDate > dateTo) return false
+    }
+
+    return true
+  })
+}
+
