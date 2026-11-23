@@ -1,20 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useToast } from './ToastContext'
-
-// Shared password strength logic
-function computeStrength(password: string): number {
-  if (!password) return 0
-  if (password.length < 8) return 1
-  const hasUpper = /[A-Z]/.test(password)
-  const hasLower = /[a-z]/.test(password)
-  const hasDigit = /[0-9]/.test(password)
-  const hasSym = /[^A-Za-z0-9]/.test(password)
-  const mixed = hasUpper && hasLower && hasDigit
-  if (password.length >= 12 && mixed && hasSym) return 4
-  if (password.length >= 12 && mixed) return 3
-  if (password.length >= 8 && (hasUpper || hasLower) && hasDigit) return 2
-  return 1
-}
+import { validatePassword, scorePassword } from '../utils/passwordPolicy'
 
 const STRENGTH_COPY: Record<number, string> = {
   0: 'Enter a password to see its strength',
@@ -22,6 +8,7 @@ const STRENGTH_COPY: Record<number, string> = {
   2: 'Fair — try adding uppercase and numbers',
   3: 'Good — add a symbol for maximum strength',
   4: 'Strong enough for a production workspace',
+  5: 'Strong enough for a production workspace',
 }
 
 interface ProofShareModalProps {
@@ -43,7 +30,8 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
   const { addToast } = useToast()
   const modalRef = useRef<HTMLDivElement>(null)
   
-  const strength = computeStrength(password)
+  const passwordPolicy = validatePassword(password)
+  const strength = scorePassword(password)
   
   // Close on Escape
   useEffect(() => {
@@ -72,7 +60,7 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
   if (!isOpen) return null
 
   const handleGenerateLink = () => {
-    if (permission === 'password' && strength < 2) {
+    if (permission === 'password' && !passwordPolicy.valid) {
       addToast('Please enter a stronger password.', 'error')
       return
     }
@@ -192,7 +180,11 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  aria-describedby="share-password-strength"
+                  aria-describedby={
+                    password.length > 0 && passwordPolicy.failures.length > 0
+                      ? 'share-password-strength share-password-failures'
+                      : 'share-password-strength'
+                  }
                 />
                 <button
                   type="button"
@@ -221,8 +213,25 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
                     }
                   />
                 ))}
-                <p className="auth-strength-copy">{STRENGTH_COPY[strength]}</p>
+                <p className="auth-strength-copy">{STRENGTH_COPY[strength] ?? STRENGTH_COPY[4]}</p>
               </div>
+              {password.length > 0 && passwordPolicy.failures.length > 0 && (
+                <ul
+                  id="share-password-failures"
+                  className="auth-message auth-message-help"
+                  aria-label="Password requirements"
+                  style={{
+                    margin: '0.5rem 0 0',
+                    paddingLeft: '1.25rem',
+                    color: 'var(--muted)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  {passwordPolicy.failures.map((failure) => (
+                    <li key={failure}>{failure}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           
