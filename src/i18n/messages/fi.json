@@ -100,5 +100,6 @@
   "auditLog.filters.copied": "Kopioitu leikepöydälle",
   "auditLog.filters.capReached": "Tämän työtilan {max} tallennetun suodattimen raja on täynnä. Poista yksi vapauttaaksesi tilaa.",
   "auditLog.filters.results.singular": "Näytetään {count} / {total} merkinnästä",
-  "auditLog.filters.results.plural": "Näytetään {count} / {total} merkinnästä"
+  "auditLog.filters.results.plural": "Näytetään {count} / {total} merkinnästä",
+  "auditLog.filters.title": "Tarkastusloki"
 }

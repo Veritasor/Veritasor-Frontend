@@ -1,83 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ApiKey } from '../../pages/ApiKeyManagement';
 import EditScopesModal from './EditScopesModal';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import type { ApiKey } from './apiKeyTypes';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
 function formatTimestamp(iso: string): string {
-  if (iso === 'Never') return iso;
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: '2-digit',
   });
-}
-
-function formatRelativeTime(iso: string): string {
-  if (iso === 'Never') return 'Never';
-  const diff = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days > 30) return `${Math.floor(days / 30)}mo ago`;
-  if (days > 0) return `${days}d ago`;
-  const hours = Math.floor(diff / 3600000);
-  if (hours > 0) return `${hours}h ago`;
-  const minutes = Math.floor(diff / 60000);
-  if (minutes > 0) return `${minutes}m ago`;
-  return 'Just now';
-}
-
-/**
- * Sparkline rendered as a pure-SVG inline chart.
- * Uses a simple bar chart to show daily call volume with
- * a text alternative for screen readers.
- */
-function Sparkline({
-  data,
-  label,
-}: {
-  data: { date: string; count: number }[];
-  label: string;
-}) {
-  const width = 240;
-  const height = 48;
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const barWidth = Math.max(2, Math.floor(width / data.length) - 1);
-
-  // Build a textual fallback for screen readers
-  const textAlt = data
-    .map((d) => `${d.date}: ${d.count} calls`)
-    .join(', ');
-
-  return (
-    <div role="img" aria-label={`${label}: ${textAlt}`}>
-      <svg
-        aria-hidden="true"
-        width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        style={{ display: 'block' }}
-      >
-        {data.map((d, i) => {
-          const barHeight = Math.max(2, (d.count / maxCount) * (height - 2));
-          const x = i * (barWidth + 1) + 0.5;
-          const y = height - barHeight;
-          return (
-            <rect
-              key={d.date}
-              x={x}
-              y={y}
-              width={barWidth}
-              height={barHeight}
-              rx={1}
-              fill="currentColor"
-              style={{ color: 'inherit' }}
-            />
-          );
-        })}
-      </svg>
-    </div>
-  );
 }
 
 // ─── Focus-trap helpers ─────────────────────────────────────────────────────
@@ -129,48 +64,6 @@ function useFocusTrap(
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, containerRef]);
-}
-
-// ─── CopyButton ─────────────────────────────────────────────────────────────
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // Clipboard API not available
-    }
-  }, [text]);
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label={copied ? `${label} copied` : `Copy ${label}`}
-      aria-live="polite"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.3rem',
-        padding: '0.3rem 0.65rem',
-        borderRadius: 6,
-        border: '1px solid var(--border, #e4e4e7)',
-        background: copied ? 'rgba(52, 211, 153, 0.12)' : 'var(--surface-strong, #f4f4f5)',
-        color: copied ? 'var(--success, #10b981)' : 'var(--muted, #71717a)',
-        cursor: 'pointer',
-        fontSize: '0.78rem',
-        fontWeight: 600,
-        transition: 'background 120ms ease, color 120ms ease',
-        flexShrink: 0,
-      }}
-    >
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  );
 }
 
 // ─── MetaRow ─────────────────────────────────────────────────────────────────
@@ -319,7 +212,7 @@ export function ApiKeyDetailPanel({
                 color: 'var(--text, #18181b)',
               }}
             >
-              {keyData.name}
+              {keyData.label}
             </h2>
             <p
               style={{
@@ -329,7 +222,7 @@ export function ApiKeyDetailPanel({
                 fontFamily: 'ui-monospace, monospace',
               }}
             >
-              {keyData.prefix}
+              {keyData.maskedKey}
             </p>
           </div>
 
@@ -521,19 +414,8 @@ export function ApiKeyDetailPanel({
                   {formatTimestamp(keyData.createdAt)}
                 </span>
               </MetaRow>
-              <MetaRow label="Last used">
-                <span>
-                  {formatTimestamp(keyData.lastUsedAt)}
-                  <span
-                    style={{
-                      marginLeft: '0.4rem',
-                      fontSize: '0.78rem',
-                      color: 'var(--muted, #71717a)',
-                    }}
-                  >
-                    ({formatRelativeTime(keyData.lastUsedAt)})
-                  </span>
-                </span>
+              <MetaRow label="Expires">
+                <span>{formatTimestamp(keyData.expiresAt)}</span>
               </MetaRow>
               <MetaRow label="Status">
                 <span
@@ -552,109 +434,6 @@ export function ApiKeyDetailPanel({
             </dl>
           </div>
 
-          {/* Recent IPs */}
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.5rem',
-              }}
-            >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: 'var(--muted, #71717a)',
-                }}
-              >
-                Recent Calling IPs
-              </h3>
-              <CopyButton
-                text={keyData.recentIps.join('\n')}
-                label="IP list"
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '0.4rem',
-              }}
-            >
-              {keyData.recentIps.map((ip, i) => (
-                <code
-                  key={`${ip}-${i}`}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '0.3rem 0.55rem',
-                    borderRadius: 6,
-                    border: '1px solid var(--border, #e4e4e7)',
-                    background: 'var(--surface-strong, #f4f4f5)',
-                    fontFamily: 'ui-monospace, monospace',
-                    fontSize: '0.82rem',
-                    color: 'var(--text, #18181b)',
-                  }}
-                >
-                  {ip}
-                </code>
-              ))}
-            </div>
-          </div>
-
-          {/* Call volume sparkline */}
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: 'var(--muted, #71717a)',
-              }}
-            >
-              Call Volume (last 14 days)
-            </h3>
-            <div
-              style={{
-                padding: '0.75rem 1rem',
-                borderRadius: 'var(--radius-sm, 8px)',
-                border: '1px solid var(--border, #e4e4e7)',
-                background: 'var(--surface-strong, #f4f4f5)',
-                color: 'var(--accent, #6366f1)',
-              }}
-            >
-              <Sparkline
-                data={keyData.callVolume}
-                label={`Call volume for ${keyData.name}`}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '0.72rem',
-                color: 'var(--muted, #71717a)',
-              }}
-            >
-              <span>
-                {keyData.callVolume.length > 0
-                  ? keyData.callVolume[0].date
-                  : ''}
-              </span>
-              <span>
-                {keyData.callVolume.length > 0
-                  ? keyData.callVolume[keyData.callVolume.length - 1].date
-                  : ''}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 

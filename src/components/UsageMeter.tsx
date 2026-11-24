@@ -23,6 +23,9 @@
  */
 
 import type { CSSProperties } from 'react'
+import { useBilling } from './BillingContext'
+
+export type UsageMetric = 'attestations' | 'apiCalls'
 
 // ─── Tier logic ──────────────────────────────────────────────────────────────
 
@@ -127,8 +130,10 @@ export interface UsageMeterProps {
   label: string
   /** Current consumption */
   used: number
-  /** Monthly ceiling */
-  limit: number
+  /** Monthly ceiling (defaults to current plan limit when omitted) */
+  limit?: number
+  /** Plan metric key used to derive limit from BillingContext when limit is omitted */
+  metric?: UsageMetric
   /** Unit label, e.g. "attestations" or "calls" */
   unit?: string
   /** Period label, e.g. "July 2026" */
@@ -143,13 +148,22 @@ export default function UsageMeter({
   label,
   used,
   limit,
+  metric,
   unit = 'uses',
   period,
   warnAt = 75,
   critAt = 90,
 }: UsageMeterProps) {
-  const safeUsed = Math.max(0, Math.min(used, limit))
-  const pct = limit > 0 ? Math.round((safeUsed / limit) * 100) : 0
+  const { currentPlan } = useBilling()
+  const resolvedLimit =
+    limit !== undefined
+      ? limit
+      : metric
+        ? currentPlan.limits[metric]
+        : currentPlan.limits.attestations
+
+  const safeUsed = Math.max(0, Math.min(used, resolvedLimit))
+  const pct = resolvedLimit > 0 ? Math.round((safeUsed / resolvedLimit) * 100) : 0
   const tier = getUsageTier(pct)
   const meta = getTierMeta(tier)
 
@@ -158,8 +172,8 @@ export default function UsageMeter({
   void warnAt
   void critAt
 
-  const remaining = limit - safeUsed
-  const valueText = `${safeUsed.toLocaleString()} of ${limit.toLocaleString()} ${unit} used (${pct}%)`
+  const remaining = resolvedLimit - safeUsed
+  const valueText = `${safeUsed.toLocaleString()} of ${resolvedLimit.toLocaleString()} ${unit} used (${pct}%)`
   const trackId = `usage-meter-track-${label.replace(/\s+/g, '-').toLowerCase()}`
   const alertId = `usage-meter-alert-${label.replace(/\s+/g, '-').toLowerCase()}`
 
@@ -281,7 +295,7 @@ export default function UsageMeter({
           >
             {safeUsed.toLocaleString()}
           </strong>
-          {' '}/ {limit.toLocaleString()} {unit}
+          {' '}/ {resolvedLimit.toLocaleString()} {unit}
         </span>
         <span
           style={{

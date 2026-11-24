@@ -154,7 +154,7 @@ describe('WebhookRetryPanel', () => {
     );
   });
 
-  it('shows a retrying summary without a retry button', () => {
+  it('shows a retrying summary with a disabled retry button', () => {
     render(
       <WebhookRetryPanel
         delivery={delivery('retrying', [
@@ -165,7 +165,7 @@ describe('WebhookRetryPanel', () => {
       />,
     );
     expect(screen.getByRole('status')).toHaveTextContent('Retrying – attempt 2 of up to 5.');
-    expect(screen.queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Retrying delivery/ })).toBeDisabled();
   });
 
   it('disables the retry button and marks it busy while a retry is in flight', () => {
@@ -177,7 +177,7 @@ describe('WebhookRetryPanel', () => {
         isRetrying
       />,
     );
-    const button = screen.getByRole('button', { name: /Retry delivery/ });
+    const button = screen.getByRole('button', { name: /Retrying delivery/ });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
     expect(button).toHaveTextContent('Retrying…');

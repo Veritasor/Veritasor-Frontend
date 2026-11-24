@@ -124,11 +124,13 @@ export default function SaveFilterModal({
   const showError = name.length > 0 && !validation.ok
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div
       className="modal-backdrop"
       onClick={handleBackdrop}
       data-testid="save-filter-modal-backdrop"
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"

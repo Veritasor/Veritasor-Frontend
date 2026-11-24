@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { request } from '../services/apiClient'
 
 export interface OnlineStatus {
   isOnline: boolean
@@ -44,11 +45,12 @@ export function useOnlineStatus(apiBaseUrl = ''): OnlineStatus {
       return online
     }
     try {
-      const res = await fetch(apiBaseUrl, {
+      await request(apiBaseUrl, {
         method: 'HEAD',
         cache: 'no-store',
-        signal: AbortSignal.timeout(5000),
+        timeoutMs: 5000,
       })
+      setIsOnline(true)
       setIsOnline(res.ok)
       return res.ok
     } catch {

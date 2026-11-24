@@ -354,12 +354,14 @@ export default function LogoUpload({ currentLogoUrl, onSave, onCancel }: LogoUpl
           </p>
 
           {/* Square crop viewport */}
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- interactive crop viewport supports arrow-key panning and pointer drag */}
           <div
             ref={cropViewRef}
             className="logo-crop-view"
             role="img"
             aria-label="Logo crop area. Use arrow keys to pan."
             aria-describedby="logo-crop-desc"
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- crop viewport is focusable for keyboard panning
             tabIndex={0}
             onPointerDown={pointerDown}
             onPointerMove={pointerMove}

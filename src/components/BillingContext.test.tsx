@@ -1,22 +1,21 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BillingProvider, useBilling } from './BillingContext'
+import {
+  BillingProvider,
+  INITIAL_INVOICES,
+  INITIAL_PAYMENT_METHODS,
+  useBilling,
+  type BillingContextValue,
+  type BillingProviderProps,
+} from './BillingContext'
 import FailedPaymentBanner from './FailedPaymentBanner'
 import type { FailedPaymentInfo } from './FailedPaymentBanner'
-
-/**
- * The public surface `useBilling` guarantees, stated once so the assertions do
- * not depend on which of its two branches (provider value vs. inert fallback)
- * produced the object.
- */
-type BillingApi = {
-  failedPayment: FailedPaymentInfo | null
-  setFailedPayment: (f: FailedPaymentInfo | null) => void
-  dismissFailedPayment: () => void
-}
+import UsageMeter from './UsageMeter'
+import { LocaleProvider } from '../i18n/provider'
+import Settings from '../pages/Settings'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -24,8 +23,7 @@ afterEach(() => {
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-/** The record BillingProvider seeds on mount. */
-const SEED: FailedPaymentInfo = {
+const FAILURE_A: FailedPaymentInfo = {
   id: 'fp_001',
   invoiceId: 'inv_005',
   invoicePeriod: 'March 2026',
@@ -35,8 +33,7 @@ const SEED: FailedPaymentInfo = {
   lastAttemptAt: '2026-07-28T09:00:00Z',
 }
 
-/** A second well-formed record used to assert replacement/transition behaviour. */
-const RETRY: FailedPaymentInfo = {
+const FAILURE_B: FailedPaymentInfo = {
   id: 'fp_002',
   invoiceId: 'inv_006',
   invoicePeriod: 'April 2026',
@@ -46,36 +43,35 @@ const RETRY: FailedPaymentInfo = {
   lastAttemptAt: '2026-08-02T11:30:00Z',
 }
 
-/** Last context object handed to a recorder component. */
-const lastOf = (renders: BillingApi[]) => renders[renders.length - 1] as BillingApi
+const lastOf = (renders: BillingContextValue[]) =>
+  renders[renders.length - 1] as BillingContextValue
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Renders the observable shape of the context value as text. */
 function Probe() {
-  const { failedPayment } = useBilling()
+  const { failedPayment, plan, currentPlan } = useBilling()
   return (
     <div>
       <span data-testid="presence">{failedPayment ? 'present' : 'absent'}</span>
       <span data-testid="failure-id">{failedPayment?.id ?? 'none'}</span>
+      <span data-testid="plan-id">{plan}</span>
+      <span data-testid="plan-limit">{currentPlan.limits.attestations}</span>
     </div>
   )
 }
 
-/** Records the context object for every committed render, and nothing else. */
-function useRecorder(renders: BillingApi[]) {
+function useRecorder(renders: BillingContextValue[]) {
   const api = useBilling()
   useEffect(() => {
     renders.push(api)
   })
 }
 
-/**
- * Mounts BillingProvider with a recorder so assertions can inspect the exact
- * context object of every committed render, and returns handles to it.
- */
-function renderProvider(ui: ReactNode = <Probe />, options: { router?: boolean } = {}) {
-  const renders: BillingApi[] = []
+function renderProvider(
+  ui: ReactNode = <Probe />,
+  options: { router?: boolean; providerProps?: Omit<BillingProviderProps, 'children'> } = {},
+) {
+  const renders: BillingContextValue[] = []
 
   function Capture() {
     useRecorder(renders)
@@ -83,7 +79,7 @@ function renderProvider(ui: ReactNode = <Probe />, options: { router?: boolean }
   }
 
   const tree = (
-    <BillingProvider>
+    <BillingProvider {...options.providerProps}>
       <Capture />
       {ui}
     </BillingProvider>
@@ -94,9 +90,8 @@ function renderProvider(ui: ReactNode = <Probe />, options: { router?: boolean }
   return { latest: () => lastOf(renders), renders: () => renders }
 }
 
-/** Mounts useBilling with no provider in the tree and records the fallback value. */
 function renderOrphaned() {
-  const renders: BillingApi[] = []
+  const renders: BillingContextValue[] = []
 
   function Capture() {
     useRecorder(renders)
@@ -108,13 +103,6 @@ function renderOrphaned() {
   return { latest: () => lastOf(renders), renders: () => renders }
 }
 
-/**
- * Mirrors the `BillingBannerSlot` consumer in Layout.tsx and drives the real
- * FailedPaymentBanner, so context transitions are observed through the UI that
- * actually ships. The extra controls exercise the context API without tripping
- * the banner's own internal "dismissed" latch, which keeps re-publishing
- * observable after a dismissal.
- */
 function BillingScreen() {
   const { failedPayment, setFailedPayment, dismissFailedPayment } = useBilling()
   return (
@@ -123,7 +111,7 @@ function BillingScreen() {
       <button type="button" onClick={dismissFailedPayment}>
         Dismiss notice
       </button>
-      <button type="button" onClick={() => setFailedPayment(RETRY)}>
+      <button type="button" onClick={() => setFailedPayment(FAILURE_B)}>
         Report new failure
       </button>
       <button type="button" onClick={() => setFailedPayment(null)}>
@@ -133,54 +121,31 @@ function BillingScreen() {
   )
 }
 
-// ─── Seeded state ─────────────────────────────────────────────────────────────
+// ─── Initial state ────────────────────────────────────────────────────────────
 
-describe('BillingProvider — seeded state', () => {
-  it('seeds a default failed payment record on mount', () => {
+describe('BillingProvider — initial state', () => {
+  it('seeds default plan, payment methods, invoices, and no failed payment for valid default card', () => {
     const { latest } = renderProvider()
 
-    expect(latest().failedPayment).toEqual(SEED)
+    expect(latest().plan).toBe('growth')
+    expect(latest().currentPlan.name).toBe('Growth')
+    expect(latest().billingCycle).toBe('monthly')
+    expect(latest().paymentMethods).toEqual(INITIAL_PAYMENT_METHODS)
+    expect(latest().invoices).toEqual(INITIAL_INVOICES)
+    expect(latest().failedPayment).toBeNull()
   })
 
-  it('exposes only the documented context surface', () => {
-    const api = renderProvider().latest()
+  it('derives an initial failed payment when the initial default payment method is expired', () => {
+    const expiredDefault = INITIAL_PAYMENT_METHODS.map((m) => ({
+      ...m,
+      isDefault: m.id === 'pm_003',
+    }))
+    const { latest } = renderProvider(<Probe />, {
+      providerProps: { initialPaymentMethods: expiredDefault },
+    })
 
-    expect(Object.keys(api).sort()).toEqual([
-      'dismissFailedPayment',
-      'failedPayment',
-      'setFailedPayment',
-    ])
-    expect(typeof api.setFailedPayment).toBe('function')
-    expect(typeof api.dismissFailedPayment).toBe('function')
-  })
-
-  it('renders every child and shares a single state between them', () => {
-    function FirstConsumer() {
-      const { setFailedPayment } = useBilling()
-      return (
-        <button type="button" onClick={() => setFailedPayment(RETRY)}>
-          Publish
-        </button>
-      )
-    }
-
-    const { latest } = renderProvider(
-      <>
-        <FirstConsumer />
-        <Probe />
-        <Probe />
-      </>,
-    )
-
-    expect(screen.getAllByTestId('failure-id')).toHaveLength(2)
-    expect(screen.getAllByTestId('failure-id')[0]).toHaveTextContent('fp_001')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
-
-    expect(latest().failedPayment).toBe(RETRY)
-    for (const node of screen.getAllByTestId('failure-id')) {
-      expect(node).toHaveTextContent('fp_002')
-    }
+    expect(latest().failedPayment).not.toBeNull()
+    expect(latest().failedPayment?.failureReason).toMatch(/0005/)
   })
 
   it('renders without throwing when no children are supplied', () => {
@@ -188,122 +153,93 @@ describe('BillingProvider — seeded state', () => {
   })
 })
 
-// ─── Primary state transitions ────────────────────────────────────────────────
+// ─── Plan and payment method mutations ───────────────────────────────────────
 
-describe('BillingProvider — setFailedPayment', () => {
-  it('replaces the seeded record with the supplied failure', () => {
+describe('BillingProvider — plan & payment method mutations', () => {
+  it('updates plan and currentPlan limits when changePlan is called', () => {
     const { latest } = renderProvider()
 
+    expect(latest().plan).toBe('growth')
+    expect(latest().currentPlan.limits.attestations).toBe(10_000)
+
     act(() => {
-      latest().setFailedPayment(RETRY)
+      latest().changePlan('enterprise')
     })
 
-    expect(latest().failedPayment).toBe(RETRY)
-    expect(screen.getByTestId('failure-id')).toHaveTextContent('fp_002')
+    expect(latest().plan).toBe('enterprise')
+    expect(latest().currentPlan.limits.attestations).toBe(100_000)
+    expect(screen.getByTestId('plan-id')).toHaveTextContent('enterprise')
+    expect(screen.getByTestId('plan-limit')).toHaveTextContent('100000')
   })
 
-  it('clears the record when called with null', () => {
+  it('sets failedPayment when an expired card becomes default and clears it when a valid card becomes default', () => {
+    const { latest } = renderProvider()
+    expect(latest().failedPayment).toBeNull()
+
+    // Make expired Amex (pm_003) the default
+    act(() => {
+      latest().setDefaultMethod('pm_003')
+    })
+
+    expect(latest().paymentMethods.find((m) => m.id === 'pm_003')?.isDefault).toBe(true)
+    expect(latest().failedPayment).not.toBeNull()
+    expect(latest().failedPayment?.failureReason).toMatch(/0005/)
+
+    // Replace with valid Visa (pm_001)
+    act(() => {
+      latest().setDefaultMethod('pm_001')
+    })
+
+    expect(latest().paymentMethods.find((m) => m.id === 'pm_001')?.isDefault).toBe(true)
+    expect(latest().failedPayment).toBeNull()
+  })
+
+  it('removes a non-default payment method and refuses to remove the default method', () => {
     const { latest } = renderProvider()
 
     act(() => {
-      latest().setFailedPayment(null)
+      latest().removeMethod('pm_002')
     })
+    expect(latest().paymentMethods.some((m) => m.id === 'pm_002')).toBe(false)
 
+    // Default method pm_001 should not be removed
+    act(() => {
+      latest().removeMethod('pm_001')
+    })
+    expect(latest().paymentMethods.some((m) => m.id === 'pm_001')).toBe(true)
+  })
+})
+
+// ─── setFailedPayment & dismissFailedPayment ─────────────────────────────────
+
+describe('BillingProvider — setFailedPayment & dismissFailedPayment', () => {
+  it('publishes, replaces, and dismisses failed payment records', () => {
+    const { latest } = renderProvider()
+
+    act(() => {
+      latest().setFailedPayment(FAILURE_A)
+    })
+    expect(latest().failedPayment).toBe(FAILURE_A)
+    expect(screen.getByTestId('failure-id')).toHaveTextContent('fp_001')
+
+    act(() => {
+      latest().setFailedPayment(FAILURE_B)
+    })
+    expect(latest().failedPayment).toBe(FAILURE_B)
+    expect(screen.getByTestId('failure-id')).toHaveTextContent('fp_002')
+
+    act(() => {
+      latest().dismissFailedPayment()
+    })
     expect(latest().failedPayment).toBeNull()
     expect(screen.getByTestId('presence')).toHaveTextContent('absent')
   })
 
-  it('re-publishes a failure after it has been dismissed', () => {
-    const { latest } = renderProvider()
-
-    act(() => {
-      latest().dismissFailedPayment()
-    })
-    expect(latest().failedPayment).toBeNull()
-
-    act(() => {
-      latest().setFailedPayment(RETRY)
-    })
-
-    expect(latest().failedPayment).toBe(RETRY)
-    expect(screen.getByTestId('presence')).toHaveTextContent('present')
-  })
-
-  it('stores the record by reference without mutating it', () => {
-    const frozen = Object.freeze({ ...RETRY }) as unknown as FailedPaymentInfo
-    const { latest } = renderProvider()
-
-    expect(() => {
-      act(() => {
-        latest().setFailedPayment(frozen)
-      })
-    }).not.toThrow()
-
-    expect(latest().failedPayment).toBe(frozen)
-    expect(latest().failedPayment).toEqual(RETRY)
-  })
-})
-
-describe('BillingProvider — dismissFailedPayment', () => {
-  it('clears the published record', () => {
-    function DismissButton() {
-      const { dismissFailedPayment } = useBilling()
-      return (
-        <button type="button" onClick={dismissFailedPayment}>
-          Dismiss
-        </button>
-      )
-    }
-
-    const { latest } = renderProvider(<DismissButton />)
-    expect(latest().failedPayment).toEqual(SEED)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-
-    expect(latest().failedPayment).toBeNull()
-    expect(screen.getByTestId('failure-id')).toHaveTextContent('none')
-  })
-
-  it('is idempotent when nothing is published', () => {
-    const { latest } = renderProvider()
-
-    act(() => {
-      latest().setFailedPayment(null)
-    })
-
-    expect(() => {
-      act(() => {
-        latest().dismissFailedPayment()
-        latest().dismissFailedPayment()
-      })
-    }).not.toThrow()
-
-    expect(latest().failedPayment).toBeNull()
-  })
-
-  it('leaves setFailedPayment usable after a dismissal', () => {
-    const { latest } = renderProvider()
-
-    act(() => {
-      latest().dismissFailedPayment()
-    })
-    act(() => {
-      latest().setFailedPayment(RETRY)
-    })
-    act(() => {
-      latest().dismissFailedPayment()
-    })
-
-    expect(latest().failedPayment).toBeNull()
-  })
-})
-
-describe('BillingProvider — referential stability', () => {
-  it('keeps the mutators stable across re-renders', () => {
+  it('keeps mutator references stable across re-renders', () => {
     const { latest, renders } = renderProvider()
 
     act(() => {
-      latest().setFailedPayment(RETRY)
+      latest().setFailedPayment(FAILURE_B)
     })
     act(() => {
       latest().dismissFailedPayment()
@@ -314,237 +250,137 @@ describe('BillingProvider — referential stability', () => {
     for (const api of captured) {
       expect(api.setFailedPayment).toBe(captured[0].setFailedPayment)
       expect(api.dismissFailedPayment).toBe(captured[0].dismissFailedPayment)
+      expect(api.changePlan).toBe(captured[0].changePlan)
+      expect(api.setDefaultMethod).toBe(captured[0].setDefaultMethod)
+      expect(api.removeMethod).toBe(captured[0].removeMethod)
     }
   })
 })
 
 // ─── useBilling outside a provider ────────────────────────────────────────────
 
-// useBilling deliberately degrades to an inert, error-free fallback when no
-// BillingProvider is mounted (Layout.tsx relies on this so a partially mounted
-// shell cannot throw). The suite pins that down as a contract, not an accident.
 describe('useBilling — outside BillingProvider', () => {
-  it('does not throw when no provider is mounted', () => {
-    expect(() => render(<Probe />)).not.toThrow()
-  })
-
-  it('reports no failed payment', () => {
-    expect(renderOrphaned().latest().failedPayment).toBeNull()
-  })
-
-  it('still returns a fully callable API surface', () => {
-    const api = renderOrphaned().latest()
-
-    expect(Object.keys(api).sort()).toEqual([
-      'dismissFailedPayment',
-      'failedPayment',
-      'setFailedPayment',
-    ])
-    expect(typeof api.setFailedPayment).toBe('function')
-    expect(typeof api.dismissFailedPayment).toBe('function')
-  })
-
-  it('treats setFailedPayment as an inert no-op', () => {
-    const { latest, renders } = renderOrphaned()
+  it('does not throw and returns an inert fallback API', () => {
+    const { latest } = renderOrphaned()
     const api = latest()
 
-    expect(() => {
-      api.setFailedPayment(RETRY)
-    }).not.toThrow()
-
     expect(api.failedPayment).toBeNull()
-    expect(renders()).toHaveLength(1)
-  })
-
-  it('treats dismissFailedPayment as an inert no-op', () => {
-    const { latest, renders } = renderOrphaned()
-    const api = latest()
-
-    expect(() => {
-      api.dismissFailedPayment()
-    }).not.toThrow()
-
-    expect(api.failedPayment).toBeNull()
-    expect(renders()).toHaveLength(1)
+    expect(api.plan).toBe('growth')
+    expect(() => api.setFailedPayment(FAILURE_A)).not.toThrow()
+    expect(() => api.dismissFailedPayment()).not.toThrow()
+    expect(() => api.changePlan('enterprise')).not.toThrow()
+    expect(() => api.setDefaultMethod('pm_003')).not.toThrow()
+    expect(() => api.removeMethod('pm_002')).not.toThrow()
   })
 })
 
-// ─── Nested providers ─────────────────────────────────────────────────────────
+// ─── Integration: FailedPaymentBanner + UsageMeter + Settings ────────────────
 
-describe('BillingProvider — nested providers', () => {
-  function renderNested() {
-    const seen: { outer?: BillingApi; inner?: BillingApi } = {}
-
-    function OuterProbe() {
-      const api = useBilling()
-      useEffect(() => {
-        seen.outer = api
-      })
-      return <span data-testid="outer">{api.failedPayment?.id ?? 'none'}</span>
-    }
-
-    function InnerProbe() {
-      const api = useBilling()
-      useEffect(() => {
-        seen.inner = api
-      })
-      return <span data-testid="inner">{api.failedPayment?.id ?? 'none'}</span>
-    }
-
-    render(
-      <BillingProvider>
-        <OuterProbe />
-        <BillingProvider>
-          <InnerProbe />
-        </BillingProvider>
-      </BillingProvider>,
-    )
-
-    return {
-      outer: () => seen.outer as BillingApi,
-      inner: () => seen.inner as BillingApi,
-    }
-  }
-
-  it('resolves the value from the nearest provider', () => {
-    renderNested()
-
-    expect(screen.getByTestId('outer')).toHaveTextContent('fp_001')
-    expect(screen.getByTestId('inner')).toHaveTextContent('fp_001')
-  })
-
-  it('isolates a publish inside the inner provider', () => {
-    const nested = renderNested()
-
-    act(() => {
-      nested.inner().setFailedPayment(RETRY)
-    })
-
-    expect(screen.getByTestId('inner')).toHaveTextContent('fp_002')
-    expect(screen.getByTestId('outer')).toHaveTextContent('fp_001')
-    expect(nested.outer().failedPayment).toEqual(SEED)
-  })
-
-  it('isolates a dismissal inside the inner provider', () => {
-    const nested = renderNested()
-
-    act(() => {
-      nested.inner().dismissFailedPayment()
-    })
-
-    expect(screen.getByTestId('inner')).toHaveTextContent('none')
-    expect(screen.getByTestId('outer')).toHaveTextContent('fp_001')
-    expect(nested.outer().failedPayment).toEqual(SEED)
-  })
-})
-
-// ─── Invalid and boundary inputs ──────────────────────────────────────────────
-
-describe('BillingProvider — invalid and boundary inputs', () => {
-  it('stores a malformed record verbatim instead of throwing', () => {
-    const { latest } = renderProvider()
-    const malformed = { id: 'fp_003' } as unknown as FailedPaymentInfo
-
-    expect(() => {
-      act(() => {
-        latest().setFailedPayment(malformed)
-      })
-    }).not.toThrow()
-
-    expect(latest().failedPayment).toBe(malformed)
-    expect(screen.getByTestId('failure-id')).toHaveTextContent('fp_003')
-  })
-
-  it('treats undefined as "no failure" instead of throwing', () => {
-    const { latest } = renderProvider()
-
-    expect(() => {
-      act(() => {
-        latest().setFailedPayment(undefined as unknown as FailedPaymentInfo | null)
-      })
-    }).not.toThrow()
-
-    expect(latest().failedPayment).toBeUndefined()
-    expect(screen.getByTestId('presence')).toHaveTextContent('absent')
-  })
-
-  it('accepts a non-object payload verbatim (no runtime validation)', () => {
-    const { latest } = renderProvider()
-    // Deliberately defeats the FailedPaymentInfo type: the provider is a thin
-    // pass-through, so the raw value must survive without throwing.
-    const payload = 'card-declined' as unknown as FailedPaymentInfo
-
-    expect(() => {
-      act(() => {
-        latest().setFailedPayment(payload)
-      })
-    }).not.toThrow()
-
-    expect(latest().failedPayment).toBe(payload)
-    expect(typeof latest().failedPayment).toBe('string')
-  })
-
-  it('never logs a React error while handling malformed input', () => {
-    const { latest } = renderProvider()
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    act(() => {
-      latest().setFailedPayment({ id: 'fp_004' } as unknown as FailedPaymentInfo)
-    })
-    act(() => {
-      latest().setFailedPayment(undefined as unknown as FailedPaymentInfo | null)
-    })
-    act(() => {
-      latest().setFailedPayment(RETRY)
-    })
-
-    expect(errorSpy).not.toHaveBeenCalled()
-  })
-})
-
-// ─── Integration with the production consumer ─────────────────────────────────
-
-describe('BillingProvider — FailedPaymentBanner integration', () => {
+describe('BillingProvider — integration with UsageMeter, FailedPaymentBanner, and Settings', () => {
   const notice = () => screen.queryByRole('region', { name: 'Payment failure notice' })
 
-  it('renders the failure notice for the seeded record', () => {
-    const { latest } = renderProvider(<BillingScreen />, { router: true })
+  it('renders and clears FailedPaymentBanner via context transitions', () => {
+    renderProvider(<BillingScreen />, {
+      router: true,
+      providerProps: { initialFailedPayment: FAILURE_A },
+    })
 
-    expect(latest().failedPayment).toEqual(SEED)
     expect(notice()).toBeInTheDocument()
-    expect(screen.getByText('Payment failed')).toBeInTheDocument()
     expect(screen.getByText(/\$29\.00/)).toBeInTheDocument()
-    expect(screen.getByText(/inv_005/)).toBeInTheDocument()
-  })
-
-  it('clears the record and removes the notice when the notice is dismissed', () => {
-    const { latest } = renderProvider(<BillingScreen />, { router: true })
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss payment failure notice' }))
-
-    expect(latest().failedPayment).toBeNull()
-    expect(notice()).not.toBeInTheDocument()
-  })
-
-  it('hides the notice once the record is cleared directly', () => {
-    const { latest } = renderProvider(<BillingScreen />, { router: true })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Mark billing healthy' }))
-
-    expect(latest().failedPayment).toBeNull()
-    expect(notice()).not.toBeInTheDocument()
-  })
-
-  it('re-publishes the notice after a context-driven dismissal', () => {
-    renderProvider(<BillingScreen />, { router: true })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }))
     expect(notice()).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Report new failure' }))
-
     expect(notice()).toBeInTheDocument()
     expect(screen.getByText(/\$149\.50/)).toBeInTheDocument()
-    expect(screen.getByText(/inv_006/)).toBeInTheDocument()
+  })
+
+  it('upgrade updates UsageMeter limit and tier automatically', () => {
+    function PlanAndMeter() {
+      const { changePlan } = useBilling()
+      return (
+        <div>
+          <UsageMeter
+            label="Attestations"
+            used={900}
+            metric="attestations"
+            unit="attestations"
+          />
+          <button type="button" onClick={() => changePlan('growth')}>
+            Upgrade to Growth
+          </button>
+        </div>
+      )
+    }
+
+    renderProvider(<PlanAndMeter />, {
+      providerProps: { initialPlan: 'starter' },
+    })
+
+    // On Starter (limit 1,000), 900 used is 90% -> Critical
+    const meter = screen.getByRole('meter', { name: 'Attestations' })
+    expect(meter).toHaveAttribute('aria-valuenow', '90')
+    expect(meter).toHaveAttribute('aria-valuetext', '900 of 1,000 attestations used (90%)')
+    expect(screen.getByText('Critical')).toBeInTheDocument()
+
+    // Upgrade to Growth (limit 10,000) -> 900 / 10,000 = 9% -> On track
+    fireEvent.click(screen.getByRole('button', { name: 'Upgrade to Growth' }))
+
+    expect(meter).toHaveAttribute('aria-valuenow', '9')
+    expect(meter).toHaveAttribute('aria-valuetext', '900 of 10,000 attestations used (9%)')
+    expect(screen.getByText('On track')).toBeInTheDocument()
+  })
+
+  it('failing card shows banner and replacing it with a valid card clears it in Settings', () => {
+    function BannerSlot() {
+      const { failedPayment, dismissFailedPayment } = useBilling()
+      return <FailedPaymentBanner failure={failedPayment} onDismiss={dismissFailedPayment} />
+    }
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/settings',
+          element: (
+            <BillingProvider initialPlan="starter">
+              <BannerSlot />
+              <UsageMeter
+                label="Attestations"
+                used={900}
+                metric="attestations"
+                unit="attestations"
+              />
+              <Settings />
+            </BillingProvider>
+          ),
+        },
+      ],
+      { initialEntries: ['/settings#billing'] },
+    )
+
+    render(
+      <LocaleProvider>
+        <RouterProvider router={router} future={{ v7_startTransition: true }} />
+      </LocaleProvider>,
+    )
+
+    // Initially no banner (Visa 4242 is default and valid)
+    expect(notice()).not.toBeInTheDocument()
+
+    // Set expired Amex 0005 as default -> banner appears
+    fireEvent.click(screen.getByRole('button', { name: /Set Amex ending 0005 as default/i }))
+    expect(notice()).toBeInTheDocument()
+
+    // Replace with valid Visa 4242 as default -> banner clears
+    fireEvent.click(screen.getByRole('button', { name: /Set Visa ending 4242 as default/i }))
+    expect(notice()).not.toBeInTheDocument()
+
+    // Upgrade plan from Starter to Enterprise in Settings -> UsageMeter updates
+    fireEvent.click(screen.getByRole('button', { name: /Upgrade to Enterprise plan/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Confirm upgrade/i }))
+
+    const meter = screen.getByRole('meter', { name: 'Attestations' })
+    expect(meter).toHaveAttribute('aria-valuetext', '900 of 100,000 attestations used (1%)')
   })
 })

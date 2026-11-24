@@ -878,7 +878,6 @@ export default function MfaRecoveryFlowState({
               </button>
             </div>
             <ol
-              role="list"
               style={{
                 margin: 0,
                 padding: "0.75rem",

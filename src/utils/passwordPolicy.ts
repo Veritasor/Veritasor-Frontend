@@ -35,3 +35,16 @@ export function validatePassword(pw: string): {
 export function scorePassword(pw: string): number {
   return PASSWORD_RULES.length - validatePassword(pw).failures.length;
 }
+
+/** Maps policy progress to the existing five-state (0-4) strength meter. */
+export function strengthLevel(password: string): number {
+  if (!password) return 0;
+
+  const score = scorePassword(password);
+  if (score === PASSWORD_RULES.length) return 4;
+
+  return Math.max(
+    1,
+    Math.min(3, Math.ceil((score / PASSWORD_RULES.length) * 4)),
+  );
+}

@@ -1,5 +1,6 @@
-import { useState } from 'react'
 import type { BankDetails } from '../../hooks/useOnboardingDraft'
+import { useForm, type FormValidators } from '../../hooks/useForm'
+import { required } from '../../utils/validation'
 
 type Props = {
   data: BankDetails
@@ -7,40 +8,32 @@ type Props = {
   onNext: (data: BankDetails) => void
 }
 
-type Errors = Partial<Record<keyof BankDetails, string>>
-
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'NGN', 'KES', 'GHS', 'ZAR', 'Other']
 
-function validate(d: BankDetails): Errors {
-  const e: Errors = {}
-  if (!d.bankName.trim()) e.bankName = 'Bank name is required'
-  if (!d.accountNumber.trim()) e.accountNumber = 'Account number is required'
-  if (!d.ibanSwift.trim()) e.ibanSwift = 'IBAN or SWIFT/BIC is required'
-  if (!d.currency) e.currency = 'Currency is required'
-  return e
+const VALIDATORS: FormValidators<BankDetails> = {
+  bankName: required('Bank name is required'),
+  accountNumber: required('Account number is required'),
+  ibanSwift: required('IBAN or SWIFT/BIC is required'),
+  currency: required('Currency is required', { trim: false }),
 }
 
 export default function BankDetailsStep({ data, onBack, onNext }: Props) {
-  const [form, setForm] = useState<BankDetails>(data)
-  const [errors, setErrors] = useState<Errors>({})
-  const [touched, setTouched] = useState(false)
+  const {
+    values: form,
+    errors,
+    setFieldValue: set,
+    handleSubmit,
+  } = useForm<BankDetails>({
+    initialValues: data,
+    validators: VALIDATORS,
+    validateOnBlur: false,
+    revalidateOnChangeAfterSubmit: true,
+  })
 
-  function set(field: keyof BankDetails, value: string) {
-    const next = { ...form, [field]: value }
-    setForm(next)
-    if (touched) setErrors(validate(next))
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const errs = validate(form)
-    setErrors(errs)
-    setTouched(true)
-    if (Object.keys(errs).length === 0) onNext(form)
-  }
+  const onSubmit = handleSubmit((values) => onNext(values))
 
   return (
-    <form className="ob-form" onSubmit={handleSubmit} noValidate aria-label="Bank and payout details">
+    <form className="ob-form" onSubmit={onSubmit} noValidate aria-label="Bank and payout details">
       <div className="ob-field">
         <label className="ob-label ob-label-required" htmlFor="ob-bank-name">Bank name</label>
         <input
