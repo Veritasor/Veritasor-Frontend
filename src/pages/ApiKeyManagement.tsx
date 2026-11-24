@@ -6,7 +6,7 @@ export interface ApiKey {
   id: string;
   name: string;
   prefix: string;
-  scopes: ('read' | 'write' | 'admin')[];
+  scopes: string[];
   status: 'active' | 'revoked';
   createdAt: string;
   lastUsedAt: string;
@@ -22,7 +22,7 @@ export const ApiKeyManagement: React.FC = () => {
       id: 'key_01',
       name: 'Production Read-Only Client',
       prefix: 'vts_live_7k2x...',
-      scopes: ['read'],
+      scopes: ['read:attestations', 'read:sources'],
       status: 'active',
       createdAt: '2026-05-12',
       lastUsedAt: '2026-06-24',
@@ -48,7 +48,7 @@ export const ApiKeyManagement: React.FC = () => {
       id: 'key_02',
       name: 'CI/CD Automated Attestation Worker',
       prefix: 'vts_live_9p1m...',
-      scopes: ['read', 'write'],
+      scopes: ['read:attestations', 'write:attestations', 'read:sources'],
       status: 'active',
       createdAt: '2026-06-01',
       lastUsedAt: '2026-06-25',
@@ -81,10 +81,10 @@ export const ApiKeyManagement: React.FC = () => {
   };
 
   const handleRevoke = (id: string) => {
-    const activeAdminKeys = keys.filter(k => k.status === 'active' && k.scopes.includes('admin'));
+    const activeAdminKeys = keys.filter(k => k.status === 'active' && k.scopes.includes('write:keys'));
     const targetKey = keys.find(k => k.id === id);
-    
-    if (targetKey?.scopes.includes('admin') && activeAdminKeys.length <= 1) {
+
+    if (targetKey?.scopes.includes('write:keys') && activeAdminKeys.length <= 1) {
       alert('Security Protection Alert: Cannot revoke the last remaining administrator token.');
       return;
     }
@@ -94,6 +94,12 @@ export const ApiKeyManagement: React.FC = () => {
         prev.map((k) => (k.id === id ? { ...k, status: 'revoked' as const } : k))
       );
     }
+  };
+
+  const handleScopesUpdated = (keyId: string, newScopes: string[]) => {
+    setKeys((prev) =>
+      prev.map((k) => (k.id === keyId ? { ...k, scopes: newScopes } : k))
+    );
   };
 
   return (
@@ -188,6 +194,7 @@ export const ApiKeyManagement: React.FC = () => {
       <ApiKeyDetailPanel
         keyData={detailKey}
         onClose={() => setDetailKey(null)}
+        onScopesUpdated={handleScopesUpdated}
       />
     </div>
   );

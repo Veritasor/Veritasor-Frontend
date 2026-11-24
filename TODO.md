@@ -1,13 +1,16 @@
 # TODO - Issue #167 Attestation Scheduling Calendar
 
-- [ ] Create `src/components/scheduling/AttestationCalendar.tsx`:
-  - [ ] Month grid calendar with subtle scheduled indicators
-  - [ ] WCAG 2.1 AA keyboard navigation (arrow keys, Enter/Space) + single live region announcements
-  - [ ] Recurrence Builder (Daily/Weekly/Monthly) + live Plain-English Summary
-  - [ ] Edge-case documentation block (DST, leap day behavior, mobile rendering, RTL)
-- [ ] Integrate calendar into `src/pages/Attestations.tsx` (mount schedule view cleanly)
-  - [ ] Ensure `Attestations.tsx` compiles (fix/replace broken references if needed)
-- [ ] Run TypeScript/build/tests to confirm no regressions
+- [x] Create `src/components/scheduling/AttestationCalendar.tsx`:
+  - [x] Month grid calendar with subtle scheduled indicators
+  - [x] Keyboard navigation (arrow keys, Enter/Space) + single live region announcements
+  - [x] Recurrence Builder (Daily/Weekly/Monthly) + Plain-English Summary
+  - [x] Edge-case documentation block (DST, leap day behavior, mobile rendering, RTL)
+- [x] Integrate calendar into `src/pages/Attestations.tsx` as a Schedule tab
+- [x] Persist recurrence rules in a versioned localStorage schedule store
+- [x] Generate upcoming occurrences with month-end, leap-day, and IANA time-zone DST handling
+- [x] Show upcoming runs and support editing/deleting saved rules
+- [x] Add occurrence-generation and page integration tests
+- [ ] Run TypeScript/build/tests to confirm no regressions (build and focused tests pass; project-wide TypeScript checks have pre-existing errors)
 - [ ] Quick manual keyboard/screen-reader sanity check
 
 # TODO - Issue #284 Design Tokens CSS Export

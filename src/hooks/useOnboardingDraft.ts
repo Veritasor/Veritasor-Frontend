@@ -1,4 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  fetchOnboardingDraft,
+  syncOnboardingDraft,
+  type RemoteDraftResponse,
+} from '../services/onboardingApi'
 
 export type BusinessDetails = {
   legalName: string
@@ -52,7 +57,10 @@ const STORAGE_KEY = 'veritasor_onboarding_draft'
 export const DRAFT_VERSION = 1
 export const TOTAL_STEPS = 6
 export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+export const DRAFT_SYNC_DEBOUNCE_MS = 500
 export const SENSITIVE_STORAGE_KEY = 'veritasor_onboarding_draft_sensitive'
+
+export type DraftSyncStatus = 'idle' | 'syncing' | 'synced' | 'conflict' | 'error'
 
 const INITIAL_DRAFT: OnboardingDraft = {
   version: DRAFT_VERSION,
@@ -236,7 +244,7 @@ type SensitiveDraftParts = {
   }
 }
 
-export function splitDraft(draft: OnboardingDraft): {
+export function splitDraft(draft: OnboardingDraft, updatedAt: number = Date.now()): {
   persisted: Record<string, unknown>
   sensitive: SensitiveDraftParts
 } {
@@ -250,7 +258,7 @@ export function splitDraft(draft: OnboardingDraft): {
       bankName: bank.bankName,
       currency: bank.currency,
     },
-    updatedAt: Date.now(),
+    updatedAt,
   }
 
   const sensitive: SensitiveDraftParts = {
@@ -412,8 +420,37 @@ export function loadStoredDraft(): OnboardingDraft {
   }
 }
 
-export function saveStoredDraft(draft: OnboardingDraft): void {
-  const { persisted, sensitive } = splitDraft(draft)
+export function getLocalDraftUpdatedAt(): number {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return 0
+    const parsed: unknown = JSON.parse(raw)
+    if (isRecord(parsed) && typeof parsed.updatedAt === 'number' && Number.isFinite(parsed.updatedAt)) {
+      return parsed.updatedAt
+    }
+    return 0
+  } catch {
+    return 0
+  }
+}
+
+export function reconcileDrafts(
+  localDraft: OnboardingDraft,
+  localUpdatedAt: number,
+  remote: RemoteDraftResponse | null,
+): { draft: OnboardingDraft; source: 'local' | 'remote'; updatedAt: number } {
+  if (!remote || typeof remote.updatedAt !== 'number' || !Number.isFinite(remote.updatedAt)) {
+    return { draft: localDraft, source: 'local', updatedAt: localUpdatedAt }
+  }
+  if (remote.updatedAt > localUpdatedAt) {
+    const parsedRemote = parseDraft(JSON.stringify(remote.draft))
+    return { draft: parsedRemote, source: 'remote', updatedAt: remote.updatedAt }
+  }
+  return { draft: localDraft, source: 'local', updatedAt: localUpdatedAt }
+}
+
+export function saveStoredDraft(draft: OnboardingDraft, updatedAt: number = Date.now()): void {
+  const { persisted, sensitive } = splitDraft(draft, updatedAt)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted))
   try {
     sessionStorage.setItem(SENSITIVE_STORAGE_KEY, JSON.stringify(sensitive))
@@ -428,21 +465,71 @@ export function useOnboardingDraft() {
   })
 
   const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [syncStatus, setSyncStatus] = useState<DraftSyncStatus>('idle')
+  const updatedAtRef = useRef<number>(getLocalDraftUpdatedAt())
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const syncAbortRef = useRef<AbortController | null>(null)
+
+  const scheduleServerSync = useCallback((nextDraft: OnboardingDraft, timestamp: number) => {
+    if (syncTimerRef.current !== null) {
+      clearTimeout(syncTimerRef.current)
+    }
+    syncTimerRef.current = setTimeout(async () => {
+      syncTimerRef.current = null
+      syncAbortRef.current?.abort()
+      const controller = new AbortController()
+      syncAbortRef.current = controller
+      setSyncStatus('syncing')
+      const result = await syncOnboardingDraft(nextDraft, timestamp, controller.signal)
+      if (controller.signal.aborted) return
+      if (!result) {
+        setSyncStatus('error')
+        return
+      }
+      if (result.conflict && result.serverDraft) {
+        const reconciled = reconcileDrafts(nextDraft, updatedAtRef.current, result.serverDraft)
+        if (reconciled.source === 'remote') {
+          updatedAtRef.current = reconciled.updatedAt
+          setDraftState(reconciled.draft)
+          try {
+            saveStoredDraft(reconciled.draft, reconciled.updatedAt)
+            setSavedAt(new Date(reconciled.updatedAt))
+          } catch {
+            // ignore storage errors
+          }
+        }
+        setSyncStatus('conflict')
+        return
+      }
+      updatedAtRef.current = result.updatedAt
+      setSyncStatus('synced')
+    }, DRAFT_SYNC_DEBOUNCE_MS)
+  }, [])
 
   const setDraft = useCallback((updater: Partial<OnboardingDraft> | ((prev: OnboardingDraft) => OnboardingDraft)) => {
     setDraftState(prev => {
       const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater }
+      const now = Date.now()
+      updatedAtRef.current = now
       try {
-        saveStoredDraft(next)
-        setSavedAt(new Date())
+        saveStoredDraft(next, now)
+        setSavedAt(new Date(now))
       } catch {
         // storage full or unavailable
       }
+      scheduleServerSync(next, now)
       return next
     })
-  }, [])
+  }, [scheduleServerSync])
 
   const clearDraft = useCallback(() => {
+    if (syncTimerRef.current !== null) {
+      clearTimeout(syncTimerRef.current)
+      syncTimerRef.current = null
+    }
+    syncAbortRef.current?.abort()
+    syncAbortRef.current = null
+    updatedAtRef.current = 0
     try {
       localStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem(SENSITIVE_STORAGE_KEY)
@@ -451,9 +538,10 @@ export function useOnboardingDraft() {
     }
     setDraftState(INITIAL_DRAFT)
     setSavedAt(null)
+    setSyncStatus('idle')
   }, [])
 
-  // Persist on mount if draft already existed
+  // Persist on mount if draft already existed, and reconcile with server draft
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -461,7 +549,36 @@ export function useOnboardingDraft() {
     } catch {
       // Storage unavailable (private mode / blocked): keep the in-memory draft.
     }
+
+    const controller = new AbortController()
+    fetchOnboardingDraft(controller.signal).then(remote => {
+      if (controller.signal.aborted || !remote) return
+      setDraftState(currentLocal => {
+        const reconciled = reconcileDrafts(currentLocal, updatedAtRef.current, remote)
+        if (reconciled.source === 'remote') {
+          updatedAtRef.current = reconciled.updatedAt
+          try {
+            saveStoredDraft(reconciled.draft, reconciled.updatedAt)
+            setSavedAt(new Date(reconciled.updatedAt))
+          } catch {
+            // ignore storage errors
+          }
+          setSyncStatus('synced')
+          return reconciled.draft
+        }
+        return currentLocal
+      })
+    })
+
+    return () => {
+      controller.abort()
+      if (syncTimerRef.current !== null) {
+        clearTimeout(syncTimerRef.current)
+        syncTimerRef.current = null
+      }
+      syncAbortRef.current?.abort()
+    }
   }, [])
 
-  return { draft, setDraft, clearDraft, savedAt }
+  return { draft, setDraft, clearDraft, savedAt, syncStatus }
 }

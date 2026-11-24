@@ -1,8 +1,83 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import OnboardingWizard from './OnboardingWizard'
+
+class FakeXHR {
+  static instances: FakeXHR[] = []
+  static autoRespond: ((xhr: FakeXHR) => void) | null = null
+
+  method = ''
+  url = ''
+  requestHeaders: Record<string, string> = {}
+  body: FormData | null = null
+  status = 0
+  statusText = ''
+  responseText = ''
+  responseHeaders: Record<string, string> = {}
+  aborted = false
+
+  upload: { onprogress: ((ev: ProgressEvent) => void) | null } = { onprogress: null }
+  onload: (() => void) | null = null
+  onerror: (() => void) | null = null
+  onabort: (() => void) | null = null
+
+  constructor() {
+    FakeXHR.instances.push(this)
+  }
+
+  open(method: string, url: string) {
+    this.method = method
+    this.url = url
+  }
+
+  setRequestHeader(key: string, value: string) {
+    this.requestHeaders[key] = value
+  }
+
+  getResponseHeader(key: string): string | null {
+    const lower = key.toLowerCase()
+    for (const [k, v] of Object.entries(this.responseHeaders)) {
+      if (k.toLowerCase() === lower) return v
+    }
+    return null
+  }
+
+  send(body: FormData) {
+    this.body = body
+    if (FakeXHR.autoRespond) {
+      const responder = FakeXHR.autoRespond
+      queueMicrotask(() => responder(this))
+    }
+  }
+
+  abort() {
+    this.aborted = true
+    this.onabort?.()
+  }
+
+  emitProgress(loaded: number, total: number) {
+    this.upload.onprogress?.({ loaded, total, lengthComputable: true } as ProgressEvent)
+  }
+
+  respond(
+    status: number,
+    body: string,
+    headers: Record<string, string> = { 'content-type': 'application/json' },
+    statusText = '',
+  ) {
+    this.status = status
+    this.statusText = statusText
+    this.responseText = body
+    this.responseHeaders = headers
+    this.onload?.()
+  }
+
+  failNetwork() {
+    this.onerror?.()
+  }
+}
 
 // Mock fetch
 global.fetch = vi.fn()
@@ -17,7 +92,15 @@ vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
 describe('OnboardingWizard', () => {
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear()
     vi.clearAllMocks()
+    FakeXHR.instances = []
+    FakeXHR.autoRespond = null
+    vi.stubGlobal('XMLHttpRequest', FakeXHR)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('renders step 1 and validates required fields', async () => {
@@ -204,29 +287,29 @@ describe('OnboardingWizard', () => {
     
     // --- STEP 6: Review & Submit ---
     expect(await screen.findByRole('heading', { name: 'Review & submit' })).toBeInTheDocument()
-    
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-    vi.stubGlobal('fetch', mockFetch)
+
+    FakeXHR.autoRespond = (xhr) => {
+      xhr.emitProgress(500, 1000)
+      xhr.emitProgress(1000, 1000)
+      xhr.respond(200, JSON.stringify({ success: true }))
+    }
 
     const submitBtn = screen.getByRole('button', { name: /submit application/i })
     await user.click(submitBtn)
-    
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockFetch).toHaveBeenCalledWith('/api/onboarding/submit', expect.any(Object))
-    
-    const callBody = mockFetch.mock.calls[0][1].body as FormData
+
+    await waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
+    const xhr = FakeXHR.instances[0]
+    expect(xhr.url).toBe('/api/onboarding/submit')
+    expect(xhr.requestHeaders['Idempotency-Key']).toBeTruthy()
+
+    const callBody = xhr.body as FormData
     expect(callBody).toBeInstanceOf(FormData)
     expect(callBody.get('selfie')).toBe(selfieFile)
     expect(callBody.getAll('registrationCert')).toEqual([fileRegistration])
     expect(callBody.getAll('govIdFront')).toEqual([fileGovFront])
     expect(callBody.getAll('govIdBack')).toEqual([fileGovBack])
     expect(callBody.getAll('proofOfAddress')).toEqual([fileProof])
-    
+
     // Success Screen
     expect(await screen.findByRole('heading', { name: 'Verification in progress' })).toBeInTheDocument()
   })
@@ -268,7 +351,7 @@ describe('OnboardingWizard', () => {
       },
     }
 
-    it('stays on step 6, keeps draft in storage, and shows retry on 500 error', async () => {
+    it('stays on step 6, keeps draft in storage, and shows retry on 500 error with same idempotency key', async () => {
       localStorage.setItem('veritasor_onboarding_draft', JSON.stringify(step6Draft))
       const user = userEvent.setup()
 
@@ -280,14 +363,9 @@ describe('OnboardingWizard', () => {
 
       expect(await screen.findByRole('heading', { name: 'Review & submit' })).toBeInTheDocument()
 
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response('Server Error', {
-          status: 500,
-          statusText: 'Internal Server Error',
-          headers: { 'Content-Type': 'text/plain' },
-        })
-      )
-      vi.stubGlobal('fetch', mockFetch)
+      FakeXHR.autoRespond = (xhr) => {
+        xhr.respond(500, 'Server Error', { 'content-type': 'text/plain' }, 'Internal Server Error')
+      }
 
       const submitBtn = screen.getByRole('button', { name: /submit application/i })
       await user.click(submitBtn)
@@ -304,20 +382,57 @@ describe('OnboardingWizard', () => {
       const savedDraft = JSON.parse(localStorage.getItem('veritasor_onboarding_draft') || '{}')
       expect(savedDraft.business?.legalName).toBe('Test Corp')
 
-      // Retry button is available and works
-      mockFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify({ success: true }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
+      // Retry button is available and works with the same Idempotency-Key
+      FakeXHR.autoRespond = (xhr) => {
+        xhr.respond(200, JSON.stringify({ success: true }))
+      }
 
       const retryBtn = screen.getByRole('button', { name: /retry/i })
       await user.click(retryBtn)
 
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(FakeXHR.instances).toHaveLength(2)
+      expect(FakeXHR.instances[0].requestHeaders['Idempotency-Key']).toBe(
+        FakeXHR.instances[1].requestHeaders['Idempotency-Key'],
+      )
       expect(await screen.findByRole('heading', { name: 'Verification in progress' })).toBeInTheDocument()
       expect(localStorage.getItem('veritasor_onboarding_draft')).toBeNull()
+    })
+
+    it('shows upload progress bar and allows cancelling while keeping draft intact', async () => {
+      localStorage.setItem('veritasor_onboarding_draft', JSON.stringify(step6Draft))
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter>
+          <OnboardingWizard />
+        </MemoryRouter>
+      )
+
+      expect(await screen.findByRole('heading', { name: 'Review & submit' })).toBeInTheDocument()
+
+      const submitBtn = screen.getByRole('button', { name: /submit application/i })
+      await user.click(submitBtn)
+
+      expect(FakeXHR.instances).toHaveLength(1)
+      const xhr = FakeXHR.instances[0]
+
+      act(() => {
+        xhr.emitProgress(400, 1000)
+      })
+
+      const progressBar = screen.getByRole('progressbar', { name: /upload progress/i })
+      expect(progressBar).toHaveAttribute('aria-valuenow', '40')
+
+      const cancelBtn = screen.getByRole('button', { name: /cancel/i })
+      await user.click(cancelBtn)
+
+      expect(xhr.aborted).toBe(true)
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/cancelled/i)
+
+      // Draft remains intact
+      const savedDraft = JSON.parse(localStorage.getItem('veritasor_onboarding_draft') || '{}')
+      expect(savedDraft.business?.legalName).toBe('Test Corp')
     })
 
     it('stays on step 6, keeps draft, and shows retry on network error', async () => {
@@ -332,8 +447,9 @@ describe('OnboardingWizard', () => {
 
       expect(await screen.findByRole('heading', { name: 'Review & submit' })).toBeInTheDocument()
 
-      const mockFetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
-      vi.stubGlobal('fetch', mockFetch)
+      FakeXHR.autoRespond = (xhr) => {
+        xhr.failNetwork()
+      }
 
       const submitBtn = screen.getByRole('button', { name: /submit application/i })
       await user.click(submitBtn)
@@ -359,13 +475,9 @@ describe('OnboardingWizard', () => {
 
       expect(await screen.findByRole('heading', { name: 'Review & submit' })).toBeInTheDocument()
 
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response('<!DOCTYPE html><html><body>Index</body></html>', {
-          status: 200,
-          headers: { 'Content-Type': 'text/html' },
-        })
-      )
-      vi.stubGlobal('fetch', mockFetch)
+      FakeXHR.autoRespond = (xhr) => {
+        xhr.respond(200, '<!DOCTYPE html><html><body>Index</body></html>', { 'content-type': 'text/html' })
+      }
 
       const submitBtn = screen.getByRole('button', { name: /submit application/i })
       await user.click(submitBtn)

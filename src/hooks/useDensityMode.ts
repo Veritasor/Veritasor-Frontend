@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useOptionalWorkspace } from "../state/workspace";
 
 export type DensityMode = "comfortable" | "compact";
 
@@ -22,11 +23,14 @@ export interface UseDensityModeOptions {
  * reading localStorage as the fast default).
  */
 export function useDensityMode(
-  workspace: string,
+  workspace?: string,
   options: UseDensityModeOptions = {},
 ) {
   const { onPersistError } = options;
-  const storageKey = `${DENSITY_STORAGE_PREFIX}${workspace}`;
+  const workspaceCtx = useOptionalWorkspace();
+  const effectiveWorkspace =
+    workspace ?? workspaceCtx?.activeWorkspaceId ?? "default";
+  const storageKey = `${DENSITY_STORAGE_PREFIX}${effectiveWorkspace}`;
   const onPersistErrorRef = useRef(onPersistError);
   onPersistErrorRef.current = onPersistError;
 
@@ -62,7 +66,7 @@ export function useDensityMode(
       fetch(`${API_BASE}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspace, density: mode }),
+        body: JSON.stringify({ workspace: effectiveWorkspace, density: mode }),
       })
         .then(async (res) => {
           if (!res.ok) {
@@ -92,7 +96,7 @@ export function useDensityMode(
           );
         });
     },
-    [storageKey],
+    [storageKey, effectiveWorkspace],
   );
 
   // On mount / workspace change, sync with localStorage and attempt server read
@@ -112,7 +116,7 @@ export function useDensityMode(
     }
 
     // Attempt to fetch server preference to sync across devices
-    fetch(`${API_BASE}?workspace=${encodeURIComponent(workspace)}`, {
+    fetch(`${API_BASE}?workspace=${encodeURIComponent(effectiveWorkspace)}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: abortController.signal,
@@ -140,7 +144,7 @@ export function useDensityMode(
     return () => {
       abortController.abort();
     };
-  }, [storageKey]);
+  }, [storageKey, effectiveWorkspace]);
 
   return { density, setDensity };
 }

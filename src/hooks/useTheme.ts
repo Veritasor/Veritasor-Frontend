@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useOptionalWorkspace } from '../state/workspace'
 
 const BASE_STORAGE_KEY = 'veritasor-theme'
 export type Theme = 'system' | 'light' | 'dark' | 'high-contrast'
@@ -40,7 +41,9 @@ function applyTheme(theme: Theme): void {
 }
 
 export function useTheme(userId?: string) {
-  const storageKey = getThemeStorageKey(userId)
+  const workspaceCtx = useOptionalWorkspace()
+  const effectiveScope = userId ?? workspaceCtx?.activeWorkspaceId
+  const storageKey = getThemeStorageKey(effectiveScope)
 
   const subscribeToStore = useCallback(
     (callback: () => void): (() => void) => {

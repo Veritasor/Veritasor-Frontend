@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DocumentUpload } from '../../hooks/useOnboardingDraft'
 import { useObjectUrl } from '../../hooks/useObjectUrl'
+import { MAX_FILE_SIZE_MB, validateOnboardingFile } from '../../services/onboardingApi'
 
 // ─── Public types ──────────────────────────────────────────────────────────────
 
@@ -35,8 +36,7 @@ type Props = {
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const ACCEPT = '.pdf,.jpg,.jpeg,.png'
-const MAX_MB = 10
-const MAX_BYTES = MAX_MB * 1024 * 1024
+const MAX_MB = MAX_FILE_SIZE_MB
 
 /** Fields that use the camera-capture flow (govId front + back) */
 const CAMERA_FIELDS = new Set<DocField>(['govIdFront', 'govIdBack'])
@@ -206,12 +206,9 @@ function IdCaptureCard({ fieldKey, label, hint, capturedFile, onCapture, onRetak
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
-    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(f.type)) {
-      setFileError('PDF, JPG or PNG only')
-      return
-    }
-    if (f.size > MAX_BYTES) {
-      setFileError(`Max ${MAX_MB} MB exceeded`)
+    const validationError = validateOnboardingFile(f)
+    if (validationError) {
+      setFileError(validationError)
       return
     }
     setFileError(null)
@@ -417,12 +414,9 @@ export default function DocumentUploadStep({ data, onBack, onNext, rejections, f
     const valid: File[] = []
     const fieldErrors: string[] = []
     Array.from(incoming).forEach(f => {
-      if (!['application/pdf', 'image/jpeg', 'image/png'].includes(f.type)) {
-        fieldErrors.push(`${f.name}: unsupported type`)
-        return
-      }
-      if (f.size > MAX_BYTES) {
-        fieldErrors.push(`${f.name}: exceeds ${MAX_MB} MB`)
+      const validationError = validateOnboardingFile(f)
+      if (validationError) {
+        fieldErrors.push(validationError)
         return
       }
       valid.push(f)
