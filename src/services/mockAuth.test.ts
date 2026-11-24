@@ -18,13 +18,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as mockAuth from './mockAuth'
 import {
   verifyRecoveryCode,
   remainingCodeCount,
   resetMockAuthCodes,
   generateRecoveryCodes,
+  getRemainingCodes,
   DEMO_CODES_READONLY,
-  _remainingCodes,
 } from './mockAuth'
 
 // Reset state before every test so tests are independent.
@@ -68,6 +69,19 @@ describe('verifyRecoveryCode', () => {
     const code = DEMO_CODES_READONLY[0]
     expect(verifyRecoveryCode(code)).toBe(true)
     expect(verifyRecoveryCode(code)).toBe(false)
+  })
+
+  it('removes a used code from the remaining set so it cannot be reused', () => {
+    const code = DEMO_CODES_READONLY[0]
+    expect(getRemainingCodes()).toContain(code)
+    expect(verifyRecoveryCode(code)).toBe(true)
+    expect(getRemainingCodes()).not.toContain(code)
+    expect(remainingCodeCount()).toBe(DEMO_CODES_READONLY.length - 1)
+    expect(verifyRecoveryCode(code)).toBe(false)
+  })
+
+  it('does not export _remainingCodes directly', () => {
+    expect('_remainingCodes' in mockAuth).toBe(false)
   })
 
   it('is single-use across normalisation variants: lowercase reuse also fails', () => {
