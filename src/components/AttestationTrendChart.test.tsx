@@ -13,22 +13,57 @@ describe('AttestationTrendChart', () => {
   it('renders heading, legend, and chart', () => {
     render(<AttestationTrendChart data={sampleData} />);
     expect(screen.getByRole('heading', { level: 2, name: 'Attestation history' })).toBeInTheDocument();
-    expect(screen.getByText('Verified')).toBeInTheDocument();
-    expect(screen.getByText('Pending')).toBeInTheDocument();
-    expect(screen.getByText('Failed')).toBeInTheDocument();
+    const legend = screen.getByRole('list', { name: 'Chart legend' });
+    expect(within(legend).getByText('Verified')).toBeInTheDocument();
+    expect(within(legend).getByText('Pending')).toBeInTheDocument();
+    expect(within(legend).getByText('Failed')).toBeInTheDocument();
     expect(screen.getByRole('img')).toBeInTheDocument();
+  });
+
+  it('exposes accessible chart summary, per-bar titles, and visually hidden data table in chart view', () => {
+    render(<AttestationTrendChart data={sampleData} />);
+
+    const chart = screen.getByRole('img');
+    const labelledBy = chart.getAttribute('aria-labelledby');
+    expect(labelledBy).toBeTruthy();
+    const [titleId, descId] = labelledBy!.split(' ');
+    expect(document.getElementById(titleId)).toHaveTextContent('Attestation history');
+    expect(document.getElementById(descId)).toHaveTextContent(
+      'Stacked bar chart showing counts of verified, pending, and failed attestations across 3 periods. Totals: 2 verified, 1 pending, 1 failed (4 total).',
+    );
+
+    const bars = [
+      '2025-03-01: verified 1, pending 0, failed 0',
+      '2025-03-02: verified 1, pending 1, failed 0',
+      '2025-03-03: verified 0, pending 0, failed 1',
+    ];
+    for (const label of bars) {
+      const bar = screen.getByRole('button', { name: label });
+      expect(bar).toBeInTheDocument();
+      expect(bar.querySelector('title')).toHaveTextContent(label);
+    }
+
+    const table = screen.getByRole('table', { name: 'Attestation counts by date' });
+    expect(table).toHaveClass('sr-only');
+    expect(within(table).getByRole('rowheader', { name: '2025-03-01' })).toBeInTheDocument();
+    expect(within(table).getByRole('rowheader', { name: '2025-03-02' })).toBeInTheDocument();
+    expect(within(table).getByRole('rowheader', { name: '2025-03-03' })).toBeInTheDocument();
   });
 
   it('toggles to table view and back', () => {
     render(<AttestationTrendChart data={sampleData} />);
+    expect(screen.getByRole('table')).toHaveClass('sr-only');
+
     fireEvent.click(screen.getByRole('button', { name: 'View as table' }));
     const table = screen.getByRole('table');
     expect(table).toBeInTheDocument();
+    expect(table).not.toHaveClass('sr-only');
     expect(within(table).getByText('2025-03-02')).toBeInTheDocument();
     expect(within(table).getByText('2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'View as chart' }));
     expect(screen.getByRole('img')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toHaveClass('sr-only');
   });
 
   it('shows empty state message when no data is provided', () => {
