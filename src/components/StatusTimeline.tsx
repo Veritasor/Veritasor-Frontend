@@ -149,7 +149,6 @@ function TimelineStepNode({ step, isLast, showTimestamps }: TimelineStepNodeProp
         gap: '1rem',
         position: 'relative',
       }}
-      role="listitem"
       aria-current={isCurrent ? 'step' : undefined}
     >
       {/* Timeline connector line */}

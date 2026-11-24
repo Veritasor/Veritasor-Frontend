@@ -1,3 +1,4 @@
+import { FunctionalConsentWrapper, grantFunctionalConsent } from '../test/functional-consent-fixture'
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import DensityToggle from "./DensityToggle";
@@ -13,6 +14,7 @@ describe("DensityToggle", () => {
       } as Response;
     });
     localStorage.clear();
+    grantFunctionalConsent();
   });
 
   afterEach(() => {
@@ -20,7 +22,7 @@ describe("DensityToggle", () => {
   });
 
   it("renders correctly with default state", () => {
-    render(<DensityToggle workspace="test-ws" />);
+    render(<DensityToggle workspace="test-ws" />, { wrapper: FunctionalConsentWrapper });
     
     const group = screen.getByRole("radiogroup", { name: "Display density" });
     expect(group).toBeInTheDocument();
@@ -36,7 +38,7 @@ describe("DensityToggle", () => {
   });
 
   it("changes state to compact when clicked", async () => {
-    render(<DensityToggle workspace="test-ws" />);
+    render(<DensityToggle workspace="test-ws" />, { wrapper: FunctionalConsentWrapper });
     
     const compact = screen.getByRole("radio", { name: /Compact/i });
     fireEvent.click(compact);
@@ -61,7 +63,7 @@ describe("DensityToggle", () => {
     });
     
     const onPersistError = vi.fn();
-    render(<DensityToggle workspace="test-ws" onPersistError={onPersistError} />);
+    render(<DensityToggle workspace="test-ws" onPersistError={onPersistError} />, { wrapper: FunctionalConsentWrapper });
     
     const compact = screen.getByRole("radio", { name: /Compact/i });
     fireEvent.click(compact);
@@ -87,7 +89,7 @@ describe("DensityToggle", () => {
     });
     
     const onPersistError = vi.fn();
-    render(<DensityToggle workspace="test-ws" onPersistError={onPersistError} />);
+    render(<DensityToggle workspace="test-ws" onPersistError={onPersistError} />, { wrapper: FunctionalConsentWrapper });
     
     const compact = screen.getByRole("radio", { name: /Compact/i });
     fireEvent.click(compact);
@@ -108,7 +110,7 @@ describe("DensityToggle", () => {
       return { ok: true, json: async () => ({ density: "comfortable" }) } as Response;
     });
     
-    render(<DensityToggle workspace="test-ws" />);
+    render(<DensityToggle workspace="test-ws" />, { wrapper: FunctionalConsentWrapper });
     
     const compact = screen.getByRole("radio", { name: /Compact/i });
     fireEvent.click(compact);
@@ -120,13 +122,13 @@ describe("DensityToggle", () => {
   });
 
   it("handles empty workspace prop (invalid input representation)", () => {
-    render(<DensityToggle workspace="" />);
+    render(<DensityToggle workspace="" />, { wrapper: FunctionalConsentWrapper });
     const comfortable = screen.getByRole("radio", { name: /Comfortable/i });
     expect(comfortable).toBeInTheDocument();
   });
 
   it("implements roving tabindex with only the selected radio tabbable", () => {
-    render(<DensityToggle workspace="test-ws" />);
+    render(<DensityToggle workspace="test-ws" />, { wrapper: FunctionalConsentWrapper });
     const comfortable = screen.getByRole("radio", { name: /Comfortable/i });
     const compact = screen.getByRole("radio", { name: /Compact/i });
 
@@ -140,7 +142,7 @@ describe("DensityToggle", () => {
   });
 
   it("changes selection and moves focus with arrow keys, Home, and End", () => {
-    render(<DensityToggle workspace="test-ws" />);
+    render(<DensityToggle workspace="test-ws" />, { wrapper: FunctionalConsentWrapper });
     const comfortable = screen.getByRole("radio", { name: /Comfortable/i });
     const compact = screen.getByRole("radio", { name: /Compact/i });
 
@@ -171,7 +173,7 @@ describe("DensityToggle", () => {
   });
 
   it("announces density changes politely in a status live region", () => {
-    render(<DensityToggle workspace="test-ws" />);
+    render(<DensityToggle workspace="test-ws" />, { wrapper: FunctionalConsentWrapper });
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveTextContent("");

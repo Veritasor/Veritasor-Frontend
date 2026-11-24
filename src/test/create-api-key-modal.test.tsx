@@ -75,29 +75,30 @@ describe('CreateApiKeyModal — rendering', () => {
 // ─── Scope groups ──────────────────────────────────────────────────────
 
 describe('CreateApiKeyModal — scope groups', () => {
-  it('renders all 4 group headers (Attestations, Revenue Sources, Webhooks, API Keys)', () => {
+  it('renders all 5 group headers, including administrative access', () => {
     renderModal(true)
     expect(screen.getByText('Attestations')).toBeInTheDocument()
     expect(screen.getByText('Revenue Sources')).toBeInTheDocument()
     expect(screen.getByText('Webhooks')).toBeInTheDocument()
     expect(screen.getByText('API Keys')).toBeInTheDocument()
+    expect(screen.getByText('Administration')).toBeInTheDocument()
   })
 
-  it('renders 8 individual scope checkboxes', () => {
+  it('renders all 9 individual scope checkboxes', () => {
     renderModal(true)
     const tree = screen.getByRole('tree')
     const checkboxes = tree.querySelectorAll('input[type="checkbox"]')
-    // 4 group + 8 scope = 12 checkboxes
-    expect(checkboxes.length).toBe(12)
+    // 5 group + 9 scope = 14 checkboxes
+    expect(checkboxes.length).toBe(14)
   })
 
   it('each group has role="treeitem" with aria-expanded', () => {
     renderModal(true)
     const treeitems = screen.getAllByRole('treeitem')
-    expect(treeitems.length).toBe(12) // 4 groups + 8 scopes
+    expect(treeitems.length).toBe(14) // 5 groups + 9 scopes
     // Groups have aria-expanded
     const groups = treeitems.filter((el) => el.hasAttribute('aria-expanded'))
-    expect(groups.length).toBe(4)
+    expect(groups.length).toBe(5)
     groups.forEach((g) => {
       expect(g.getAttribute('aria-expanded')).toBe('true')
     })
@@ -253,28 +254,28 @@ describe('CreateApiKeyModal — search filter', () => {
 // ─── Selected-count summary ────────────────────────────────────────────
 
 describe('CreateApiKeyModal — selected-count summary', () => {
-  it('shows "1/8 selected" by default', () => {
+  it('shows "1/9 selected" by default', () => {
     renderModal(true)
-    const summary = screen.getByText(/1.*\/.*8.*selected/i)
+    const summary = screen.getByText(/1.*\/.*9.*selected/i)
     expect(summary).toBeInTheDocument()
   })
 
   it('updates count when scopes are toggled', () => {
     renderModal(true)
     fireEvent.click(getScopeCheckbox('Write attestations'))
-    expect(screen.getByText(/2.*\/.*8.*selected/i)).toBeInTheDocument()
+    expect(screen.getByText(/2.*\/.*9.*selected/i)).toBeInTheDocument()
   })
 
-  it('shows "0/8 selected" when all are cleared', () => {
+  it('shows "0/9 selected" when all are cleared', () => {
     renderModal(true)
     fireEvent.click(screen.getByRole('button', { name: /clear all/i }))
-    expect(screen.getByText(/0.*\/.*8.*selected/i)).toBeInTheDocument()
+    expect(screen.getByText(/0.*\/.*9.*selected/i)).toBeInTheDocument()
   })
 
-  it('shows "8/8 selected" when all are selected', () => {
+  it('shows "9/9 selected" when all are selected', () => {
     renderModal(true)
     fireEvent.click(screen.getByRole('button', { name: /select all/i }))
-    expect(screen.getByText(/8.*\/.*8.*selected/i)).toBeInTheDocument()
+    expect(screen.getByText(/9.*\/.*9.*selected/i)).toBeInTheDocument()
   })
 
   it('summary has aria-live="polite" for screen reader announcements', () => {
@@ -376,10 +377,16 @@ describe('CreateApiKeyModal — confirm dialog', () => {
     // Now confirm
     fireEvent.click(screen.getByRole('button', { name: /create key/i }))
     expect(onMinted).toHaveBeenCalledOnce()
-    const keyId = onMinted.mock.calls[0][0]
+    const key = onMinted.mock.calls[0][0]
     const fullKey = onMinted.mock.calls[0][1]
-    expect(keyId).toMatch(/^key_/)
-    expect(fullKey).toMatch(/^vtsr_live_/)
+    expect(keyId).toMatch(/^key_[a-z0-9]{6}$/)
+    expect(fullKey).toMatch(/^vtsr_live_[0-9a-f]{20}_[0-9a-f]{4}$/)
+    expect(key).toEqual(expect.objectContaining({
+      id: expect.stringMatching(/^key_[a-f0-9]{16}$/),
+      label: 'Admin key',
+      scopes: ['read:attestations'],
+    }))
+    expect(fullKey).toMatch(/^vtsr_live_[a-f0-9]{48}$/)
   })
 })
 

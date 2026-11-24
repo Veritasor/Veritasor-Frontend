@@ -185,7 +185,9 @@ export default function EditScopesModal({
 
   return (
     <>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener */}
       <div className="modal-backdrop" onClick={() => (!confirmOpen ? onClose() : undefined)}>
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
         <div
           className="modal-dialog"
           role="dialog"
@@ -320,6 +322,7 @@ export default function EditScopesModal({
                         <li
                           key={group.id}
                           role="treeitem"
+                          aria-selected={groupChecked}
                           aria-expanded="true"
                           style={{
                             border: `1px solid ${groupChecked || groupSome ? 'rgba(94, 234, 212, 0.28)' : 'var(--border)'}`,
@@ -379,7 +382,7 @@ export default function EditScopesModal({
                             {group.scopes.map((scope) => {
                               const checked = selected.includes(scope.id)
                               return (
-                                <li key={scope.id} role="treeitem">
+                                <li key={scope.id} role="treeitem" aria-selected={checked}>
                                   <label
                                     style={{
                                       display: 'flex',

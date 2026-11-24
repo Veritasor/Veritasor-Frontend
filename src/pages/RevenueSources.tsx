@@ -270,6 +270,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
   }, [onCancel])
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div
       role="dialog"
       aria-modal="true"
@@ -283,6 +284,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
         padding: '1rem',
       }}
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         tabIndex={-1}
@@ -584,7 +586,6 @@ function SourceRow({
 
   return (
     <li
-      role="listitem"
       aria-label={`${source.provider}, priority ${index + 1} of ${totalCount}`}
       aria-grabbed={isGrabbed || undefined}
       onPointerEnter={onPointerEnter}

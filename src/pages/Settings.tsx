@@ -10,7 +10,9 @@ import A11yCoverageMatrix from '../components/a11y/A11yCoverageMatrix'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaManagementPanel from '../components/MfaManagementPanel'
 import WebhookRetryPanel from '../components/WebhookRetryPanel'
-import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
+import WebhookCreateForm from '../components/webhooks/WebhookCreateForm'
+import WebhookSecretRotationDialog, { type RotatingSecret } from '../components/WebhookSecretRotationDialog'
+import { webhooksStore, useWebhooks } from '../store/webhooksStore'
 import DensityToggle from '../components/DensityToggle'
 import DirtyStateBanner from '../components/DirtyStateBanner'
 import { useDirtyForm, type SaveStatus } from '../hooks/useDirtyForm'
@@ -24,6 +26,7 @@ const TABS = [
   { id: "appearance", label: "Appearance" },
   { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
+  { id: "webhooks", label: "Webhooks" },
   { id: "api-keys", label: "API Keys" },
   { id: "tokens", label: "Tokens" },
   { id: "billing", label: "Billing" },
@@ -1235,7 +1238,6 @@ function PaymentMethodsPanel() {
       </div>
 
       <ul
-        role="list"
         style={{
           listStyle: "none",
           padding: 0,
@@ -2074,7 +2076,6 @@ function PlanComparisonTable({
               </span>
             </div>
             <ul
-              role="list"
               style={{
                 listStyle: "none",
                 padding: 0,
@@ -2818,93 +2819,112 @@ function SecurityPanel() {
 }
 
 function WebhooksPanel() {
-  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const { endpoints, deliveries } = useWebhooks();
+  const [statusFilter, setStatusFilter] = useState<"all" | "delivered" | "failed" | "retrying">("all");
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null);
+  const [rotation, setRotation] = useState<{
+    endpointId: string;
+    oldSecret: RotatingSecret;
+    newSecret: RotatingSecret;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const mockDeliveries: WebhookDelivery[] = [
-    {
-      id: "wh_001",
-      event: "attestation.completed",
-      triggeredAt: "2026-07-28T09:30:00Z",
-      status: "failed",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-28T09:30:00Z",
-          statusCode: null,
-          error: "Connection refused",
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-28T09:31:00Z",
-          statusCode: 503,
-          error: "Service Unavailable",
-          backoffSeconds: 120,
-        },
-        {
-          attempt: 3,
-          at: "2026-07-28T09:33:00Z",
-          statusCode: 500,
-          error: "Internal Server Error",
-        },
-      ],
-    },
-    {
-      id: "wh_002",
-      event: "source.connected",
-      triggeredAt: "2026-07-28T08:00:00Z",
-      status: "retrying",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-28T08:00:00Z",
-          statusCode: 503,
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-28T08:01:00Z",
-          statusCode: 503,
-          backoffSeconds: 180,
-        },
-      ],
-    },
-    {
-      id: "wh_003",
-      event: "attestation.failed",
-      triggeredAt: "2026-07-27T18:45:00Z",
-      status: "delivered",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-27T18:45:00Z",
-          statusCode: 503,
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-27T18:46:00Z",
-          statusCode: 200,
-        },
-      ],
-    },
-  ];
+  function handleCreate(data: { url: string; description: string; events: string[] }) {
+    try {
+      const created = webhooksStore.createEndpoint(data);
+      setCreatedSecret(created.signingSecret);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to create webhook endpoint.');
+    }
+  }
 
   function handleRetry(id: string) {
-    setRetryingId(id);
-    setTimeout(() => {
-      setRetryingId(null);
-      // Real app: trigger retry via API
-    }, 2000);
+    if (!webhooksStore.retryDelivery(id)) return;
+    window.setTimeout(() => {
+      webhooksStore.completeRetry(id, {
+        statusCode: null,
+        error: 'Retry transport is not configured in this frontend.',
+      });
+    }, 1000);
   }
 
   return (
     <div>
       <h2>Webhooks</h2>
       <p style={{ color: "var(--muted)" }}>
-        View webhook delivery history and retry failed attempts. Each delivery
-        shows its backoff intervals and final status.
+        Manage secure endpoints and review persistent delivery history.
       </p>
+      {error && <p role="alert" style={{ color: "var(--danger)" }}>{error}</p>}
+      {createdSecret && (
+        <div role="status" style={{ marginTop: "1rem", padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+          <strong>Save this signing secret now; it will not be shown again.</strong>
+          <p><code>{createdSecret}</code></p>
+          <button type="button" className="app-button app-button-secondary" onClick={() => setCreatedSecret(null)}>Dismiss</button>
+        </div>
+      )}
+      <section aria-labelledby="webhook-endpoints-heading" style={{ marginTop: "1.5rem" }}>
+        <h3 id="webhook-endpoints-heading">Endpoints</h3>
+        <WebhookCreateForm
+          existingUrls={endpoints.map((endpoint) => endpoint.url)}
+          onSubmit={handleCreate}
+        />
+        <div style={{ display: "grid", gap: "0.75rem", maxWidth: 900, marginTop: "1.25rem" }}>
+          {endpoints.map((endpoint) => (
+            <article key={endpoint.id} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+              <strong>{endpoint.description || endpoint.url}</strong>
+              {endpoint.description && <p style={{ margin: "0.25rem 0", color: "var(--muted)" }}>{endpoint.url}</p>}
+              <p style={{ margin: "0.5rem 0", color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+                {endpoint.enabled ? "Enabled" : "Disabled"} · {endpoint.events.join(", ")} · Signing secret {endpoint.signingSecretMasked}
+              </p>
+              {endpoint.previousSecretExpiresAt && (
+                <p style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+                  Previous secret valid until <time dateTime={endpoint.previousSecretExpiresAt}>{new Date(endpoint.previousSecretExpiresAt).toLocaleString()}</time>
+                </p>
+              )}
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="app-button app-button-secondary"
+                  disabled={!endpoint.enabled}
+                  onClick={() => webhooksStore.disableEndpoint(endpoint.id)}
+                >
+                  Disable endpoint
+                </button>
+                <button
+                  type="button"
+                  className="app-button app-button-secondary"
+                  disabled={!endpoint.enabled}
+                  onClick={() => {
+                    try {
+                      setRotation({ endpointId: endpoint.id, ...webhooksStore.rotateSecret(endpoint.id) });
+                      setError(null);
+                    } catch (reason) {
+                      setError(reason instanceof Error ? reason.message : 'Unable to rotate signing secret.');
+                    }
+                  }}
+                >
+                  Rotate secret
+                </button>
+              </div>
+            </article>
+          ))}
+          {endpoints.length === 0 && <p style={{ color: "var(--muted)" }}>No webhook endpoints configured.</p>}
+        </div>
+      </section>
+      <section aria-labelledby="webhook-deliveries-heading" style={{ marginTop: "2rem" }}>
+        <h3 id="webhook-deliveries-heading">Delivery history</h3>
+        <label htmlFor="webhook-delivery-status">Filter by status</label>{" "}
+        <select
+          id="webhook-delivery-status"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+        >
+          <option value="all">All statuses</option>
+          <option value="delivered">Delivered</option>
+          <option value="failed">Failed</option>
+          <option value="retrying">Retrying</option>
+        </select>
       <div
         style={{
           marginTop: "1.5rem",
@@ -2913,15 +2933,33 @@ function WebhooksPanel() {
           gap: "1rem",
         }}
       >
-        {mockDeliveries.map((delivery) => (
+        {deliveries.filter((delivery) => statusFilter === "all" || delivery.status === statusFilter).map((delivery) => (
           <WebhookRetryPanel
             key={delivery.id}
             delivery={delivery}
             onRetry={handleRetry}
-            isRetrying={retryingId === delivery.id}
+            isRetrying={delivery.status === "retrying"}
           />
         ))}
       </div>
+      {deliveries.filter((delivery) => statusFilter === "all" || delivery.status === statusFilter).length === 0 && (
+        <p style={{ color: "var(--muted)" }}>No deliveries match this status.</p>
+      )}
+      </section>
+      {rotation && (
+        <WebhookSecretRotationDialog
+          open
+          endpointLabel={endpoints.find((endpoint) => endpoint.id === rotation.endpointId)?.url ?? "Webhook endpoint"}
+          oldSecret={rotation.oldSecret}
+          newSecret={rotation.newSecret}
+          onConfirm={() => setRotation(null)}
+          onCancelRotation={() => {
+            webhooksStore.cancelRotation(rotation.endpointId);
+            setRotation(null);
+          }}
+          onClose={() => setRotation(null)}
+        />
+      )}
     </div>
   );
 }
@@ -4424,6 +4462,7 @@ function InviteMemberModal({ onClose, onInvite }: InviteMemberModalProps) {
       onClick={onClose}
       style={modalOverlay}
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"
@@ -4473,12 +4512,14 @@ function InviteMemberModal({ onClose, onInvite }: InviteMemberModalProps) {
 
           {/* Email chip input */}
           <div>
+            {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- referenced via aria-labelledby on the chip input group */}
             <label
               id="invite-emails-label"
               style={{ display: "block", fontWeight: 700, marginBottom: "0.4rem", fontSize: "0.9rem" }}
             >
               Email addresses
             </label>
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- clicking the chip container focuses the inner text input */}
             <div
               role="group"
               aria-labelledby="invite-emails-label"
@@ -4563,6 +4604,7 @@ function InviteMemberModal({ onClose, onInvite }: InviteMemberModalProps) {
             <legend style={{ fontWeight: 700, marginBottom: "0.5rem", fontSize: "0.9rem" }}>Role</legend>
             <div style={{ display: "grid", gap: "0.45rem" }}>
               {INVITE_ROLE_OPTIONS.map((opt) => (
+                // eslint-disable-next-line jsx-a11y/label-has-associated-control -- label wraps radio input and nested role description
                 <label
                   key={opt.value}
                   style={{
@@ -5392,6 +5434,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   appearance: AppearancePanel,
   team: TeamPanel,
   integrations: SettingsIntegrationsPanel,
+  webhooks: WebhooksPanel,
   "api-keys": ApiKeysPanel,
   tokens: TokensPanel,
   billing: BillingPanel,
@@ -5801,6 +5844,7 @@ export default function Settings() {
       </div>
 
       {pendingLeave !== null && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click cancels leave; Escape key is handled via keydown listener
         <div
           className="modal-backdrop"
           onClick={cancelLeave}
@@ -5815,6 +5859,7 @@ export default function Settings() {
             padding: "1rem",
           }}
         >
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
           <div
             ref={dialogRef}
             role="alertdialog"

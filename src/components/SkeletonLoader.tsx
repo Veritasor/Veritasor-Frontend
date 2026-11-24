@@ -161,7 +161,7 @@ export function DashboardSkeleton({ loaded, children }: DashboardSkeletonProps =
       role="status"
       data-reduced-motion={reducedMotion ? 'true' : 'false'}
     >
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }} className="skeleton skeleton-text" />
+      <div aria-hidden="true" style={{ marginTop: 0, fontSize: '1rem' }} className="skeleton skeleton-text" />
 
       <div
         style={{
@@ -191,7 +191,7 @@ export function DashboardSkeleton({ loaded, children }: DashboardSkeletonProps =
 
           {/* Actions list skeleton */}
           <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--border)' }}>
-            <h3 style={{ marginTop: 0, fontSize: '0.95rem' }} className="skeleton skeleton-text-short" />
+            <div aria-hidden="true" style={{ marginTop: 0, fontSize: '0.95rem' }} className="skeleton skeleton-text-short" />
             <ul style={{ color: 'var(--muted)', listStyle: 'none', padding: 0, margin: '1rem 0 0 0' }}>
               {Array.from({ length: 3 }).map((_, idx) => (
                 <li key={idx} style={{ marginBottom: '0.75rem' }}>
@@ -239,7 +239,7 @@ export function AttestationsSkeleton({ loaded, children }: AttestationsSkeletonP
       role="status"
       data-reduced-motion={reducedMotion ? 'true' : 'false'}
     >
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }} className="skeleton skeleton-text" />
+      <div aria-hidden="true" style={{ marginTop: 0, fontSize: '1rem' }} className="skeleton skeleton-text" />
 
       <div
         style={{

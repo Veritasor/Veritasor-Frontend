@@ -401,6 +401,7 @@ export default function ContextualHelpSearch({ open, onClose }: ContextualHelpSe
 
   return (
     <div className="hs-overlay" role="presentation" onClick={handleOverlayClick}>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"
@@ -502,6 +503,7 @@ export default function ContextualHelpSearch({ open, onClose }: ContextualHelpSe
             const optionId = `hs-opt-${article.id}`
 
             return (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- keyboard navigation is handled via aria-activedescendant on the combobox input
               <div
                 key={article.id}
                 id={optionId}

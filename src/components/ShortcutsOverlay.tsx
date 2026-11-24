@@ -102,10 +102,12 @@ export default function ShortcutsOverlay({ open, onClose }: Props) {
   if (!open) return null
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div
       className="modal-backdrop kso-backdrop"
       onClick={onClose}
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"
@@ -169,7 +171,7 @@ export default function ShortcutsOverlay({ open, onClose }: Props) {
                 <h3 id={`kso-cat-${cat.name}`} className="kso-category-title">
                   {cat.name}
                 </h3>
-                <ul className="kso-list" role="list">
+                <ul className="kso-list">
                   {cat.shortcuts.map((shortcut) => (
                     <li key={shortcut.label} className="kso-row">
                       <span className="kso-label">{shortcut.label}</span>

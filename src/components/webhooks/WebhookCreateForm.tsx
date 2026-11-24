@@ -1,42 +1,6 @@
 import { useState, useCallback, useId, useRef, useEffect } from 'react'
 import WebhookEventPicker from './WebhookEventPicker'
-import type { UrlValidationResult } from './webhookTypes'
-
-/**
- * Validates a webhook endpoint URL.
- *
- * Rules:
- * - Must be a valid URL with https protocol (TLS required)
- * - Must not be empty
- */
-function validateUrl(url: string): UrlValidationResult {
-  if (!url.trim()) {
-    return { valid: false, error: 'URL is required.' }
-  }
-
-  let parsed: URL
-  try {
-    parsed = new URL(url.trim())
-  } catch {
-    return {
-      valid: false,
-      error: 'Enter a valid URL (e.g. https://example.com/webhook).',
-    }
-  }
-
-  if (parsed.protocol !== 'https:') {
-    return {
-      valid: false,
-      isTls: false,
-      error:
-        parsed.protocol === 'http:'
-          ? 'HTTP is not encrypted. Use HTTPS for production webhooks.'
-          : 'URL must use HTTPS protocol.',
-    }
-  }
-
-  return { valid: true, isTls: true }
-}
+import { isDuplicateWebhookUrl, validateWebhookUrl } from './webhookTypes'
 
 interface WebhookCreateFormProps {
   /**
@@ -48,6 +12,8 @@ interface WebhookCreateFormProps {
     description: string
     events: string[]
   }) => void
+  /** Existing endpoint URLs used to prevent duplicate targets. */
+  existingUrls?: string[]
   /** Called when the user cancels / closes the form */
   onCancel?: () => void
   /** Whether the form is in a submitting state */
@@ -72,6 +38,7 @@ interface WebhookCreateFormProps {
  */
 export default function WebhookCreateForm({
   onSubmit,
+  existingUrls = [],
   onCancel,
   isSubmitting = false,
 }: WebhookCreateFormProps) {
@@ -85,9 +52,10 @@ export default function WebhookCreateForm({
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const urlInputRef = useRef<HTMLInputElement>(null)
 
-  const urlValidation = validateUrl(url)
+  const urlValidation = validateWebhookUrl(url)
+  const isDuplicate = isDuplicateWebhookUrl(url, existingUrls)
   const showUrlError =
-    (urlTouched || submitAttempted) && !urlValidation.valid
+    (urlTouched || submitAttempted) && (!urlValidation.valid || isDuplicate)
 
   // Focus URL input on mount
   useEffect(() => {
@@ -103,8 +71,8 @@ export default function WebhookCreateForm({
   )
 
   function validateForm(): boolean {
-    const urlResult = validateUrl(url)
-    if (!urlResult.valid) {
+    const urlResult = validateWebhookUrl(url)
+    if (!urlResult.valid || isDuplicateWebhookUrl(url, existingUrls)) {
       setUrlTouched(true)
       urlInputRef.current?.focus()
       return false
@@ -187,7 +155,9 @@ export default function WebhookCreateForm({
             }}
           >
             <span aria-hidden="true">&#x26A0;</span>
-            {urlValidation.error}
+            {isDuplicate
+              ? 'An endpoint with this URL already exists.'
+              : urlValidation.error}
           </div>
         )}
 

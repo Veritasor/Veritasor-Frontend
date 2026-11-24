@@ -71,6 +71,7 @@ export default function ToastContainer() {
   const { visible, overflow } = splitStack(toasts, maxVisible)
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- container handles Escape key for dismissing focused toasts
     <div
       aria-live="polite"
       aria-atomic="false"
