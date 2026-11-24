@@ -1,9 +1,11 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, type RouteObject } from 'react-router-dom'
+import { ROUTES } from './routes'
 import { LocaleProvider } from './i18n/provider'
 import { ToastProvider } from './components/ToastContext'
 import Layout from './components/Layout'
 import { CookieConsentProvider } from './components/CookieConsentContext'
 import { AttestationsProvider } from './state/attestations'
+import { WorkspaceProvider } from './state/workspace'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -30,6 +32,14 @@ import {
   ConfirmSourceStep,
 } from './pages/connect-source/ConnectSourceWizard'
 
+/** Route table. Exported so tests can assert it covers every ROUTES value. */
+export const appRoutes: RouteObject[] = [
+  { path: ROUTES.home, element: <Landing /> },
+  { path: ROUTES.login, element: <Login /> },
+  { path: ROUTES.signup, element: <Signup /> },
+  { path: ROUTES.forgotPassword, element: <ForgotPassword /> },
+  { path: ROUTES.onboarding, element: <OnboardingWizard /> },
+  { path: ROUTES.serverError, element: <ServerError /> },
 const router = createBrowserRouter([
   { path: '/', element: <Landing /> },
   { path: '/login', element: <Login /> },
@@ -41,30 +51,32 @@ const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
-      { path: 'dashboard', element: <Dashboard /> },
-      { path: 'attestations', element: <Attestations /> },
-      { path: 'attestations/:id', element: <AttestationDetail /> },
-      { path: 'sources', element: <RevenueSources /> },
-      { path: 'settings', element: <Settings /> },
-      { path: 'api-keys', element: <ApiKeys /> },
-      { path: 'help', element: <HelpArticle /> },
-      { path: 'consent-preferences', element: <ConsentPreferences /> },
+      { path: ROUTES.dashboard, element: <Dashboard /> },
+      { path: ROUTES.attestations, element: <Attestations /> },
+      { path: ROUTES.attestationDetail, element: <AttestationDetail /> },
+      { path: ROUTES.sources, element: <RevenueSources /> },
+      { path: ROUTES.settings, element: <Settings /> },
+      { path: ROUTES.apiKeys, element: <ApiKeys /> },
+      { path: ROUTES.help, element: <HelpArticle /> },
+      { path: ROUTES.consentPreferences, element: <ConsentPreferences /> },
       {
-        path: 'connect-source',
+        path: ROUTES.connectSource,
         element: <ConnectSourceWizard />,
         children: [
-          { path: 'provider', element: <SelectSourceProviderStep /> },
-          { path: 'authorize', element: <AuthorizeSourceStep /> },
-          { path: 'callback', element: <OAuthCallbackLandingStep /> },
-          { path: 'scope', element: <ConfigureSourceScopeStep /> },
-          { path: 'mapping', element: <MapCurrenciesStep /> },
-          { path: 'confirm', element: <ConfirmSourceStep /> },
+          { path: ROUTES.connectSourceProvider, element: <SelectSourceProviderStep /> },
+          { path: ROUTES.connectSourceAuthorize, element: <AuthorizeSourceStep /> },
+          { path: ROUTES.connectSourceCallback, element: <OAuthCallbackLandingStep /> },
+          { path: ROUTES.connectSourceScope, element: <ConfigureSourceScopeStep /> },
+          { path: ROUTES.connectSourceMapping, element: <MapCurrenciesStep /> },
+          { path: ROUTES.connectSourceConfirm, element: <ConfirmSourceStep /> },
         ],
       },
     ],
   },
   { path: '*', element: <NotFound /> },
-], {
+]
+
+const router = createBrowserRouter(appRoutes, {
   future: { v7_relativeSplatPath: true },
 })
 
@@ -73,11 +85,13 @@ export default function App() {
   return (
     <LocaleProvider>
       <ToastProvider>
-        <AttestationsProvider>
-          <CookieConsentProvider>
-            <RouterProvider router={router} future={{ v7_startTransition: true }} />
-          </CookieConsentProvider>
-        </AttestationsProvider>
+        <WorkspaceProvider>
+          <AttestationsProvider>
+            <CookieConsentProvider>
+              <RouterProvider router={router} future={{ v7_startTransition: true }} />
+            </CookieConsentProvider>
+          </AttestationsProvider>
+        </WorkspaceProvider>
       </ToastProvider>
     </LocaleProvider>
   )

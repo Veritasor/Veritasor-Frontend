@@ -74,6 +74,61 @@ describe('ProofShareModal', () => {
     expect(screen.queryByLabelText('Generated link')).not.toBeInTheDocument()
   })
 
+  it('blocks link generation if password fails password policy', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    // Missing symbol and uppercase
+    const passwordInput = screen.getByLabelText('Password')
+    fireEvent.change(passwordInput, { target: { value: 'abcdefgh1234' } })
+
+    const generateBtn = screen.getByText('Generate Link')
+    fireEvent.click(generateBtn)
+
+    expect(screen.queryByLabelText('Generated link')).not.toBeInTheDocument()
+  })
+
+  it('blocks link generation if password field is empty when password protected', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    const generateBtn = screen.getByText('Generate Link')
+    fireEvent.click(generateBtn)
+
+    expect(screen.queryByLabelText('Generated link')).not.toBeInTheDocument()
+  })
+
+  it('does not show failures list when input is empty', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    expect(screen.queryByLabelText('Password requirements')).not.toBeInTheDocument()
+  })
+
+  it('shows failures list from validatePassword when permission is password and input is non-empty', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    const passwordInput = screen.getByLabelText('Password')
+    fireEvent.change(passwordInput, { target: { value: 'weak' } })
+
+    expect(screen.getByLabelText('Password requirements')).toBeInTheDocument()
+    expect(screen.getByText('Use at least 12 characters.')).toBeInTheDocument()
+    expect(screen.getByText('Include an uppercase letter.')).toBeInTheDocument()
+    expect(screen.getByText('Include a number.')).toBeInTheDocument()
+    expect(screen.getByText('Include a symbol.')).toBeInTheDocument()
+  })
+
+  it('hides failures list when password satisfies all rules', () => {
+    renderModal()
+    fireEvent.click(screen.getByLabelText('Password Protected'))
+
+    const passwordInput = screen.getByLabelText('Password')
+    fireEvent.change(passwordInput, { target: { value: 'StrongPass123!' } })
+
+    expect(screen.queryByLabelText('Password requirements')).not.toBeInTheDocument()
+  })
+
   it('generates a protected link with a password verifier', async () => {
     renderModal()
     fireEvent.click(screen.getByLabelText('Password Protected'))

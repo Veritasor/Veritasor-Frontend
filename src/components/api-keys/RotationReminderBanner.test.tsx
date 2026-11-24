@@ -28,11 +28,20 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RotationReminderBanner, {
   shouldShowRotationReminder,
 } from './RotationReminderBanner'
 import type { ApiKey } from './apiKeyTypes'
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-06-01T14:00:00Z'))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -65,6 +74,25 @@ function makeKey(overrides: Partial<ApiKey> = {}): ApiKey {
 // ─── shouldShowRotationReminder ──────────────────────────────────────────────
 
 describe('shouldShowRotationReminder – visibility logic', () => {
+  it.each([
+    { date: '2026-08-20T14:00:00Z', age: 80, visible: true },
+    { date: '2026-08-30T14:00:00Z', age: 90, visible: true },
+    { date: '2026-08-30T14:00:00.001Z', age: '90 days plus 1 ms', visible: false },
+    { date: '2026-08-31T14:00:00Z', age: 91, visible: false },
+  ])('is visible=$visible at key age $age', ({ date, visible }) => {
+    vi.setSystemTime(new Date(date))
+    const key = makeKey({
+      createdAt: '2026-06-01T14:00:00Z',
+      rotationDue: '2026-08-30T14:00:00Z',
+    })
+
+    expect(shouldShowRotationReminder(key)).toBe(visible)
+  })
+
+  it('does not show a banner for a malformed deadline', () => {
+    expect(shouldShowRotationReminder(makeKey({ rotationDue: 'invalid' }))).toBe(false)
+  })
+
   it('returns true when rotationDue is 7 days away (within window)', () => {
     expect(shouldShowRotationReminder(makeKey({ rotationDue: addDays(7) }))).toBe(true)
   })

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import ConfirmDialog from './ConfirmDialog'
+import { expectNoAxeViolations } from '../test/axe'
 
 describe('ConfirmDialog', () => {
   const defaultProps = {
@@ -99,5 +100,10 @@ describe('ConfirmDialog', () => {
     const confirmButton = screen.getByText('Yes')
     expect(confirmButton).toHaveStyle('color: rgb(4, 17, 31)') // Need to convert to RGB or check applied styles
     // We can also check if style property exists
+  })
+
+  it('has no axe accessibility violations', async () => {
+    const { container } = render(<ConfirmDialog {...defaultProps} />)
+    await expectNoAxeViolations(container)
   })
 })

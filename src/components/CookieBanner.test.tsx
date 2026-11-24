@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { expectNoAxeViolations } from '../test/axe'
 import CookieBanner from '../components/CookieBanner'
 import {
   CookieConsentContext,
@@ -536,5 +537,13 @@ describe('CookieBanner — accessibility', () => {
     renderBanner(null)
     fireEvent.click(screen.getByRole('button', { name: /manage preferences/i }))
     expect(screen.getByRole('group', { name: /cookie preferences/i })).toBeInTheDocument()
+  })
+
+  it('has no axe accessibility violations', async () => {
+    const { container } = renderBanner(null)
+    await expectNoAxeViolations(container)
+
+    fireEvent.click(screen.getByRole('button', { name: /manage preferences/i }))
+    await expectNoAxeViolations(container)
   })
 })

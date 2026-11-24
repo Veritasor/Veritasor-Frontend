@@ -4,6 +4,8 @@ import KeyRow from '../components/api-keys/KeyRow'
 import RotationReminderBanner from '../components/api-keys/RotationReminderBanner'
 import type { ApiKey, ApiKeyStatus } from '../components/api-keys/apiKeyTypes'
 import { useToast } from '../components/ToastContext'
+import { useMutation } from '../hooks/useMutation'
+import { track } from '../analytics'
 
 // 14-day lead-time window relative to today (2026-07-28)
 const today = new Date('2026-07-28T10:08:33Z')
@@ -51,11 +53,64 @@ function statusOrder(s: ApiKeyStatus) {
   return s === 'active' ? 0 : s === 'expired' ? 1 : 2
 }
 
+function snoozeStorageKey(id: string) {
+  return `veritasor:api-key-rotation-snooze:${id}`
+}
+
+function restoreSnooze(key: ApiKey): ApiKey {
+  try {
+    const snoozedAt = window.localStorage.getItem(snoozeStorageKey(key.id))
+    return snoozedAt ? { ...key, snoozedAt } : key
+  } catch {
+    return key
+  }
+}
+
+function saveSnooze(id: string, snoozedAt?: string) {
+  try {
+    const key = snoozeStorageKey(id)
+    if (snoozedAt) {
+      window.localStorage.setItem(key, snoozedAt)
+    } else {
+      window.localStorage.removeItem(key)
+    }
+  } catch {
+    // The in-memory snooze still works when browser storage is unavailable.
+  }
+}
+
 export default function ApiKeys() {
-  const [keys, setKeys] = useState<ApiKey[]>(INITIAL_KEYS)
+  const [keys, setKeys] = useState(() => INITIAL_KEYS.map(restoreSnooze))
   const [createOpen, setCreateOpen] = useState(false)
   const [mintedOnce, setMintedOnce] = useState<null | { keyId: string; fullKey: string }>(null)
   const { addToast } = useToast()
+  const revokeMutation = useMutation<string, ApiKeyStatus>({
+    mutationKey: 'api-key-revoke',
+    mutationFn: async (id) => {
+      const response = await fetch(`/v1/api-keys/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        throw new Error(`Could not revoke API key (HTTP ${response.status}).`)
+      }
+    },
+    onMutate: (id) => {
+      const previousStatus = keys.find((key) => key.id === id)?.status ?? 'active'
+      setKeys((previous) =>
+        previous.map((key) => (key.id === id ? { ...key, status: 'revoked' } : key)),
+      )
+      setMintedOnce(null)
+      return previousStatus
+    },
+    onError: (error, id, previousStatus) => {
+      setKeys((previous) =>
+        previous.map((key) =>
+          key.id === id ? { ...key, status: previousStatus } : key,
+        ),
+      )
+      addToast(error.message, 'error')
+    },
+  })
 
   const sortedKeys = useMemo(() => {
     return [...keys].sort((a, b) => {
@@ -82,6 +137,11 @@ export default function ApiKeys() {
       const createdKey = prev.find((k) => k.id === keyId)
       if (createdKey) return prev
 
+      track('api_key_created', {
+        keyId,
+        scopes: ['read:attestations'],
+      })
+
       return [
         {
           id: keyId,
@@ -103,15 +163,18 @@ export default function ApiKeys() {
   }
 
   function handleSnooze(id: string) {
+    const snoozedAt = new Date().toISOString()
+    saveSnooze(id, snoozedAt)
     setKeys((prev) =>
       prev.map((k) =>
-        k.id === id ? { ...k, snoozedAt: new Date().toISOString() } : k,
+        k.id === id ? { ...k, snoozedAt } : k,
       ),
     )
     addToast('Rotation reminder snoozed for 24 h', 'info', 4000)
   }
 
   function handleRotate(id: string) {
+    saveSnooze(id)
     setKeys((prev) =>
       prev.map((k) =>
         k.id === id
@@ -214,9 +277,11 @@ export default function ApiKeys() {
                     mintedOnce={mintedOnce?.keyId === key.id ? mintedOnce.fullKey : null}
                     onRotate={handleRotate}
                     onRevoke={(id) => {
+                      saveSnooze(id)
                       setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, status: 'revoked' } : k)))
                       setMintedOnce(null)
                     }}
+                    onRevoke={(id) => void revokeMutation.mutate(id)}
                   />
                 </li>
               ))}

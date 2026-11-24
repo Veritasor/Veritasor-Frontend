@@ -5,7 +5,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useOnboardingDraft } from './useOnboardingDraft'
+import {
+  useOnboardingDraft,
+  reconcileDrafts,
+  DRAFT_SYNC_DEBOUNCE_MS,
+} from './useOnboardingDraft'
 import type {
   BankDetails,
   BusinessDetails,
@@ -548,5 +552,143 @@ describe('useOnboardingDraft — security #852: isolation, TTL, and legacy migra
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(result.current.draft.bank.accountNumber).toBe('')
     expect(result.current.draft.owner.dateOfBirth).toBe('')
+  })
+})
+
+describe('useOnboardingDraft — server sync and reconciliation', () => {
+  it('reconciles with server draft on load when remote updatedAt is newer', async () => {
+    const olderLocal = Date.now() - 10_000
+    const newerRemote = Date.now()
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        step: 1,
+        business: { ...BUSINESS, legalName: 'Old Local Name' },
+        updatedAt: olderLocal,
+      }),
+    )
+
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          draft: {
+            version: 1,
+            step: 2,
+            business: { ...BUSINESS, legalName: 'Newer Server Name' },
+          },
+          updatedAt: newerRemote,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    const { result } = renderHook(() => useOnboardingDraft())
+
+    await waitFor(() => {
+      expect(result.current.draft.business.legalName).toBe('Newer Server Name')
+    })
+    expect(result.current.draft.step).toBe(2)
+    expect(result.current.syncStatus).toBe('synced')
+  })
+
+  it('keeps local draft when local updatedAt is newer than remote', async () => {
+    const newerLocal = Date.now()
+    const olderRemote = Date.now() - 60_000
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        step: 2,
+        business: { ...BUSINESS, legalName: 'Newer Local Name' },
+        updatedAt: newerLocal,
+      }),
+    )
+
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          draft: {
+            version: 1,
+            step: 1,
+            business: { ...BUSINESS, legalName: 'Older Server Name' },
+          },
+          updatedAt: olderRemote,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    const { result } = renderHook(() => useOnboardingDraft())
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1))
+    expect(result.current.draft.business.legalName).toBe('Newer Local Name')
+  })
+
+  it('debounces PUT /api/onboarding/draft on setDraft and handles 409 conflict', async () => {
+    vi.useFakeTimers()
+    try {
+      const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'PUT') {
+          return new Response(
+            JSON.stringify({
+              draft: {
+                version: 1,
+                step: 2,
+                business: { ...BUSINESS, legalName: 'Server Conflict Winner' },
+              },
+              updatedAt: Date.now() + 5000,
+            }),
+            { status: 409, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        return new Response(null, { status: 404 })
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const { result } = renderHook(() => useOnboardingDraft())
+
+      act(() => {
+        result.current.setDraft({ business: { ...BUSINESS, legalName: 'Edit 1' } })
+        result.current.setDraft({ business: { ...BUSINESS, legalName: 'Edit 2' } })
+      })
+
+      // Not sent before debounce elapses
+      const putCallsBefore = mockFetch.mock.calls.filter(([, init]) => init?.method === 'PUT')
+      expect(putCallsBefore).toHaveLength(0)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DRAFT_SYNC_DEBOUNCE_MS + 50)
+      })
+
+      const putCallsAfter = mockFetch.mock.calls.filter(([, init]) => init?.method === 'PUT')
+      expect(putCallsAfter).toHaveLength(1)
+      expect(result.current.syncStatus).toBe('conflict')
+      expect(result.current.draft.business.legalName).toBe('Server Conflict Winner')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reconcileDrafts pure helper picks the newer timestamp', () => {
+    const localDraft = {
+      version: 1,
+      step: 1,
+      business: BUSINESS,
+      owner: OWNER,
+      selfie: { captured: false, fileName: '' },
+      documents: DOCUMENTS,
+      bank: BANK,
+    }
+    const res = reconcileDrafts(localDraft, 1000, {
+      draft: { ...localDraft, business: { ...BUSINESS, legalName: 'Remote Co' } },
+      updatedAt: 2000,
+    })
+    expect(res.source).toBe('remote')
+    expect(res.draft.business.legalName).toBe('Remote Co')
   })
 })

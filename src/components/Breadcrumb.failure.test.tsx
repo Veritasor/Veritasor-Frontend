@@ -1,7 +1,12 @@
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
-import Breadcrumb, { type BreadcrumbItem } from './Breadcrumb'
+import Breadcrumb, {
+  buildBreadcrumbItems,
+  humanizeSegment,
+  sanitizeDynamicSegment,
+  type BreadcrumbItem,
+} from './Breadcrumb'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -393,5 +398,106 @@ describe('Breadcrumb prop contract', () => {
 
     expect(screen.getByRole('link', { name: 'Crumb 0' })).toBeInTheDocument()
     expect(screen.getByText('Crumb 11')).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+// ─── Unsafe href schemes ────────────────────────────────────────────────────
+
+describe('Breadcrumb unsafe href schemes', () => {
+  it.each([
+    'javascript:alert(1)',
+    'JAVASCRIPT:void(0)',
+    'data:text/html,<script>alert(1)</script>',
+    'vbscript:msgbox(1)',
+  ])('does not link or emit JSON-LD item for unsafe scheme %s', (unsafeHref) => {
+    renderItems([
+      { label: 'Untrusted', href: unsafeHref },
+      { label: 'Current' },
+    ])
+
+    expect(screen.queryByRole('link', { name: 'Untrusted' })).not.toBeInTheDocument()
+    expect(screen.getByText('Untrusted')).toBeInTheDocument()
+
+    const elements = jsonLd()?.itemListElement as Array<Record<string, unknown>>
+    expect(elements[0].name).toBe('Untrusted')
+    expect(elements[0].item).toBeUndefined()
+  })
+})
+
+// ─── Dynamic segments (attestations/:id) and unknown segment fallbacks ──────
+
+describe('Breadcrumb dynamic segments and unknown segment fallbacks', () => {
+  it('escapes and truncates odd attestation IDs in DOM and JSON-LD', () => {
+    const oddId = '</script><img src=x onerror=alert(1)>-extra-long-id'
+    const items = buildBreadcrumbItems(`/attestations/${encodeURIComponent(oddId)}`)
+    renderItems(items, 24)
+
+    expect(screen.getByRole('link', { name: 'Attestations' })).toHaveAttribute('href', '/attestations')
+    const current = screen.getByTitle(oddId)
+    expect(current).toHaveAttribute('aria-current', 'page')
+    expect(current.textContent).toBe(`${oddId.slice(0, 23)}…`)
+    expect(document.querySelectorAll('img')).toHaveLength(0)
+
+    const raw = jsonLdRoot()!.innerHTML
+    expect(raw).not.toContain('</script><img')
+    expect(raw).toContain('\\u003c/script\\u003e')
+    const elements = jsonLd()?.itemListElement as Array<Record<string, unknown>>
+    expect(elements[1].name).toBe(oddId)
+    expect(elements[1].item).toBeUndefined()
+  })
+
+  it('truncates long dynamic attestation hashes while preserving full title', () => {
+    const hashId = 'att-0123456789abcdef0123456789abcdef0123456789abcdef'
+    const items = buildBreadcrumbItems(`/attestations/${hashId}`)
+    renderItems(items)
+
+    const current = screen.getByTitle(hashId)
+    expect(current.textContent).toHaveLength(24)
+    expect(current.textContent).toBe(`${hashId.slice(0, 23)}…`)
+  })
+
+  it('strips ASCII control and Unicode BiDi override characters from dynamic IDs', () => {
+    const spoofingId = 'att-001\u202E\u0000\r\n-safe'
+    expect(sanitizeDynamicSegment(spoofingId)).toBe('att-001-safe')
+
+    const items = buildBreadcrumbItems(`/attestations/${encodeURIComponent(spoofingId)}`)
+    expect(items).toEqual([
+      { label: 'Attestations', href: '/attestations' },
+      { label: 'att-001-safe' },
+    ])
+  })
+
+  it('handles malformed percent-encoding in dynamic IDs without throwing', () => {
+    expect(() => buildBreadcrumbItems('/attestations/%E0%A4%A')).not.toThrow()
+    const items = buildBreadcrumbItems('/attestations/%E0%A4%A')
+    expect(items[1].label).toBe('%E0%A4%A')
+  })
+
+  it('falls back to "Unknown" when a dynamic ID contains only control chars or whitespace', () => {
+    const items = buildBreadcrumbItems('/attestations/%00%0A%20')
+    expect(items[1].label).toBe('Unknown')
+  })
+
+  it('humanises unknown URL segments and preserves known static segment labels', () => {
+    const items = buildBreadcrumbItems('/api-keys/custom-section/my_unknown_page?tab=1#top')
+    expect(items).toEqual([
+      { label: 'API keys', href: '/api-keys' },
+      { label: 'Custom Section', href: '/api-keys/custom-section' },
+      { label: 'My Unknown Page' },
+    ])
+  })
+
+  it('humanises percent-encoded unknown segments and falls back to "Unknown" when empty', () => {
+    expect(humanizeSegment('business-details')).toBe('Business Details')
+    expect(humanizeSegment('hello%20world_test')).toBe('Hello World Test')
+    expect(humanizeSegment('---___')).toBe('Unknown')
+    expect(humanizeSegment('%00')).toBe('Unknown')
+    expect(humanizeSegment(null)).toBe('Unknown')
+  })
+
+  it('returns an empty array for root or empty pathnames', () => {
+    expect(buildBreadcrumbItems('/')).toEqual([])
+    expect(buildBreadcrumbItems('')).toEqual([])
+    expect(buildBreadcrumbItems('/?foo=bar#baz')).toEqual([])
   })
 })

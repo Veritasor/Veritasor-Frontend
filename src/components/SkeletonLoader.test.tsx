@@ -19,7 +19,7 @@
  *     but structural class requirements are verified.
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import {
   CrossfadeReveal,
@@ -651,5 +651,75 @@ describe('Edge cases', () => {
       </div>,
     )
     expect(container.querySelectorAll('.skeleton-row')).toHaveLength(2)
+  })
+})
+
+// ─── Reduced motion (matchMedia) ──────────────────────────────────────────────
+
+function mockPrefersReducedMotion(reduced: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches: reduced,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  )
+}
+
+describe('SkeletonLoader - prefers-reduced-motion', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sets data-reduced-motion="true" on CrossfadeReveal when reduced motion is preferred', () => {
+    mockPrefersReducedMotion(true)
+    const { container } = render(
+      <CrossfadeReveal loaded={false} skeleton={<span>skel</span>}>
+        <span>content</span>
+      </CrossfadeReveal>,
+    )
+    expect(container.querySelector('.crossfade-root')).toHaveAttribute('data-reduced-motion', 'true')
+  })
+
+  it('sets data-reduced-motion="false" on CrossfadeReveal when motion is allowed', () => {
+    mockPrefersReducedMotion(false)
+    const { container } = render(
+      <CrossfadeReveal loaded={false} skeleton={<span>skel</span>}>
+        <span>content</span>
+      </CrossfadeReveal>,
+    )
+    expect(container.querySelector('.crossfade-root')).toHaveAttribute('data-reduced-motion', 'false')
+  })
+
+  it('sets data-reduced-motion="true" on DashboardSkeleton when reduced motion is preferred', () => {
+    mockPrefersReducedMotion(true)
+    const { container } = render(<DashboardSkeleton />)
+    expect(container.querySelector('.loading-region')).toHaveAttribute('data-reduced-motion', 'true')
+  })
+
+  it('sets data-reduced-motion="true" on AttestationsSkeleton when reduced motion is preferred', () => {
+    mockPrefersReducedMotion(true)
+    const { container } = render(<AttestationsSkeleton />)
+    expect(container.querySelector('.loading-region')).toHaveAttribute('data-reduced-motion', 'true')
+  })
+
+  it('sets data-reduced-motion="true" on MetricCardSkeleton and AttestationRowSkeleton when reduced motion is preferred', () => {
+    mockPrefersReducedMotion(true)
+    const { container: metricContainer } = render(<MetricCardSkeleton />)
+    const { container: rowContainer } = render(<AttestationRowSkeleton />)
+    expect(metricContainer.querySelector('.skeleton-metric')).toHaveAttribute(
+      'data-reduced-motion',
+      'true',
+    )
+    expect(rowContainer.querySelector('.skeleton-row')).toHaveAttribute(
+      'data-reduced-motion',
+      'true',
+    )
   })
 })

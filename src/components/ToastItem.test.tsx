@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import ToastItem from './ToastItem'
 import type { Toast } from './ToastContext'
+import { expectNoAxeViolations } from '../test/axe'
 
 function makeToast(overrides: Partial<Toast> = {}): Toast {
   return { id: 't1', type: 'success', message: 'Saved successfully', ...overrides }
@@ -360,5 +361,75 @@ describe('ToastItem - content, roles, and invalid input', () => {
       <ToastItem toast={makeToast({ type: 'bulk-undo', onUndo: vi.fn() })} onRemove={vi.fn()} />,
     )
     expect(screen.getByText('(U)')).toBeInTheDocument()
+  })
+})
+
+function mockPrefersReducedMotion(reduced: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches: reduced,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  )
+}
+
+describe('ToastItem - prefers-reduced-motion', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('skips entering/exiting animations and removes immediately when prefers-reduced-motion is set', () => {
+    mockPrefersReducedMotion(true)
+    const onRemove = vi.fn()
+    const { container } = render(<ToastItem toast={makeToast()} onRemove={onRemove} />)
+
+    const toastEl = container.firstChild as HTMLElement
+    expect(toastEl).toHaveAttribute('data-reduced-motion', 'true')
+    expect(toastEl).not.toHaveClass('toast-entering')
+    expect(toastEl).not.toHaveClass('toast-exiting')
+
+    fireEvent.click(screen.getByRole('button', { name: /close notification/i }))
+    expect(toastEl).not.toHaveClass('toast-exiting')
+    expect(onRemove).toHaveBeenCalledWith('t1')
+  })
+
+  it('plays entering/exiting animations when prefers-reduced-motion is not set', () => {
+    mockPrefersReducedMotion(false)
+    const onRemove = vi.fn()
+    const { container } = render(<ToastItem toast={makeToast()} onRemove={onRemove} />)
+
+    const toastEl = container.firstChild as HTMLElement
+    expect(toastEl).toHaveAttribute('data-reduced-motion', 'false')
+    expect(toastEl).toHaveClass('toast-entering')
+
+    fireEvent.click(screen.getByRole('button', { name: /close notification/i }))
+    expect(toastEl).toHaveClass('toast-exiting')
+    expect(onRemove).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+    expect(onRemove).toHaveBeenCalledWith('t1')
+  })
+})
+
+describe('ToastItem - accessibility', () => {
+  it('has no axe accessibility violations', async () => {
+    const { container } = render(
+      <ToastItem toast={makeToast({ onUndo: vi.fn() })} onRemove={vi.fn()} disableMotion />,
+    )
+    await expectNoAxeViolations(container)
   })
 })

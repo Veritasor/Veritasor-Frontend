@@ -70,10 +70,10 @@ describe('UsageMeter', () => {
     expect(screen.queryByText('July 2026')).not.toBeInTheDocument()
   })
 
-  it('exposes an accessible progressbar with correct ARIA values', () => {
+  it('exposes an accessible meter with correct ARIA values', () => {
     render(<UsageMeter label="Attestations" used={250} limit={1000} />)
 
-    const bar = screen.getByRole('progressbar', { name: 'Attestations' })
+    const bar = screen.getByRole('meter', { name: 'Attestations' })
     expect(bar).toHaveAttribute('aria-valuenow', '25')
     expect(bar).toHaveAttribute('aria-valuemin', '0')
     expect(bar).toHaveAttribute('aria-valuemax', '100')
@@ -81,6 +81,23 @@ describe('UsageMeter', () => {
       'aria-valuetext',
       '250 of 1,000 uses used (25%)',
     )
+  })
+
+  it('does not expose the usage bar as a progressbar', () => {
+    render(<UsageMeter label="Attestations" used={250} limit={1000} />)
+
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('meter')).toHaveLength(1)
+  })
+
+  it('announces value text with the limit for a typical request quota', () => {
+    render(<UsageMeter label="API requests" used={8000} limit={10000} unit="requests" />)
+
+    const meter = screen.getByRole('meter', { name: 'API requests' })
+    expect(meter).toHaveAttribute('aria-valuetext', '8,000 of 10,000 requests used (80%)')
+    expect(meter).toHaveAttribute('aria-valuemin', '0')
+    expect(meter).toHaveAttribute('aria-valuemax', '100')
+    expect(meter).toHaveAttribute('aria-valuenow', '80')
   })
 
   it('shows the "On track" tier badge and no alert message in the normal tier', () => {
@@ -131,7 +148,7 @@ describe('UsageMeter', () => {
   it('clamps used above the limit to the limit', () => {
     render(<UsageMeter label="Attestations" used={1500} limit={1000} />)
 
-    const bar = screen.getByRole('progressbar')
+    const bar = screen.getByRole('meter')
     expect(bar).toHaveAttribute('aria-valuenow', '100')
     expect(bar).toHaveAttribute(
       'aria-valuetext',
@@ -143,7 +160,7 @@ describe('UsageMeter', () => {
   it('clamps negative used to zero', () => {
     render(<UsageMeter label="Attestations" used={-50} limit={1000} />)
 
-    const bar = screen.getByRole('progressbar')
+    const bar = screen.getByRole('meter')
     expect(bar).toHaveAttribute('aria-valuenow', '0')
     expect(bar).toHaveAttribute('aria-valuetext', '0 of 1,000 uses used (0%)')
     expect(screen.getByText('1,000 remaining · 0% used')).toBeInTheDocument()
@@ -152,7 +169,7 @@ describe('UsageMeter', () => {
   it('renders safely with a zero limit (no division by zero)', () => {
     render(<UsageMeter label="Attestations" used={10} limit={0} />)
 
-    const bar = screen.getByRole('progressbar')
+    const bar = screen.getByRole('meter')
     expect(bar).toHaveAttribute('aria-valuenow', '0')
     expect(bar).toHaveAttribute('aria-valuetext', '0 of 0 uses used (0%)')
     expect(screen.getByText('On track')).toBeInTheDocument()

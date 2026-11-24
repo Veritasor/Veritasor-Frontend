@@ -106,7 +106,7 @@ export default function Signup() {
   if (!password) {
     passwordErrorMessage = "Password is required.";
   } else if (!passwordPolicy.valid) {
-    passwordErrorMessage = passwordPolicy.failures[0] || "Password does not meet the security policy.";
+    passwordErrorMessage = passwordPolicy.failures[0];
   }
 
   const showNameError = (hasSubmitted || nameBlurred) && Boolean(nameErrorMessage);

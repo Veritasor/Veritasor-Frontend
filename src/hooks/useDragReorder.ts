@@ -1,4 +1,17 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+interface PointerEventLike {
+  pointerId?: number
+  clientY?: number
+  currentTarget?: unknown
+  target?: unknown
+  preventDefault?(): void
+}
+
+interface PointerCaptureTarget {
+  setPointerCapture?: (id: number) => void
+  releasePointerCapture?: (id: number) => void
+}
 
 export interface DragReorderState {
   /** Index being dragged (pointer) or selected for keyboard move, null when idle */
@@ -9,11 +22,15 @@ export interface DragReorderState {
 
 export interface DragReorderHandlers {
   /** Call on pointerdown of the drag handle */
-  handlePointerDown: (index: number) => (e: { preventDefault(): void; pointerId?: number; currentTarget?: unknown; target?: unknown }) => void
+  handlePointerDown: (index: number) => (e: PointerEventLike) => void
   /** Call on pointerenter of each list item during a drag */
   handlePointerEnter: (index: number) => () => void
-  /** Call on pointerup or pointercancel */
-  handlePointerUp: (e?: { pointerId?: number; currentTarget?: unknown; target?: unknown }) => void
+  /** Call on pointermove of the list */
+  handlePointerMove: (e: PointerEventLike) => void
+  /** Call on pointerup */
+  handlePointerUp: (e?: PointerEventLike) => void
+  /** Call on pointercancel */
+  handlePointerCancel: (e?: PointerEventLike) => void
   /** Toggle keyboard reorder mode for an item */
   handleKeyboardGrab: (index: number) => void
   /** Handle ArrowUp/ArrowDown/Enter/Space/Escape in keyboard mode */
@@ -41,8 +58,12 @@ export function useDragReorder<T>(
   // Refs track drag state synchronously so pointerUp always sees the latest values
   const dragFrom = useRef<number | null>(null)
   const dragTo = useRef<number | null>(null)
-  const capturedElement = useRef<{ releasePointerCapture?: (id: number) => void } | null>(null)
-  const capturedPointerId = useRef<number | null>(null)
+  const capturedElement = useRef<PointerCaptureTarget | null>(null)
+  const activePointerId = useRef<number | null>(null)
+  const pointerY = useRef<number | null>(null)
+  const pointerList = useRef<HTMLElement | null>(null)
+  const scrollContainer = useRef<HTMLElement | null>(null)
+  const animationFrame = useRef<number | null>(null)
 
   const reorder = useCallback(
     (from: number, to: number) => {
@@ -55,17 +76,93 @@ export function useDragReorder<T>(
     [items, onReorder],
   )
 
+  const stopAutoScroll = useCallback(() => {
+    if (animationFrame.current !== null) {
+      window.cancelAnimationFrame(animationFrame.current)
+      animationFrame.current = null
+    }
+    pointerY.current = null
+    pointerList.current = null
+    scrollContainer.current = null
+  }, [])
+
+  const setPointerTarget = useCallback((index: number) => {
+    if (dragFrom.current === null || index < 0 || index >= items.length) return
+    if (dragTo.current === index) return
+    dragTo.current = index
+    setDropTargetIndex(index)
+    setAnnouncement(`${getLabel(items[dragFrom.current])} over position ${index + 1} of ${items.length}.`)
+  }, [items, getLabel])
+
+  const updateTargetFromPointer = useCallback(() => {
+    const list = pointerList.current
+    const y = pointerY.current
+    if (!list || y === null) return
+
+    const rows = Array.from(list.children)
+    if (rows.length === 0) return
+    for (let index = 0; index < rows.length; index += 1) {
+      const bounds = rows[index].getBoundingClientRect()
+      if (y < bounds.top + bounds.height / 2) {
+        setPointerTarget(index)
+        return
+      }
+    }
+    setPointerTarget(Math.min(rows.length - 1, items.length - 1))
+  }, [items.length, setPointerTarget])
+
+  const continueAutoScroll = useCallback(() => {
+    if (animationFrame.current !== null) return
+    const tick = () => {
+      animationFrame.current = null
+      const y = pointerY.current
+      if (dragFrom.current === null || y === null) return
+
+      const container = scrollContainer.current
+      const top = container ? container.getBoundingClientRect().top : 0
+      const bottom = container ? container.getBoundingClientRect().bottom : window.innerHeight
+      const edgeSize = 48
+      const maxStep = 16
+      const distanceFromTop = y - top
+      const distanceFromBottom = bottom - y
+      const delta = distanceFromTop < edgeSize
+        ? -Math.ceil(maxStep * Math.max(0, edgeSize - distanceFromTop) / edgeSize)
+        : distanceFromBottom < edgeSize
+          ? Math.ceil(maxStep * Math.max(0, edgeSize - distanceFromBottom) / edgeSize)
+          : 0
+
+      if (delta === 0) return
+      if (container) {
+        const previous = container.scrollTop
+        container.scrollTop += delta
+        if (container.scrollTop === previous) return
+      } else {
+        const previous = window.scrollY
+        window.scrollBy(0, delta)
+        if (window.scrollY === previous) return
+      }
+      updateTargetFromPointer()
+      animationFrame.current = window.requestAnimationFrame(tick)
+    }
+    animationFrame.current = window.requestAnimationFrame(tick)
+  }, [updateTargetFromPointer])
+
+  useEffect(() => stopAutoScroll, [stopAutoScroll])
+
   const handlePointerDown = useCallback(
-    (index: number) => (e: { preventDefault(): void; pointerId?: number; currentTarget?: unknown; target?: unknown }) => {
-      e.preventDefault()
-      const target = (e.currentTarget ?? e.target) as { setPointerCapture?: (id: number) => void } | null
-      if (typeof e.pointerId === 'number' && target && typeof target.setPointerCapture === 'function') {
-        try {
-          target.setPointerCapture(e.pointerId)
-          capturedElement.current = target as { releasePointerCapture?: (id: number) => void }
-          capturedPointerId.current = e.pointerId
-        } catch {
-          // pointer capture unsupported or element detached
+    (index: number) => (e: PointerEventLike) => {
+      if (dragFrom.current !== null || index < 0 || index >= items.length) return
+      e.preventDefault?.()
+      const target = (e.currentTarget ?? e.target) as PointerCaptureTarget | null
+      if (typeof e.pointerId === 'number') {
+        activePointerId.current = e.pointerId
+        if (target && typeof target.setPointerCapture === 'function') {
+          try {
+            target.setPointerCapture(e.pointerId)
+            capturedElement.current = target
+          } catch {
+            capturedElement.current = null
+          }
         }
       }
       dragFrom.current = index
@@ -80,29 +177,58 @@ export function useDragReorder<T>(
   const handlePointerEnter = useCallback(
     (index: number) => () => {
       if (dragFrom.current === null) return
-      dragTo.current = index
-      setDropTargetIndex(index)
+      setPointerTarget(index)
     },
-    [],
+    [setPointerTarget],
   )
 
-  const handlePointerUp = useCallback((e?: { pointerId?: number; currentTarget?: unknown; target?: unknown }) => {
-    const pointerId = e?.pointerId ?? capturedPointerId.current
-    const target = (e?.currentTarget ?? e?.target ?? capturedElement.current) as { releasePointerCapture?: (id: number) => void } | null
+  const handlePointerMove = useCallback((e: PointerEventLike) => {
+    if (dragFrom.current === null || typeof e.clientY !== 'number') return
+    const list = e.currentTarget as HTMLElement | null
+    if (!list) return
+    pointerY.current = e.clientY
+    pointerList.current = list
+
+    let parent = list.parentElement
+    let scrollableParent: HTMLElement | null = null
+    while (parent && parent !== document.body) {
+      const overflowY = window.getComputedStyle(parent).overflowY
+      if (/(auto|scroll)/.test(overflowY) && parent.scrollHeight > parent.clientHeight) {
+        scrollableParent = parent
+        break
+      }
+      parent = parent.parentElement
+    }
+    scrollContainer.current = scrollableParent
+    updateTargetFromPointer()
+    continueAutoScroll()
+  }, [continueAutoScroll, updateTargetFromPointer])
+
+  const releasePointer = useCallback((e?: PointerEventLike) => {
+    const pointerId = e?.pointerId ?? activePointerId.current
+    const target = (capturedElement.current ?? e?.currentTarget ?? e?.target) as PointerCaptureTarget | null
     if (typeof pointerId === 'number' && target && typeof target.releasePointerCapture === 'function') {
       try {
         target.releasePointerCapture(pointerId)
       } catch {
-        // pointer capture already released or invalid
+        capturedElement.current = null
       }
     }
     capturedElement.current = null
-    capturedPointerId.current = null
+    activePointerId.current = null
+    stopAutoScroll()
+  }, [stopAutoScroll])
 
+  const handlePointerUp = useCallback((e?: PointerEventLike) => {
+    if (activePointerId.current !== null && e?.pointerId !== undefined && e.pointerId !== activePointerId.current) return
     const from = dragFrom.current
     const to = dragTo.current
-    if (from === null) return
+    if (from === null) {
+      releasePointer(e)
+      return
+    }
 
+    releasePointer(e)
     dragFrom.current = null
     dragTo.current = null
     setGrabbedIndex(null)
@@ -114,7 +240,22 @@ export function useDragReorder<T>(
     } else {
       setAnnouncement('Drop cancelled.')
     }
-  }, [reorder, items, getLabel])
+  }, [getLabel, items, releasePointer, reorder])
+
+  const handlePointerCancel = useCallback((e?: PointerEventLike) => {
+    if (activePointerId.current !== null && e?.pointerId !== undefined && e.pointerId !== activePointerId.current) return
+    const from = dragFrom.current
+    if (from === null) {
+      releasePointer(e)
+      return
+    }
+    releasePointer(e)
+    dragFrom.current = null
+    dragTo.current = null
+    setGrabbedIndex(null)
+    setDropTargetIndex(null)
+    setAnnouncement(`Reorder cancelled. ${getLabel(items[from])} returned to its original position.`)
+  }, [getLabel, items, releasePointer])
 
   const handleKeyboardGrab = useCallback(
     (index: number) => {
@@ -141,7 +282,9 @@ export function useDragReorder<T>(
 
       if (e.key === 'Escape') {
         setGrabbedIndex(null)
-        setAnnouncement(`Reorder cancelled. ${getLabel(items[grabbedIndex])} returned to original position.`)
+        setAnnouncement(
+          `Reorder cancelled. ${getLabel(items[grabbedIndex])} remains at position ${grabbedIndex + 1} of ${items.length}.`,
+        )
         return
       }
 
@@ -185,7 +328,9 @@ export function useDragReorder<T>(
     announcement,
     handlePointerDown,
     handlePointerEnter,
+    handlePointerMove,
     handlePointerUp,
+    handlePointerCancel,
     handleKeyboardGrab,
     handleKeyDown,
     moveUp,
