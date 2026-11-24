@@ -20,6 +20,7 @@ import {
   type SyncWindowId,
   type WizardData,
 } from './ConnectSourceContext'
+import { track } from '../../analytics'
 
 export {
   ConnectSourceContext,
@@ -417,6 +418,11 @@ function ConnectSourceWizardShell() {
       }
       sourcesStore.add(newSource)
       resetWizard()
+      track('source_connected', {
+        provider: data.provider,
+        syncWindow: data.syncWindow,
+        optionalScopesCount: data.optionalScopes.length,
+      })
       addToast(`${providerName} connected successfully`, 'success')
       navigate('/sources')
       return

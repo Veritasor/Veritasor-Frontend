@@ -9,6 +9,8 @@ import {
 
 export type DensityMode = "comfortable" | "compact";
 
+const DENSITY_STORAGE_PREFIX = "veritasor_density_";
+const API_BASE = "/api/v1/preferences/density";
 const API_BASE = "/v1/preferences/density";
 
 export interface UseDensityModeOptions {
@@ -16,6 +18,17 @@ export interface UseDensityModeOptions {
   onPersistError?: (message: string) => void;
 }
 
+/**
+ * useDensityMode — manages density preference with optimistic server persistence.
+ *
+ * 1. Updates localStorage and React state immediately (optimistic).
+ * 2. Fires PUT /api/v1/preferences/density to persist on the server.
+ * 3. On success: no additional UI change needed.
+ * 4. On failure: reverts to the previous value and calls onPersistError.
+ *
+ * Also reads from GET /api/v1/preferences/density on initial load (after
+ * reading localStorage as the fast default).
+ */
 function isDensityMode(value: unknown): value is DensityMode {
   return value === "compact" || value === "comfortable";
 }
@@ -103,6 +116,35 @@ export function useDensityMode(
       const { sync } = scope;
       if (!grant || !sync) return;
 
+      // 2. API persistence (fire-and-forget with rollback)
+      request(API_BASE, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: effectiveWorkspace, density: mode }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            // 3. Rollback on failure
+            setDensityState(validatedPrevious);
+            try {
+              localStorage.setItem(storageKey, validatedPrevious);
+            } catch {
+              // ignore
+            }
+            onPersistErrorRef.current?.(
+              "Could not save density preference. Changes reverted.",
+            );
+          }
+          // On success, do nothing — optimistic update is already applied
+        })
+        .catch(() => {
+          // Network error — rollback
+          setDensityState(validatedPrevious);
+          try {
+            localStorage.setItem(storageKey, validatedPrevious);
+          } catch {
+            // ignore
+          }
       const { signal } = sync.controller;
       const revision = ++sync.revision;
       writeConsentStorage(storageKey, mode, grant);
@@ -132,6 +174,11 @@ export function useDensityMode(
             "Could not save density preference. Changes reverted.",
           );
         }
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.code === "ABORTED") return;
+        // Server unavailable — keep localStorage value
+      });
       };
 
       // Serialize saves so an older PUT cannot overwrite the latest selection.

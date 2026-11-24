@@ -4,7 +4,9 @@ import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { afterEach, describe, it, expect, beforeEach, vi } from "vitest";
 import Layout from "./Layout";
 import { useBilling } from "./BillingContext";
+import { EnvironmentProvider } from "./EnvironmentContext";
 import { LocaleProvider } from "../i18n/provider";
+import { expectNoAxeViolations } from "../test/axe";
 
 function SeedFailedPayment() {
   const { setFailedPayment } = useBilling();
@@ -22,18 +24,20 @@ function SeedFailedPayment() {
 function renderLayout(initialEntries: string[] = ["/dashboard"]) {
   return render(
     <LocaleProvider>
-      <MemoryRouter initialEntries={initialEntries}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<SeedFailedPayment />} />
-            <Route path="/dashboard" element={<div>Dashboard Page</div>} />
-            <Route path="/attestations" element={<div>Attestations Page</div>} />
-            <Route path="/sources" element={<div>Sources Page</div>} />
-            <Route path="/settings" element={<div>Settings Page</div>} />
-            <Route path="/api-keys" element={<div>API Keys Page</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <EnvironmentProvider>
+        <MemoryRouter initialEntries={initialEntries}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<SeedFailedPayment />} />
+              <Route path="/dashboard" element={<div>Dashboard Page</div>} />
+              <Route path="/attestations" element={<div>Attestations Page</div>} />
+              <Route path="/sources" element={<div>Sources Page</div>} />
+              <Route path="/settings" element={<div>Settings Page</div>} />
+              <Route path="/api-keys" element={<div>API Keys Page</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </EnvironmentProvider>
     </LocaleProvider>
   );
 }
@@ -62,6 +66,11 @@ describe("Layout - BillingBannerSlot", () => {
     const main = document.getElementById("main-content");
     expect(main).toBeInTheDocument();
     expect(main).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("has no axe accessibility violations", async () => {
+    const { container } = renderLayout(["/dashboard"]);
+    await expectNoAxeViolations(container);
   });
 });
 
@@ -197,14 +206,16 @@ describe("Layout session integration", () => {
   const renderLayout = (initialPath = "/settings?tab=security#section") =>
     render(
       <LocaleProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/settings" element={<div>Settings page</div>} />
-            </Route>
-            <Route path="/login" element={<LoginLocation />} />
-          </Routes>
-        </MemoryRouter>
+        <EnvironmentProvider>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/settings" element={<div>Settings page</div>} />
+              </Route>
+              <Route path="/login" element={<LoginLocation />} />
+            </Routes>
+          </MemoryRouter>
+        </EnvironmentProvider>
       </LocaleProvider>
     );
 

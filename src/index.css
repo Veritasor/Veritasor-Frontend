@@ -2402,6 +2402,107 @@ input {
   grid-column: 1 / -1;
 }
 
+.dashboard-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.dashboard-loading-banner {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.date-range-picker {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.date-range-picker__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.date-range-picker__btn {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.date-range-picker__btn--active {
+  border-color: var(--accent);
+  background: var(--surface-strong);
+  color: var(--accent);
+}
+
+.date-range-picker__custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.date-range-picker__field {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.date-range-picker__field input {
+  min-height: 36px;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+}
+
+.attestation-trend-chart__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.attestation-trend-chart__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.attestation-trend-chart__filter-btn {
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.attestation-trend-chart__filter-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .dashboard-card h2 {
   margin-top: 0;
   margin-bottom: 0.75rem;

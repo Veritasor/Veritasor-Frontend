@@ -3,21 +3,28 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { IntlProvider } from 'react-intl'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import TopAppBar, { WorkspaceMetadata } from './TopAppBar'
+import { EnvironmentProvider } from './EnvironmentContext'
 import { LocaleProvider } from '../i18n/provider'
 import messages from '../i18n/messages/en.json'
+import { expectNoAxeViolations } from '../test/axe'
 
 function LocationDisplay() {
   const location = useLocation()
   return <div data-testid="location-pathname">{location.pathname}</div>
 }
 
-function renderWithProvider(ui: React.ReactElement, { initialEntries = ['/'] }: { initialEntries?: string[] } = {}) {
+function renderWithProvider(
+  ui: React.ReactElement,
+  { initialEntries = ['/'], initialEnvironment }: { initialEntries?: string[]; initialEnvironment?: 'testnet' | 'mainnet' } = {}
+) {
   return render(ui, {
     wrapper: ({ children }) => (
       <MemoryRouter initialEntries={initialEntries}>
         <LocaleProvider>
-          {children}
-          <LocationDisplay />
+          <EnvironmentProvider initialEnvironment={initialEnvironment}>
+            {children}
+            <LocationDisplay />
+          </EnvironmentProvider>
         </LocaleProvider>
       </MemoryRouter>
     ),
@@ -600,6 +607,17 @@ describe('TopAppBar - Account Switcher', () => {
       const searchInput = screen.getByPlaceholderText('Find workspace…')
       await waitFor(() => expect(searchInput).toHaveFocus())
     })
+
+    it('has no axe accessibility violations', async () => {
+      const { container } = renderWithProvider(
+        <TopAppBar
+          workspaces={mockWorkspaces}
+          initialWorkspace="workspace-1"
+        />
+      )
+
+      await expectNoAxeViolations(container)
+    })
   })
 
   describe('Edge Cases', () => {
@@ -758,7 +776,8 @@ describe('TopAppBar - Account Switcher', () => {
           workspaces={mockWorkspaces}
           initialWorkspace="workspace-1"
           initialEnvironment="mainnet"
-        />
+        />,
+        { initialEnvironment: 'mainnet' }
       )
 
       fireEvent.click(screen.getByRole('button', { name: /environment: mainnet/i }))
