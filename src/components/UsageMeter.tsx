@@ -148,8 +148,11 @@ export default function UsageMeter({
   warnAt = 75,
   critAt = 90,
 }: UsageMeterProps) {
-  const safeUsed = Math.max(0, Math.min(used, limit))
-  const pct = limit > 0 ? Math.round((safeUsed / limit) * 100) : 0
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 0
+  const safeUsed = Number.isFinite(used) ? Math.max(0, Math.min(used, safeLimit)) : 0
+  const pct = safeLimit > 0
+    ? Math.max(0, Math.min(100, Math.round((safeUsed / safeLimit) * 100)))
+    : 0
   const tier = getUsageTier(pct)
   const meta = getTierMeta(tier)
 
@@ -158,8 +161,8 @@ export default function UsageMeter({
   void warnAt
   void critAt
 
-  const remaining = limit - safeUsed
-  const valueText = `${safeUsed.toLocaleString()} of ${limit.toLocaleString()} ${unit} used (${pct}%)`
+  const remaining = safeLimit - safeUsed
+  const valueText = `${safeUsed.toLocaleString()} of ${safeLimit.toLocaleString()} ${unit} used (${pct}%)`
   const trackId = `usage-meter-track-${label.replace(/\s+/g, '-').toLowerCase()}`
   const alertId = `usage-meter-alert-${label.replace(/\s+/g, '-').toLowerCase()}`
 
@@ -281,7 +284,7 @@ export default function UsageMeter({
           >
             {safeUsed.toLocaleString()}
           </strong>
-          {' '}/ {limit.toLocaleString()} {unit}
+          {' '}/ {safeLimit.toLocaleString()} {unit}
         </span>
         <span
           style={{

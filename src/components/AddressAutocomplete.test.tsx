@@ -16,7 +16,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AddressAutocomplete from './AddressAutocomplete'
-import type { AddressSuggestion, AddressValue } from './AddressAutocomplete'
+import type { AddressFetchOptions, AddressSuggestion, AddressValue } from './AddressAutocomplete'
 
 afterEach(() => cleanup())
 
@@ -48,9 +48,25 @@ const SUGGESTION: AddressSuggestion = {
   lng: -0.1276,
 }
 
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (reason?: unknown) => void
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 function renderComponent(props: {
   value?: AddressValue | null
-  fetchSuggestions?: (q: string) => Promise<AddressSuggestion[]>
+  fetchSuggestions?: (q: string, options?: AddressFetchOptions) => Promise<AddressSuggestion[]>
   onChange?: (v: AddressValue) => void
   onClear?: () => void
   error?: string
@@ -207,7 +223,10 @@ describe('debouncedQuery branch — fetch suppressed when manualMode is true', (
     fireEvent.change(input, { target: { value: 'Downing' } })
     await advanceDebounce()
 
-    expect(fetchSuggestions).toHaveBeenCalledWith('Downing')
+    expect(fetchSuggestions).toHaveBeenCalledWith(
+      'Downing',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
 
   it('prop change isManual true → false re-enables fetch on next keystroke', async () => {
@@ -232,7 +251,10 @@ describe('debouncedQuery branch — fetch suppressed when manualMode is true', (
     fireEvent.change(input, { target: { value: 'Downing St' } })
     await advanceDebounce()
 
-    expect(fetchSuggestions).toHaveBeenCalledWith('Downing St')
+    expect(fetchSuggestions).toHaveBeenCalledWith(
+      'Downing St',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
 })
 
@@ -250,7 +272,10 @@ describe('debouncedQuery branch — fetch enabled when manualMode is false', () 
     fireEvent.change(input, { target: { value: 'Do' } })
     await advanceDebounce()
 
-    expect(fetchSuggestions).toHaveBeenCalledWith('Do')
+    expect(fetchSuggestions).toHaveBeenCalledWith(
+      'Do',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
 
   it('shows suggestions in listbox after fetch resolves', async () => {
@@ -299,7 +324,10 @@ describe('debouncedQuery branch — fetch enabled when manualMode is false', () 
 
     // Only one call, for the final settled value
     expect(fetchSuggestions).toHaveBeenCalledTimes(1)
-    expect(fetchSuggestions).toHaveBeenCalledWith('Dow')
+    expect(fetchSuggestions).toHaveBeenCalledWith(
+      'Dow',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
 
   it('cancels in-flight fetch when component unmounts', async () => {
@@ -319,6 +347,88 @@ describe('debouncedQuery branch — fetch enabled when manualMode is false', () 
     unmount()
     await act(async () => { resolveRequest([SUGGESTION]) })
     // If we reach here without error, the cancelled-flag guard works
+  })
+})
+
+describe('AddressAutocomplete — stale lookup cancellation', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('ignores an earlier lookup that resolves after the latest lookup', async () => {
+    const pending = new Map<string, Deferred<AddressSuggestion[]>>()
+    const fetchSuggestions = vi.fn((query: string, _options?: AddressFetchOptions) => {
+      const request = createDeferred<AddressSuggestion[]>()
+      pending.set(query, request)
+      return request.promise
+    })
+    renderComponent({ fetchSuggestions })
+
+    const input = getInput()
+    fireEvent.change(input, { target: { value: 'Downing' } })
+    await advanceDebounce()
+
+    fireEvent.change(input, { target: { value: 'Pennsylvania' } })
+    await advanceDebounce()
+
+    expect(fetchSuggestions.mock.calls.map(([query]) => query)).toEqual([
+      'Downing',
+      'Pennsylvania',
+    ])
+
+    const latest: AddressSuggestion = {
+      id: '2',
+      label: '1600 Pennsylvania Ave NW',
+      fullAddress: '1600 Pennsylvania Ave NW, Washington, DC 20500, USA',
+    }
+    await act(async () => { pending.get('Pennsylvania')!.resolve([latest]) })
+
+    expect(screen.getByText(latest.label)).toBeInTheDocument()
+
+    await act(async () => { pending.get('Downing')!.resolve([SUGGESTION]) })
+
+    expect(screen.getByText(latest.label)).toBeInTheDocument()
+    expect(screen.queryByText(SUGGESTION.label)).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('1 suggestion available')
+  })
+
+  it('aborts the superseded lookup and passes an abort signal to each lookup', async () => {
+    const signals: AbortSignal[] = []
+    const fetchSuggestions = vi.fn((_query: string, options?: AddressFetchOptions) => {
+      if (options) signals.push(options.signal)
+      return new Promise<AddressSuggestion[]>(() => {})
+    })
+    renderComponent({ fetchSuggestions })
+
+    fireEvent.change(getInput(), { target: { value: 'Downing' } })
+    await advanceDebounce()
+    fireEvent.change(getInput(), { target: { value: 'Pennsylvania' } })
+    await advanceDebounce()
+
+    expect(signals).toHaveLength(2)
+    expect(signals[0]).not.toBe(signals[1])
+    expect(signals[0].aborted).toBe(true)
+    expect(signals[1].aborted).toBe(false)
+  })
+
+  it('does not show a superseded lookup when the query falls below the minimum length', async () => {
+    const pending = new Map<string, Deferred<AddressSuggestion[]>>()
+    const fetchSuggestions = vi.fn((query: string, _options?: AddressFetchOptions) => {
+      const request = createDeferred<AddressSuggestion[]>()
+      pending.set(query, request)
+      return request.promise
+    })
+    renderComponent({ fetchSuggestions })
+
+    const input = getInput()
+    fireEvent.change(input, { target: { value: 'Downing' } })
+    await advanceDebounce()
+    fireEvent.change(input, { target: { value: 'D' } })
+    await advanceDebounce()
+
+    await act(async () => { pending.get('Downing')!.resolve([SUGGESTION]) })
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.queryByText(SUGGESTION.label)).not.toBeInTheDocument()
   })
 })
 
