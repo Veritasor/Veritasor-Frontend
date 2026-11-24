@@ -1,5 +1,6 @@
-import { useId, useState } from 'react';
-import type { AttestationTrendDatum } from '../utils/attestationChartData';
+import { useId, useState, type MouseEvent, type KeyboardEvent } from 'react';
+import { useInRouterContext, useNavigate } from 'react-router-dom';
+import type { AttestationStatus, AttestationTrendDatum } from '../utils/attestationChartData';
 
 const STATUS_CONFIG = [
   { key: 'verified', label: 'Verified', color: '#137a63', pattern: 'stripes' },
@@ -8,6 +9,7 @@ const STATUS_CONFIG = [
 ] as const;
 
 type View = 'chart' | 'table';
+export type TrendStatusFilter = 'all' | AttestationStatus;
 
 const CHART_WIDTH = 800;
 const CHART_HEIGHT = 320;
@@ -15,22 +17,157 @@ const MARGIN = { top: 10, right: 16, bottom: 40, left: 44 };
 const PLOT_WIDTH = CHART_WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_HEIGHT = CHART_HEIGHT - MARGIN.top - MARGIN.bottom;
 
+export function buildAttestationDrilldownUrl(
+  datum: AttestationTrendDatum,
+  statusFilter: TrendStatusFilter = 'all',
+): string {
+  const params = new URLSearchParams();
+
+  if (statusFilter !== 'all') {
+    params.set('status', statusFilter);
+  } else {
+    const nonZeroStatuses = STATUS_CONFIG.filter((s) => datum[s.key] > 0);
+    if (nonZeroStatuses.length === 1) {
+      params.set('status', nonZeroStatuses[0].key);
+    }
+  }
+
+  if (datum.date && datum.date !== 'Unknown') {
+    params.set('from', datum.date);
+    params.set('to', datum.endDate ?? datum.date);
+  }
+
+  const query = params.toString();
+  return query ? `/attestations?${query}` : '/attestations';
+}
+
 interface AttestationTrendChartProps {
   data: AttestationTrendDatum[];
   title?: string;
+  showStatusFilter?: boolean;
 }
 
-export default function AttestationTrendChart({ data, title = 'Attestation history' }: AttestationTrendChartProps) {
+function useOptionalNavigate() {
+  const inRouter = useInRouterContext();
+  // Safe conditional hook usage avoided by delegating to inner component or checking context:
+  // Wait: hooks cannot be called conditionally, so we use a small helper component for router links.
+  return inRouter;
+}
+
+function RouterAwareBarLink({
+  href,
+  className,
+  ariaLabel,
+  onFocus,
+  onBlur,
+  onMouseEnter,
+  onMouseLeave,
+  children,
+}: {
+  href: string;
+  className: string;
+  ariaLabel: string;
+  onFocus: () => void;
+  onBlur: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  children: React.ReactNode;
+}) {
+  const navigate = useNavigate();
+
+  function handleClick(e: MouseEvent<HTMLAnchorElement>) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    navigate(href);
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate(href);
+    }
+  }
+
+  return (
+    <a
+      href={href}
+      className={className}
+      tabIndex={0}
+      role='link'
+      aria-label={ariaLabel}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+    >
+      {children}
+    </a>
+  );
+}
+
+function PlainBarLink({
+  href,
+  className,
+  ariaLabel,
+  onFocus,
+  onBlur,
+  onMouseEnter,
+  onMouseLeave,
+  children,
+}: {
+  href: string;
+  className: string;
+  ariaLabel: string;
+  onFocus: () => void;
+  onBlur: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      className={className}
+      tabIndex={0}
+      role='link'
+      aria-label={ariaLabel}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {children}
+    </a>
+  );
+}
+
+export default function AttestationTrendChart({
+  data,
+  title = 'Attestation history',
+  showStatusFilter = false,
+}: AttestationTrendChartProps) {
   const reactId = useId();
   const safeId = reactId.replace(/[^a-zA-Z0-9]/g, '');
   const titleId = `trend-title-${safeId}`;
   const descId = `trend-desc-${safeId}`;
   const patternId = (key: string) => `pattern-${safeId}-${key}`;
+  const inRouter = useOptionalNavigate();
 
   const [view, setView] = useState<View>('chart');
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<TrendStatusFilter>('all');
 
-  const maxTotal = Math.max(0, ...data.map((d) => d.total));
+  const visibleStatuses =
+    statusFilter === 'all'
+      ? STATUS_CONFIG
+      : STATUS_CONFIG.filter((status) => status.key === statusFilter);
+
+  const getDatumTotal = (datum: AttestationTrendDatum) =>
+    statusFilter === 'all' ? datum.total : datum[statusFilter];
+
+  const maxTotal = Math.max(0, ...data.map(getDatumTotal));
 
   const toggleView = () => setView((v) => (v === 'chart' ? 'table' : 'chart'));
 
@@ -44,20 +181,43 @@ export default function AttestationTrendChart({ data, title = 'Attestation histo
   }
 
   const activeDatum = activeIndex !== null ? data[activeIndex] : null;
+  const BarLink = inRouter ? RouterAwareBarLink : PlainBarLink;
 
   return (
     <section className='attestation-trend-chart' aria-labelledby={titleId}>
       <header className='attestation-trend-chart__header'>
         <h2 id={titleId}>{title}</h2>
-        <button type='button' className='attestation-trend-chart__toggle' onClick={toggleView} aria-expanded={view === 'table'}>
-          {view === 'chart' ? 'View as table' : 'View as chart'}
-        </button>
+        <div className='attestation-trend-chart__controls'>
+          {showStatusFilter && (
+            <div className='attestation-trend-chart__filters' role='group' aria-label='Filter chart by status'>
+              {(['all', 'verified', 'pending', 'failed'] as const).map((status) => (
+                <button
+                  key={status}
+                  type='button'
+                  className={`attestation-trend-chart__filter-btn${statusFilter === status ? ' attestation-trend-chart__filter-btn--active' : ''}`}
+                  aria-pressed={statusFilter === status}
+                  onClick={() => setStatusFilter(status)}
+                >
+                  {status === 'all' ? 'All' : status[0].toUpperCase() + status.slice(1)}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type='button'
+            className='attestation-trend-chart__toggle'
+            onClick={toggleView}
+            aria-expanded={view === 'table'}
+          >
+            {view === 'chart' ? 'View as table' : 'View as chart'}
+          </button>
+        </div>
       </header>
 
       {view === 'chart' ? (
         <>
           <div className='attestation-trend-chart__legend' role='list' aria-label='Chart legend'>
-            {STATUS_CONFIG.map((status) => (
+            {visibleStatuses.map((status) => (
               <span key={status.key} role='listitem' className={`legend-item legend-item--${status.key}`}>
                 <svg width='16' height='16' aria-hidden='true'>
                   <rect width='16' height='16' fill={`url(#${patternId(status.key)})`} />
@@ -74,7 +234,7 @@ export default function AttestationTrendChart({ data, title = 'Attestation histo
             aria-labelledby={`${titleId} ${descId}`}
           >
             <desc id={descId}>
-              Stacked bar chart showing counts of verified, pending, and failed attestations per day.
+              Stacked bar chart showing counts of verified, pending, and failed attestations. Select a bar to view filtered attestations.
             </desc>
 
             <defs>
@@ -114,7 +274,7 @@ export default function AttestationTrendChart({ data, title = 'Attestation histo
               const x = MARGIN.left + slot * index + (slot - barWidth) / 2;
               const yTop = MARGIN.top + PLOT_HEIGHT;
               let yCursor = 0;
-              const segments = STATUS_CONFIG.map((status) => {
+              const segments = visibleStatuses.map((status) => {
                 const count = datum[status.key];
                 if (count <= 0) return null;
                 const segmentHeight = (count / Math.max(maxTotal, 1)) * PLOT_HEIGHT;
@@ -134,29 +294,25 @@ export default function AttestationTrendChart({ data, title = 'Attestation histo
                 );
               });
 
+              const href = buildAttestationDrilldownUrl(datum, statusFilter);
+              const periodLabel = datum.endDate ? `${datum.date} to ${datum.endDate}` : datum.date;
+
               return (
-                <g
+                <BarLink
                   key={datum.date}
+                  href={href}
                   className='attestation-trend-chart__bar'
-                  tabIndex={0}
-                  role='button'
-                  aria-label={`${datum.date}: verified ${datum.verified}, pending ${datum.pending}, failed ${datum.failed}`}
+                  ariaLabel={`${periodLabel}: verified ${datum.verified}, pending ${datum.pending}, failed ${datum.failed}`}
                   onFocus={() => setActiveIndex(index)}
                   onBlur={() => setActiveIndex(null)}
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseLeave={() => setActiveIndex(null)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      setActiveIndex(index);
-                      e.preventDefault();
-                    }
-                  }}
                 >
                   {segments}
                   <text x={x + barWidth / 2} y={yTop + 16} textAnchor='middle' className='x-axis-label'>
                     {dateShort(datum.date)}
                   </text>
-                </g>
+                </BarLink>
               );
             })}
           </svg>

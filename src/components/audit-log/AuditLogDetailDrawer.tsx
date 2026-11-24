@@ -283,6 +283,7 @@ function PayloadViewer({
       </div>
       <pre
         aria-labelledby={`${id}-label`}
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable code block must be keyboard-focusable
         tabIndex={0}
         style={{
           margin: 0,

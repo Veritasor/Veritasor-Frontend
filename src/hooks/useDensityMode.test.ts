@@ -1,3 +1,4 @@
+import { FunctionalConsentWrapper, grantFunctionalConsent } from '../test/functional-consent-fixture'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useDensityMode } from './useDensityMode'
@@ -7,6 +8,7 @@ describe('useDensityMode', () => {
 
   beforeEach(() => {
     localStorage.clear()
+    grantFunctionalConsent()
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
   })
@@ -22,7 +24,7 @@ describe('useDensityMode', () => {
       json: async () => ({ density: 'compact' }),
     })
 
-    const { result } = renderHook(() => useDensityMode('ws-1'))
+    const { result } = renderHook(() => useDensityMode('ws-1'), { wrapper: FunctionalConsentWrapper })
     expect(result.current.density).toBe('comfortable')
 
     await waitFor(() => {
@@ -35,7 +37,7 @@ describe('useDensityMode', () => {
     localStorage.setItem('veritasor_density_ws-2', 'compact')
     fetchMock.mockResolvedValueOnce({ ok: false })
 
-    const { result } = renderHook(() => useDensityMode('ws-2'))
+    const { result } = renderHook(() => useDensityMode('ws-2'), { wrapper: FunctionalConsentWrapper })
     expect(result.current.density).toBe('compact')
   })
 
@@ -45,8 +47,9 @@ describe('useDensityMode', () => {
       .mockResolvedValueOnce({ ok: true }) // PUT
 
     const onPersistError = vi.fn()
-    const { result } = renderHook(() =>
-      useDensityMode('ws-3', { onPersistError }),
+    const { result } = renderHook(
+      () => useDensityMode('ws-3', { onPersistError }),
+      { wrapper: FunctionalConsentWrapper },
     )
 
     act(() => {
@@ -75,8 +78,9 @@ describe('useDensityMode', () => {
       .mockResolvedValueOnce({ ok: false, status: 500 }) // PUT failure
 
     const onPersistError = vi.fn()
-    const { result } = renderHook(() =>
-      useDensityMode('ws-4', { onPersistError }),
+    const { result } = renderHook(
+      () => useDensityMode('ws-4', { onPersistError }),
+      { wrapper: FunctionalConsentWrapper },
     )
 
     act(() => {
@@ -100,8 +104,9 @@ describe('useDensityMode', () => {
       .mockRejectedValueOnce(new Error('Network down')) // PUT network error
 
     const onPersistError = vi.fn()
-    const { result } = renderHook(() =>
-      useDensityMode('ws-5', { onPersistError }),
+    const { result } = renderHook(
+      () => useDensityMode('ws-5', { onPersistError }),
+      { wrapper: FunctionalConsentWrapper },
     )
 
     act(() => {
@@ -122,7 +127,7 @@ describe('useDensityMode', () => {
     const abortError = new DOMException('Aborted', 'AbortError')
     fetchMock.mockRejectedValueOnce(abortError)
 
-    const { unmount } = renderHook(() => useDensityMode('ws-6'))
+    const { unmount } = renderHook(() => useDensityMode('ws-6'), { wrapper: FunctionalConsentWrapper })
     expect(() => unmount()).not.toThrow()
   })
 })

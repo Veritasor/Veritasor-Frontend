@@ -43,9 +43,21 @@ describe('AttestationTrendChart', () => {
       />,
     );
 
-    const bar = screen.getByRole('button', { name: /2025-03-04: verified 0/i });
+    const bar = screen.getByRole('link', { name: /2025-03-04: verified 0/i });
     expect(bar.querySelectorAll('rect')).toHaveLength(0);
+    expect(bar).toHaveAttribute('href', '/attestations?from=2025-03-04&to=2025-03-04');
     expect(screen.getByRole('status')).toHaveTextContent('Hover or focus a bar for details.');
+  });
+
+  it('renders focusable drill-down links with status and date query params', () => {
+    render(<AttestationTrendChart data={sampleData} />);
+
+    const verifiedBar = screen.getByRole('link', { name: /2025-03-01: verified 1/i });
+    expect(verifiedBar).toHaveAttribute('href', '/attestations?status=verified&from=2025-03-01&to=2025-03-01');
+    expect(verifiedBar).toHaveAttribute('tabindex', '0');
+
+    const mixedBar = screen.getByRole('link', { name: /2025-03-02: verified 1, pending 1/i });
+    expect(mixedBar).toHaveAttribute('href', '/attestations?from=2025-03-02&to=2025-03-02');
   });
 });
 

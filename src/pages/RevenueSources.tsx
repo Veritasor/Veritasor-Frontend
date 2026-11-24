@@ -5,6 +5,8 @@ import { useMutation } from '../hooks/useMutation'
 import { useToast } from '../components/ToastContext'
 import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
 import { useSources, sourcesStore, type Source, type HealthStatus } from '../store/sourcesStore'
+import { useLocale } from '../i18n/useLocale'
+import { formatDate, formatRelativeTime } from '../i18n/formatters'
 
 // Types and seed data are imported from the store
 
@@ -18,24 +20,9 @@ const STATUS_META: Record<HealthStatus, { label: string; bg: string; color: stri
   error: { label: 'Error', bg: 'var(--danger-soft)', color: 'var(--danger)' },
 }
 
-function formatSync(iso: string | null) {
+function formatSync(iso: string | null, locale: string) {
   if (!iso) return 'Never'
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
-
-/**
- * Returns a human-readable relative time string for how long ago a date was.
- * e.g. "3 days ago", "about 2 months ago"
- */
-function formatRelativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays < 1) return 'today'
-  if (diffDays === 1) return '1 day ago'
-  if (diffDays < 30) return `${diffDays} days ago`
-  const diffMonths = Math.round(diffDays / 30)
-  if (diffMonths === 1) return 'about 1 month ago'
-  return `about ${diffMonths} months ago`
+  return formatDate(iso, locale, 'full')
 }
 
 // ---------------------------------------------------------------------------
@@ -58,15 +45,13 @@ function getMockImpact(provider: string): ImpactPipeline[] {
   ]
 }
 
-function formatNextRun(iso: string): string {
+function formatNextRun(iso: string, locale: string): string {
   const d = new Date(iso)
   const now = new Date()
   const diff = d.getTime() - now.getTime()
   if (diff < 0) return 'Overdue'
-  if (diff < 86400000) return 'Tomorrow'
-  if (diff < 86400000 * 2) return 'In 2 days'
-  if (diff < 86400000 * 7) return `In ${Math.round(diff / 86400000)} days`
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  if (diff < 86400000 * 7) return formatRelativeTime(d, locale, now)
+  return formatDate(d, locale, 'medium')
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +66,7 @@ interface ExpiredTokenBannerProps {
 }
 
 function ExpiredTokenBanner({ sources, onReconnect, dismissedIds, onDismiss }: ExpiredTokenBannerProps) {
+  const { locale } = useLocale()
   const expiredSources = sources.filter(
     (s) => s.tokenExpiredAt !== undefined && !dismissedIds.has(s.id),
   )
@@ -159,7 +145,7 @@ function ExpiredTokenBanner({ sources, onReconnect, dismissedIds, onDismiss }: E
 
             {/* Relative expiry time */}
             <span
-              aria-label={`Token expired ${formatRelativeTime(source.tokenExpiredAt!)}`}
+              aria-label={`Token expired ${formatRelativeTime(source.tokenExpiredAt!, locale)}`}
               style={{
                 fontSize: '0.78rem',
                 color: 'var(--warning)',
@@ -167,7 +153,7 @@ function ExpiredTokenBanner({ sources, onReconnect, dismissedIds, onDismiss }: E
                 flexShrink: 0,
               }}
             >
-              Expired {formatRelativeTime(source.tokenExpiredAt!)}
+              Expired {formatRelativeTime(source.tokenExpiredAt!, locale)}
             </span>
 
             {/* Actions */}
@@ -225,6 +211,7 @@ interface ConfirmDialogProps {
 }
 
 function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
+  const { locale } = useLocale()
   const [typedName, setTypedName] = useState('')
   const expectedName = source.provider
   const isConfirmed = typedName === expectedName
@@ -270,6 +257,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
   }, [onCancel])
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div
       role="dialog"
       aria-modal="true"
@@ -283,6 +271,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
         padding: '1rem',
       }}
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         tabIndex={-1}
@@ -340,7 +329,7 @@ function ConfirmDialog({ source, onConfirm, onCancel }: ConfirmDialogProps) {
               >
                 <span style={{ fontWeight: 600, color: 'var(--text)' }}>{p.name}</span>
                 <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
-                  Next: {formatNextRun(p.nextRun)}
+                  Next: {formatNextRun(p.nextRun, locale)}
                 </span>
               </li>
             ))}
@@ -558,6 +547,7 @@ function SourceRow({
   onMoveUp,
   onMoveDown,
 }: SourceRowProps) {
+  const { locale } = useLocale()
   const s = STATUS_META[source.status]
 
   const rowStyle: CSSProperties = {
@@ -584,7 +574,6 @@ function SourceRow({
 
   return (
     <li
-      role="listitem"
       aria-label={`${source.provider}, priority ${index + 1} of ${totalCount}`}
       aria-grabbed={isGrabbed || undefined}
       onPointerEnter={onPointerEnter}
@@ -666,7 +655,7 @@ function SourceRow({
           Last sync
         </span>
         <time dateTime={source.lastSync ?? ''} style={{ color: 'var(--text)' }}>
-          {formatSync(source.lastSync)}
+          {formatSync(source.lastSync, locale)}
         </time>
       </div>
 

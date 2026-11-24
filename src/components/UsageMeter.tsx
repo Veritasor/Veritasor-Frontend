@@ -23,6 +23,9 @@
  */
 
 import type { CSSProperties } from 'react'
+import { useBilling } from './BillingContext'
+
+export type UsageMetric = 'attestations' | 'apiCalls'
 
 // ─── Tier logic ──────────────────────────────────────────────────────────────
 
@@ -127,8 +130,10 @@ export interface UsageMeterProps {
   label: string
   /** Current consumption */
   used: number
-  /** Monthly ceiling */
-  limit: number
+  /** Monthly ceiling (defaults to current plan limit when omitted) */
+  limit?: number
+  /** Plan metric key used to derive limit from BillingContext when limit is omitted */
+  metric?: UsageMetric
   /** Unit label, e.g. "attestations" or "calls" */
   unit?: string
   /** Period label, e.g. "July 2026" */
@@ -143,11 +148,22 @@ export default function UsageMeter({
   label,
   used,
   limit,
+  metric,
   unit = 'uses',
   period,
   warnAt = 75,
   critAt = 90,
 }: UsageMeterProps) {
+  const { currentPlan } = useBilling()
+  const resolvedLimit =
+    limit !== undefined
+      ? limit
+      : metric
+        ? currentPlan.limits[metric]
+        : currentPlan.limits.attestations
+
+  const safeUsed = Math.max(0, Math.min(used, resolvedLimit))
+  const pct = resolvedLimit > 0 ? Math.round((safeUsed / resolvedLimit) * 100) : 0
   const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 0
   const safeUsed = Number.isFinite(used) ? Math.max(0, Math.min(used, safeLimit)) : 0
   const pct = safeLimit > 0
@@ -161,6 +177,8 @@ export default function UsageMeter({
   void warnAt
   void critAt
 
+  const remaining = resolvedLimit - safeUsed
+  const valueText = `${safeUsed.toLocaleString()} of ${resolvedLimit.toLocaleString()} ${unit} used (${pct}%)`
   const remaining = safeLimit - safeUsed
   const valueText = `${safeUsed.toLocaleString()} of ${safeLimit.toLocaleString()} ${unit} used (${pct}%)`
   const trackId = `usage-meter-track-${label.replace(/\s+/g, '-').toLowerCase()}`
@@ -284,6 +302,7 @@ export default function UsageMeter({
           >
             {safeUsed.toLocaleString()}
           </strong>
+          {' '}/ {resolvedLimit.toLocaleString()} {unit}
           {' '}/ {safeLimit.toLocaleString()} {unit}
         </span>
         <span

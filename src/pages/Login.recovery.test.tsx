@@ -20,7 +20,12 @@ import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Login from './Login'
 import { ToastProvider } from '../components/ToastContext'
-import { resetMockAuthCodes, DEMO_CODES_READONLY } from '../services/mockAuth'
+import {
+  resetMockAuthCodes,
+  remainingCodeCount,
+  verifyRecoveryCode,
+  DEMO_CODES_READONLY,
+} from '../services/mockAuth'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -182,24 +187,25 @@ describe('MFA recovery flow — recovery-code path', () => {
 
   describe('reuse failure: the same code cannot be verified twice', () => {
     it('shows an error on the second submission with the same code', () => {
+      const code = DEMO_CODES_READONLY[1]
+      expect(verifyRecoveryCode(code)).toBe(true)
+      expect(remainingCodeCount()).toBe(9)
+
       renderRecovery()
       goToCodeEntry()
 
-      // First submission — should succeed
-      submitCode(DEMO_CODES_READONLY[1])
+      expect(screen.getByText(/9 codes remaining/i)).toBeInTheDocument()
+
+      submitCode(code)
       act(() => {
         vi.advanceTimersByTime(800)
       })
-      // We're now on the success screen; go back through the flow to test reuse.
-      // Reset and navigate fresh to simulate reuse in one session.
+
+      expect(screen.getByRole('alert')).toHaveTextContent(/wasn.t recognized/i)
+      expect(remainingCodeCount()).toBe(9)
     })
 
     it('rejects an already-consumed code when re-submitted', () => {
-      // Manually consume a code before mounting so we can test the rejection path
-      // without needing to navigate through the success screen back to entry.
-      // We test reuse by entering the same code twice in quick succession in one
-      // session — verifyRecoveryCode is single-use, so after the first success
-      // the code is gone.  We can verify by trying to submit it again.
       renderRecovery()
       goToCodeEntry()
 
@@ -209,12 +215,12 @@ describe('MFA recovery flow — recovery-code path', () => {
       submitCode(code)
       act(() => { vi.advanceTimersByTime(800) })
 
-      // The flow is now on the recovery-code-success step (auto-advances after 1800ms).
-      // We don't advance the timers so we stay there.
       expect(screen.getByText(/recovery code accepted/i)).toBeInTheDocument()
+      expect(remainingCodeCount()).toBe(9)
 
-      // Now navigate directly back to code entry (separate render to avoid timer
-      // complexity; resetMockAuthCodes is NOT called so the consumed code stays gone).
+      // Attempting to verify the consumed code again fails
+      expect(verifyRecoveryCode(code)).toBe(false)
+      expect(remainingCodeCount()).toBe(9)
     })
 
     it('entering the same code twice in one session: the first succeeds, not the second', () => {

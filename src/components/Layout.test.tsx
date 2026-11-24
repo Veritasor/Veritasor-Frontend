@@ -4,7 +4,16 @@ import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { afterEach, describe, it, expect, beforeEach, vi } from "vitest";
 import Layout from "./Layout";
 import { useBilling } from "./BillingContext";
+import { EnvironmentProvider } from "./EnvironmentContext";
 import { LocaleProvider } from "../i18n/provider";
+import { expectNoAxeViolations } from "../test/axe";
+import {
+  CURRENT_TOS_VERSION,
+  TOS_STORAGE_KEY,
+  acceptTos,
+  hydrateTosStore,
+  resetTosStore,
+} from "../store/tosStore";
 
 function SeedFailedPayment() {
   const { setFailedPayment } = useBilling();
@@ -22,25 +31,32 @@ function SeedFailedPayment() {
 function renderLayout(initialEntries: string[] = ["/dashboard"]) {
   return render(
     <LocaleProvider>
-      <MemoryRouter initialEntries={initialEntries}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<SeedFailedPayment />} />
-            <Route path="/dashboard" element={<div>Dashboard Page</div>} />
-            <Route path="/attestations" element={<div>Attestations Page</div>} />
-            <Route path="/sources" element={<div>Sources Page</div>} />
-            <Route path="/settings" element={<div>Settings Page</div>} />
-            <Route path="/api-keys" element={<div>API Keys Page</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <EnvironmentProvider>
+    <EnvironmentProvider>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={initialEntries}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<SeedFailedPayment />} />
+              <Route path="/dashboard" element={<div>Dashboard Page</div>} />
+              <Route path="/attestations" element={<div>Attestations Page</div>} />
+              <Route path="/sources" element={<div>Sources Page</div>} />
+              <Route path="/settings" element={<div>Settings Page</div>} />
+              <Route path="/api-keys" element={<div>API Keys Page</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </EnvironmentProvider>
     </LocaleProvider>
+      </LocaleProvider>
+    </EnvironmentProvider>
   );
 }
 
 describe("Layout - BillingBannerSlot", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    acceptTos(CURRENT_TOS_VERSION);
   });
 
   it("shows the failed payment banner when a failed payment exists", () => {
@@ -63,11 +79,20 @@ describe("Layout - BillingBannerSlot", () => {
     expect(main).toBeInTheDocument();
     expect(main).toHaveAttribute("tabindex", "-1");
   });
+
+  it("has no axe accessibility violations", async () => {
+    const { container } = renderLayout(["/dashboard"]);
+    await expectNoAxeViolations(container);
+  });
 });
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 describe("Layout — sidebar", () => {
+  beforeEach(() => {
+    acceptTos(CURRENT_TOS_VERSION);
+  });
+
   it("sidebar opens when hamburger is clicked", () => {
     renderLayout();
     fireEvent.click(screen.getByRole("button", { name: /open navigation/i }));
@@ -92,6 +117,10 @@ describe("Layout — sidebar", () => {
 // ─── BillingBannerSlot ────────────────────────────────────────────────────────
 
 describe("Layout — BillingBannerSlot", () => {
+  beforeEach(() => {
+    acceptTos(CURRENT_TOS_VERSION);
+  });
+
   it("renders no billing alert by default (no failed payment)", () => {
     renderLayout();
     // BillingContext starts with null — no alert rendered
@@ -102,6 +131,7 @@ describe("Layout — BillingBannerSlot", () => {
 describe("Layout - Sidebar Navigation & Account Menu", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    acceptTos(CURRENT_TOS_VERSION);
   });
 
   it("renders Settings and API keys links in the sidebar navigation", () => {
@@ -189,6 +219,10 @@ function LoginLocation() {
 }
 
 describe("Layout session integration", () => {
+  beforeEach(() => {
+    acceptTos(CURRENT_TOS_VERSION);
+  });
+
   afterEach(() => {
     vi.clearAllTimers();
     vi.useRealTimers();
@@ -197,15 +231,21 @@ describe("Layout session integration", () => {
   const renderLayout = (initialPath = "/settings?tab=security#section") =>
     render(
       <LocaleProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/settings" element={<div>Settings page</div>} />
-            </Route>
-            <Route path="/login" element={<LoginLocation />} />
-          </Routes>
-        </MemoryRouter>
+        <EnvironmentProvider>
+      <EnvironmentProvider>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/settings" element={<div>Settings page</div>} />
+              </Route>
+              <Route path="/login" element={<LoginLocation />} />
+            </Routes>
+          </MemoryRouter>
+        </EnvironmentProvider>
       </LocaleProvider>
+        </LocaleProvider>
+      </EnvironmentProvider>
     );
 
   it("mounts the warning and re-auth modal, and reports unavailable verification safely", () => {
@@ -250,3 +290,72 @@ function actAdvanceTimers(milliseconds: number) {
     vi.advanceTimersByTime(milliseconds);
   });
 }
+
+describe("Layout - Terms of Service gate", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetTosStore();
+  });
+
+  it("blocks the app with the v2.4.0 changelog modal when ToS has not been accepted", () => {
+    renderLayout(["/dashboard"]);
+
+    expect(screen.queryByText("Dashboard Page")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("v2.4.0")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /download full text/i })).toHaveAttribute(
+      "href",
+      "/legal/terms-of-service-v2-4-0.txt"
+    );
+
+    // Escape cannot dismiss the blocking gate
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard Page")).not.toBeInTheDocument();
+  });
+
+  it("gates upgrade from v2.3.0 to v2.4.0 and persists acceptance with timestamp", () => {
+    window.localStorage.setItem(
+      TOS_STORAGE_KEY,
+      JSON.stringify({
+        acceptedVersion: "v2.3.0",
+        acceptedAt: "2026-01-10T08:00:00.000Z",
+      })
+    );
+    hydrateTosStore();
+
+    renderLayout(["/dashboard"]);
+
+    // App is blocked while on older v2.3.0
+    expect(screen.queryByText("Dashboard Page")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("v2.4.0")).toBeInTheDocument();
+    expect(screen.getByText("v2.3.0")).toBeInTheDocument();
+
+    const confirmBtn = screen.getByRole("button", { name: /acknowledge and continue/i });
+    expect(confirmBtn).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText(/i have reviewed version v2\.4\.0/i));
+    expect(confirmBtn).toBeEnabled();
+    fireEvent.click(confirmBtn);
+
+    // Modal closes and app content is unlocked
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
+
+    // Persisted in localStorage with version and valid ISO timestamp
+    const stored = JSON.parse(window.localStorage.getItem(TOS_STORAGE_KEY)!);
+    expect(stored.acceptedVersion).toBe("v2.4.0");
+    expect(typeof stored.acceptedAt).toBe("string");
+    expect(Number.isNaN(Date.parse(stored.acceptedAt))).toBe(false);
+  });
+
+  it("renders app content immediately when v2.4.0 is already accepted", () => {
+    acceptTos("v2.4.0", "2026-07-29T10:00:00.000Z");
+
+    renderLayout(["/dashboard"]);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
+  });
+});

@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import IncidentBanner, {
   type BannerSeverity,
   type Incident,
+  remainingMs,
 } from './IncidentBanner'
 
 afterEach(() => cleanup())
@@ -319,6 +320,46 @@ describe('IncidentBanner — maintenance countdown state transitions', () => {
     const { container } = render(<IncidentBanner incidents={[incident]} />)
     const countdown = container.querySelector('.incident-banner-countdown')
     expect(countdown).toHaveAttribute('aria-live', 'polite')
+  })
+})
+
+// ─── remainingMs — pure helper boundary values ───────────────────────────────
+
+describe('remainingMs — pure helper boundary values', () => {
+  const NOW = 1_700_000_000_000 // fixed timestamp
+
+  it('returns positive milliseconds when scheduledStart is in the future', () => {
+    const futureIso = new Date(NOW + 120_000).toISOString()
+    expect(remainingMs(futureIso, NOW)).toBe(120_000)
+  })
+
+  it('returns 0 when scheduledStart equals now (zero boundary)', () => {
+    const exactIso = new Date(NOW).toISOString()
+    expect(remainingMs(exactIso, NOW)).toBe(0)
+  })
+
+  it('clamps to 0 when scheduledStart is in the past (negative difference)', () => {
+    const pastIso = new Date(NOW - 60_000).toISOString()
+    expect(remainingMs(pastIso, NOW)).toBe(0)
+  })
+
+  it('returns 0 for invalid date strings', () => {
+    expect(remainingMs('not-a-date', NOW)).toBe(0)
+    expect(remainingMs('', NOW)).toBe(0)
+    expect(remainingMs('2026-13-99T99:99:99Z', NOW)).toBe(0)
+  })
+
+  it('returns 0 when now is NaN', () => {
+    const validIso = new Date(NOW + 60_000).toISOString()
+    expect(remainingMs(validIso, Number.NaN)).toBe(0)
+  })
+
+  it('defaults now to Date.now() when omitted', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    const futureIso = new Date(NOW + 45_000).toISOString()
+    expect(remainingMs(futureIso)).toBe(45_000)
+    vi.useRealTimers()
   })
 })
 

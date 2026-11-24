@@ -197,3 +197,45 @@ export function formatNumberWithPrecision(
     maximumFractionDigits,
   }).format(value)
 }
+
+/**
+ * Format a date/timestamp as a locale-aware relative time string
+ * (e.g., "3 days ago", "in 2 days", "yesterday") using Intl.RelativeTimeFormat.
+ * Uses Arabic-Indic digits when locale is 'ar'.
+ * @param date - Target date, ISO string, or timestamp in ms
+ * @param locale - Locale code (e.g., 'en', 'es', 'ar')
+ * @param now - Reference time (defaults to Date.now())
+ * @param options - Optional Intl.RelativeTimeFormatOptions
+ * @returns Formatted relative time string
+ */
+export function formatRelativeTime(
+  date: Date | string | number,
+  locale: string = 'en',
+  now: Date | number = Date.now(),
+  options: Intl.RelativeTimeFormatOptions = { numeric: 'auto' }
+): string {
+  const targetMs = typeof date === 'string' || typeof date === 'number' ? new Date(date).getTime() : date.getTime()
+  const nowMs = typeof now === 'number' ? now : now.getTime()
+  const diffSeconds = Math.round((targetMs - nowMs) / 1000)
+  const absSeconds = Math.abs(diffSeconds)
+
+  const effectiveLocale = locale === 'ar' ? 'ar-u-nu-arab' : locale in DATE_FORMATS ? locale : 'en'
+  const rtf = new Intl.RelativeTimeFormat(effectiveLocale, { numeric: 'auto', ...options })
+
+  if (absSeconds < 60) {
+    return rtf.format(diffSeconds, 'second')
+  }
+  if (absSeconds < 3600) {
+    return rtf.format(Math.round(diffSeconds / 60), 'minute')
+  }
+  if (absSeconds < 86400) {
+    return rtf.format(Math.round(diffSeconds / 3600), 'hour')
+  }
+  if (absSeconds < 86400 * 30) {
+    return rtf.format(Math.round(diffSeconds / 86400), 'day')
+  }
+  if (absSeconds < 86400 * 365) {
+    return rtf.format(Math.round(diffSeconds / (86400 * 30)), 'month')
+  }
+  return rtf.format(Math.round(diffSeconds / (86400 * 365)), 'year')
+}

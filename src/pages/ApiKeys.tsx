@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import CreateApiKeyModal from '../components/api-keys/CreateApiKeyModal'
 import KeyRow from '../components/api-keys/KeyRow'
 import RotationReminderBanner from '../components/api-keys/RotationReminderBanner'
+import { ApiKeyDetailPanel } from '../components/api-keys/ApiKeyDetailPanel'
 import type { ApiKey, ApiKeyStatus } from '../components/api-keys/apiKeyTypes'
 import { useToast } from '../components/ToastContext'
 import { useMutation } from '../hooks/useMutation'
+import { track } from '../analytics'
 
 // 14-day lead-time window relative to today (2026-07-28)
 const today = new Date('2026-07-28T10:08:33Z')
@@ -47,6 +49,7 @@ const INITIAL_KEYS: ApiKey[] = [
     maskedKey: 'vtsr_live_1f2e…d9a0',
   },
 ]
+import { apiKeysStore, useApiKeys } from '../store/apiKeysStore'
 
 function statusOrder(s: ApiKeyStatus) {
   return s === 'active' ? 0 : s === 'expired' ? 1 : 2
@@ -80,8 +83,10 @@ function saveSnooze(id: string, snoozedAt?: string) {
 
 export default function ApiKeys() {
   const [keys, setKeys] = useState(() => INITIAL_KEYS.map(restoreSnooze))
+  const keys = useApiKeys()
   const [createOpen, setCreateOpen] = useState(false)
   const [mintedOnce, setMintedOnce] = useState<null | { keyId: string; fullKey: string }>(null)
+  const [detailKey, setDetailKey] = useState<ApiKey | null>(null)
   const { addToast } = useToast()
   const revokeMutation = useMutation<string, ApiKeyStatus>({
     mutationKey: 'api-key-revoke',
@@ -136,6 +141,11 @@ export default function ApiKeys() {
       const createdKey = prev.find((k) => k.id === keyId)
       if (createdKey) return prev
 
+      track('api_key_created', {
+        keyId,
+        scopes: ['read:attestations'],
+      })
+
       return [
         {
           id: keyId,
@@ -149,6 +159,9 @@ export default function ApiKeys() {
         ...prev,
       ]
     })
+  function handleMinted(key: ApiKey, fullKey: string) {
+    apiKeysStore.add(key)
+    setMintedOnce({ keyId: key.id, fullKey })
     setCreateOpen(false)
   }
 
@@ -164,6 +177,7 @@ export default function ApiKeys() {
         k.id === id ? { ...k, snoozedAt } : k,
       ),
     )
+    apiKeysStore.update(id, { snoozedAt: new Date().toISOString() })
     addToast('Rotation reminder snoozed for 24 h', 'info', 4000)
   }
 
@@ -176,8 +190,18 @@ export default function ApiKeys() {
           : k,
       ),
     )
+    apiKeysStore.update(id, {
+      createdAt: new Date().toISOString(),
+      maskedKey: 'vtsr_live_rotated…',
+      snoozedAt: undefined,
+    })
     setMintedOnce(null)
     addToast('Key rotated successfully', 'success', 4000)
+  }
+
+  function handleRevoke(id: string) {
+    apiKeysStore.update(id, { status: 'revoked' })
+    setMintedOnce(null)
   }
 
   return (
@@ -269,6 +293,11 @@ export default function ApiKeys() {
                     keyItem={key}
                     onCopyMasked={() => {}}
                     mintedOnce={mintedOnce?.keyId === key.id ? mintedOnce.fullKey : null}
+                    isLastAdminKey={
+                      key.status === 'active' &&
+                      key.scopes.includes('admin') &&
+                      sortedKeys.filter((item) => item.status === 'active' && item.scopes.includes('admin')).length === 1
+                    }
                     onRotate={handleRotate}
                     onRevoke={(id) => {
                       saveSnooze(id)
@@ -276,6 +305,8 @@ export default function ApiKeys() {
                       setMintedOnce(null)
                     }}
                     onRevoke={(id) => void revokeMutation.mutate(id)}
+                    onRevoke={handleRevoke}
+                    onDetails={setDetailKey}
                   />
                 </li>
               ))}
@@ -290,6 +321,7 @@ export default function ApiKeys() {
       </section>
 
       <CreateApiKeyModal open={createOpen} onClose={handleCloseCreate} onMinted={handleMinted} />
+      <ApiKeyDetailPanel keyData={detailKey} onClose={() => setDetailKey(null)} />
     </div>
   )
 }

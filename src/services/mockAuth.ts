@@ -36,8 +36,8 @@ const DEMO_RECOVERY_CODES: string[] = [
 
 // ─── Mutable state ───────────────────────────────────────────────────────────
 // A Set gives O(1) membership checks and cheap deletion (consume on use).
-// Exported for test resets only; do not mutate directly outside tests.
-export let _remainingCodes: Set<string> = new Set(DEMO_RECOVERY_CODES);
+// Kept module-private so consumers cannot bypass verifyRecoveryCode's consume-once contract.
+let _remainingCodes: Set<string> = new Set(DEMO_RECOVERY_CODES);
 
 /** Reset the in-memory code store to the original demo set.  Call this in
  *  `beforeEach` / `afterEach` in tests that mutate the store. */

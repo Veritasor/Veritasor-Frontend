@@ -42,7 +42,6 @@ export default function IntegrationCard({
 
   return (
     <article
-      role="article"
       aria-label={`${name} integration`}
       style={{
         display: 'grid',
