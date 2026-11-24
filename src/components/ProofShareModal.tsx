@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useToast } from './ToastContext'
+import { useDialogA11y } from '../hooks/useDialogA11y'
 import { validatePassword, scorePassword } from '../utils/passwordPolicy'
 
 const STRENGTH_COPY: Record<number, string> = {
@@ -33,29 +34,8 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
   const passwordPolicy = validatePassword(password)
   const strength = scorePassword(password)
   
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-  
-  // Trap focus
-  useEffect(() => {
-    if (isOpen && modalRef.current) {
-      const focusableElements = modalRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-      const firstElement = focusableElements[0] as HTMLElement
-      if (firstElement) {
-        firstElement.focus()
-      }
-    }
-  }, [isOpen])
+  // Escape, focus trap and return focus
+  useDialogA11y({ open: isOpen, containerRef: modalRef, onClose, initialFocus: 'first' })
   
   if (!isOpen) return null
 

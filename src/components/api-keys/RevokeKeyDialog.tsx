@@ -22,9 +22,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ApiKey, DependentUsage } from './apiKeyTypes'
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+import { useDialogA11y } from '../../hooks/useDialogA11y'
 
 interface Props {
   open: boolean
@@ -51,7 +49,6 @@ function formatLastSeen(isoDate: string): string {
 
 export default function RevokeKeyDialog({ open, keyItem, dependentUsages, isLoading = false, onClose, onConfirm }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLElement | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [confirmInput, setConfirmInput] = useState('')
   const errorId = useId()
@@ -60,47 +57,13 @@ export default function RevokeKeyDialog({ open, keyItem, dependentUsages, isLoad
 
   const isConfirmValid = confirmInput.trim() === keyItem.label.trim()
 
-  // Capture trigger and focus dialog on open
+  // Reset the typed confirmation whenever the dialog closes
   useEffect(() => {
-    if (open) {
-      triggerRef.current = document.activeElement as HTMLElement
-      // Small delay to ensure dialog is rendered
-      const t = window.setTimeout(() => dialogRef.current?.focus(), 0)
-      return () => window.clearTimeout(t)
-    } else {
-      setConfirmInput('')
-      triggerRef.current?.focus()
-    }
+    if (!open) setConfirmInput('')
   }, [open])
 
-  // Focus trap + Escape handling
-  useEffect(() => {
-    if (!open) return
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        if (!isLoading) onClose()
-        return
-      }
-      if (e.key !== 'Tab') return
-
-      const focusable = Array.from(dialogRef.current!.querySelectorAll<HTMLElement>(FOCUSABLE))
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, onClose, isLoading])
+  // Escape, focus trap and return focus
+  useDialogA11y({ open, containerRef: dialogRef, onClose, disableEscape: isLoading })
 
   if (!open) return null
 
