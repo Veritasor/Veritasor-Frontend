@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { EnvironmentProvider } from '../components/EnvironmentContext'
 import AttestationDetail from './AttestationDetail'
 import { ToastProvider } from '../components/ToastContext'
+import { LocaleProvider } from '../i18n/provider'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -12,14 +13,16 @@ afterEach(() => {
 
 function renderDetail(path: string) {
   return render(
-    <ToastProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/attestations" element={<AttestationDetail />} />
-          <Route path="/attestations/:id" element={<AttestationDetail />} />
-        </Routes>
-      </MemoryRouter>
-    </ToastProvider>,
+    <LocaleProvider>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/attestations" element={<AttestationDetail />} />
+            <Route path="/attestations/:id" element={<AttestationDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </LocaleProvider>,
   )
 }
 

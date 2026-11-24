@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { WEBHOOK_EVENT_GROUPS, ALL_WEBHOOK_EVENTS } from './webhookTypes'
+import {
+  WEBHOOK_EVENT_GROUPS,
+  ALL_WEBHOOK_EVENTS,
+  isDuplicateWebhookUrl,
+  validateWebhookUrl,
+} from './webhookTypes'
 import type { WebhookEventDef } from './webhookTypes'
 
 describe('webhookTypes (Issue #636)', () => {
@@ -36,6 +41,19 @@ describe('webhookTypes (Issue #636)', () => {
         0
       )
       expect(ALL_WEBHOOK_EVENTS).toHaveLength(totalGroupedEvents)
+    })
+
+    describe('webhook URL validation', () => {
+      it('requires HTTPS and rejects malformed URLs', () => {
+        expect(validateWebhookUrl('https://example.com/hook').valid).toBe(true)
+        expect(validateWebhookUrl('http://example.com/hook').valid).toBe(false)
+        expect(validateWebhookUrl('not a url').valid).toBe(false)
+      })
+
+      it('detects equivalent URLs after normalisation', () => {
+        expect(isDuplicateWebhookUrl('https://example.com/hook', ['https://EXAMPLE.com:443/hook'])).toBe(true)
+        expect(isDuplicateWebhookUrl('https://example.com/other', ['https://example.com/hook'])).toBe(false)
+      })
     })
 
     it('contains absolutely no duplicate event IDs', () => {

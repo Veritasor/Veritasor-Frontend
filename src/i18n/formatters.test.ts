@@ -9,6 +9,7 @@ import {
   formatCurrency,
   formatPercent,
   formatNumberWithPrecision,
+  formatRelativeTime,
 } from './formatters'
 
 describe('date and number formatters', () => {
@@ -163,5 +164,55 @@ describe('formatNumberWithPrecision utility', () => {
   it('handles zero with precision', () => {
     const result = formatNumberWithPrecision(0, 'en', 2, 2)
     expect(result).toBe('0.00')
+  })
+})
+
+describe('formatRelativeTime utility', () => {
+  const fixedNow = new Date('2026-06-15T12:00:00Z').getTime()
+
+  it('formats past days in English', () => {
+    const threeDaysAgo = new Date(fixedNow - 3 * 86400 * 1000)
+    expect(formatRelativeTime(threeDaysAgo, 'en', fixedNow)).toBe('3 days ago')
+  })
+
+  it('formats future days in English', () => {
+    const inTwoDays = new Date(fixedNow + 2 * 86400 * 1000)
+    expect(formatRelativeTime(inTwoDays, 'en', fixedNow)).toBe('in 2 days')
+  })
+
+  it('formats yesterday and tomorrow with numeric auto', () => {
+    const yesterday = new Date(fixedNow - 86400 * 1000)
+    const tomorrow = new Date(fixedNow + 86400 * 1000)
+    expect(formatRelativeTime(yesterday, 'en', fixedNow)).toBe('yesterday')
+    expect(formatRelativeTime(tomorrow, 'en', fixedNow)).toBe('tomorrow')
+  })
+
+  it('formats seconds, minutes, hours, months, and years', () => {
+    expect(formatRelativeTime(fixedNow - 30 * 1000, 'en', fixedNow)).toContain('30 seconds ago')
+    expect(formatRelativeTime(fixedNow - 5 * 60 * 1000, 'en', fixedNow)).toContain('5 minutes ago')
+    expect(formatRelativeTime(fixedNow - 4 * 3600 * 1000, 'en', fixedNow)).toContain('4 hours ago')
+    expect(formatRelativeTime(fixedNow - 60 * 86400 * 1000, 'en', fixedNow)).toContain('2 months ago')
+    expect(formatRelativeTime(fixedNow - 730 * 86400 * 1000, 'en', fixedNow)).toContain('2 years ago')
+  })
+
+  it('formats relative time per locale (es, fr, de, fi, zh)', () => {
+    const threeDaysAgo = new Date(fixedNow - 3 * 86400 * 1000).toISOString()
+    expect(formatRelativeTime(threeDaysAgo, 'es', fixedNow)).toContain('3')
+    expect(formatRelativeTime(threeDaysAgo, 'fr', fixedNow)).toContain('3')
+    expect(formatRelativeTime(threeDaysAgo, 'de', fixedNow)).toContain('3')
+    expect(formatRelativeTime(threeDaysAgo, 'fi', fixedNow)).toContain('3')
+    expect(formatRelativeTime(threeDaysAgo, 'zh', fixedNow)).toContain('3')
+  })
+
+  it('formats relative time for Arabic locale with Arabic-Indic digits', () => {
+    const threeDaysAgo = new Date(fixedNow - 3 * 86400 * 1000).toISOString()
+    const inFiveHours = new Date(fixedNow + 5 * 3600 * 1000).toISOString()
+    expect(formatRelativeTime(threeDaysAgo, 'ar', fixedNow)).toContain('٣')
+    expect(formatRelativeTime(inFiveHours, 'ar', fixedNow)).toContain('٥')
+  })
+
+  it('falls back to English for unsupported locale', () => {
+    const threeDaysAgo = new Date(fixedNow - 3 * 86400 * 1000)
+    expect(formatRelativeTime(threeDaysAgo, 'xx', fixedNow)).toBe('3 days ago')
   })
 })

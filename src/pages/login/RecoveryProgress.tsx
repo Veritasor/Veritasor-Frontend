@@ -39,7 +39,6 @@ export default function RecoveryProgress({
       }}
     >
       <ol
-        role="list"
         style={{
           listStyle: "none",
           margin: 0,

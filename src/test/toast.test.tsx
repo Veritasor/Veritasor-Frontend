@@ -1,7 +1,8 @@
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { useToast } from '../components/ToastContext'
+import { ToastProvider, useToast } from '../components/ToastContext'
 import Layout from '../components/Layout'
+import { EnvironmentProvider } from '../components/EnvironmentContext'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { CookieConsentProvider } from '../components/CookieConsentContext'
 import { LocaleProvider } from '../i18n/provider'
@@ -31,17 +32,19 @@ describe('Toast Notification System', () => {
 
   const renderSystem = () => {
     return render(
-      <LocaleProvider>
-        <MemoryRouter initialEntries={['/']}>
-          <CookieConsentProvider>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<TestTrigger />} />
-              </Route>
-            </Routes>
-          </CookieConsentProvider>
-        </MemoryRouter>
-      </LocaleProvider>
+      <EnvironmentProvider>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <CookieConsentProvider>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<TestTrigger />} />
+                </Route>
+              </Routes>
+            </CookieConsentProvider>
+          </MemoryRouter>
+        </LocaleProvider>
+      </EnvironmentProvider>
     )
   }
 
@@ -84,9 +87,12 @@ describe('Toast Notification System', () => {
     expect(screen.getByText('Success message')).toBeInTheDocument()
     expect(screen.getByText('Error message')).toBeInTheDocument()
 
-    // Fast-forward 5 seconds
+    // Fast-forward 5 seconds and allow the exit animation to finish
     act(() => {
       vi.advanceTimersByTime(5000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(250)
     })
 
     // Success should be gone, error should persist
@@ -108,6 +114,7 @@ describe('Toast Notification System', () => {
     const closeBtn = screen.getByRole('button', { name: /close notification/i })
     act(() => {
       closeBtn.click()
+      vi.advanceTimersByTime(250)
     })
 
     expect(screen.queryByText('Warning message')).not.toBeInTheDocument()
@@ -129,9 +136,12 @@ describe('Toast Notification System', () => {
     })
     expect(screen.getByText('Custom duration')).toBeInTheDocument()
 
-    // Advance another 500ms -> should be dismissed
+    // Advance another 500ms -> should be dismissed after its exit animation
     act(() => {
       vi.advanceTimersByTime(500)
+    })
+    act(() => {
+      vi.advanceTimersByTime(250)
     })
     expect(screen.queryByText('Custom duration')).not.toBeInTheDocument()
   })
@@ -148,17 +158,19 @@ describe('Toast Notification System', () => {
     }
 
     render(
-      <LocaleProvider>
-        <MemoryRouter initialEntries={['/']}>
-          <CookieConsentProvider>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<UndoTrigger />} />
-              </Route>
-            </Routes>
-          </CookieConsentProvider>
-        </MemoryRouter>
-      </LocaleProvider>
+      <EnvironmentProvider>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <CookieConsentProvider>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<UndoTrigger />} />
+                </Route>
+              </Routes>
+            </CookieConsentProvider>
+          </MemoryRouter>
+        </LocaleProvider>
+      </EnvironmentProvider>
     )
 
     // Trigger toast
@@ -172,6 +184,7 @@ describe('Toast Notification System', () => {
     // Click Undo
     act(() => {
       undoBtn.click()
+      vi.advanceTimersByTime(250)
     })
 
     expect(undoSpy).toHaveBeenCalledTimes(1)
@@ -199,7 +212,7 @@ describe('Toast Notification System', () => {
 
     // Hover mouse over the toast to pause
     act(() => {
-      toastEl?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+      if (toastEl) fireEvent.mouseEnter(toastEl)
     })
 
     // Advance timers by 4000ms (total elapsed would be 6000ms, which is > 5000ms)
@@ -212,7 +225,7 @@ describe('Toast Notification System', () => {
 
     // Mouse leave to resume
     act(() => {
-      toastEl?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
+      if (toastEl) fireEvent.mouseLeave(toastEl)
     })
 
     // Advance 1000ms -> should still be there (need 3000ms more since we spent 2000ms initially)
@@ -221,9 +234,12 @@ describe('Toast Notification System', () => {
     })
     expect(screen.getByText('Success message')).toBeInTheDocument()
 
-    // Advance another 2000ms -> should now be dismissed
+    // Advance another 2000ms -> should now be dismissed after its exit animation
     act(() => {
       vi.advanceTimersByTime(2000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(250)
     })
     expect(screen.queryByText('Success message')).not.toBeInTheDocument()
   })
@@ -258,9 +274,12 @@ describe('Toast Notification System', () => {
       closeBtn.blur()
     })
 
-    // Advance 5000ms -> should now be dismissed
+    // Advance 5000ms -> should now be dismissed after its exit animation
     act(() => {
       vi.advanceTimersByTime(5000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(250)
     })
     expect(screen.queryByText('Success message')).not.toBeInTheDocument()
   })
@@ -305,6 +324,45 @@ describe('Toast Notification System', () => {
     const closeBtn = screen.getByRole('button', { name: /close notification/i })
     expect(closeBtn).toHaveAttribute('aria-keyshortcuts', 'Escape')
   })
+
+  it('keeps addToast referentially stable while toast state changes', () => {
+    const identities: unknown[] = []
+    let renders = 0
+
+    function Consumer() {
+      const { addToast, toasts, removeToast } = useToast()
+      identities.push(addToast)
+      renders += 1
+
+      return (
+        <div>
+          <button onClick={() => addToast('Stable toast', 'info')}>Add toast</button>
+          <button onClick={() => toasts[0] && removeToast(toasts[0].id)}>Remove toast</button>
+        </div>
+      )
+    }
+
+    render(
+      <ToastProvider>
+        <Consumer />
+      </ToastProvider>,
+    )
+
+    const initialAddToast = identities[0]
+
+    act(() => {
+      screen.getByRole('button', { name: 'Add toast' }).click()
+    })
+    act(() => {
+      screen.getByRole('button', { name: 'Add toast' }).click()
+    })
+    act(() => {
+      screen.getByRole('button', { name: 'Remove toast' }).click()
+    })
+
+    expect(renders).toBeGreaterThan(1)
+    expect(identities.every((identity) => identity === initialAddToast)).toBe(true)
+  })
 })
 
 describe('Toast Motion', () => {
@@ -318,17 +376,19 @@ describe('Toast Motion', () => {
 
   const renderSystem = () => {
     return render(
-      <LocaleProvider>
-        <MemoryRouter initialEntries={['/']}>
-          <CookieConsentProvider>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<TestTrigger />} />
-              </Route>
-            </Routes>
-          </CookieConsentProvider>
-        </MemoryRouter>
-      </LocaleProvider>
+      <EnvironmentProvider>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <CookieConsentProvider>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<TestTrigger />} />
+                </Route>
+              </Routes>
+            </CookieConsentProvider>
+          </MemoryRouter>
+        </LocaleProvider>
+      </EnvironmentProvider>
     )
   }
 

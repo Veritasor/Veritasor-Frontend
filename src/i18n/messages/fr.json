@@ -103,5 +103,6 @@
   "auditLog.filters.capReached": "Cet espace de travail a atteint la limite de {max} filtres enregistrés. Supprimez-en un pour libérer de l’espace.",
   "auditLog.filters.results.singular": "Affichage de {count} entrées sur {total}",
   "auditLog.filters.results.plural": "Affichage de {count} entrées sur {total}",
-  "auditLog.filters.count": "{count, plural, =0 {Aucun filtre enregistré} one {# filtre enregistré} other {# filtres enregistrés}}"
+  "auditLog.filters.count": "{count, plural, =0 {Aucun filtre enregistré} one {# filtre enregistré} other {# filtres enregistrés}}",
+  "auditLog.filters.title": "Journal d’audit"
 }

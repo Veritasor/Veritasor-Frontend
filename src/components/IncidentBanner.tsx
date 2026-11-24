@@ -21,6 +21,12 @@ interface Props {
   incidents: Incident[]
 }
 
+export function remainingMs(scheduledStart: string, now = Date.now()): number {
+  const target = new Date(scheduledStart).getTime()
+  if (Number.isNaN(target) || Number.isNaN(now)) return 0
+  return Math.max(0, target - now)
+}
+
 function formatTimeRemaining(ms: number): string {
   const seconds = Math.floor(ms / 1000)
   const minutes = Math.floor(seconds / 60)
@@ -41,7 +47,7 @@ function IncidentItem({ incident, onDismiss }: { incident: Incident; onDismiss: 
   
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
     if (!isScheduledMaintenance) return 0
-    return Math.max(0, new Date(incident.scheduledStart!).getTime() - Date.now())
+    return remainingMs(incident.scheduledStart!)
   })
 
   useEffect(() => {
@@ -49,8 +55,7 @@ function IncidentItem({ incident, onDismiss }: { incident: Incident; onDismiss: 
     
     // Initial check
     const checkTime = () => {
-      const remaining = Math.max(0, new Date(incident.scheduledStart!).getTime() - Date.now())
-      setTimeRemaining(remaining)
+      setTimeRemaining(remainingMs(incident.scheduledStart!))
     }
     checkTime()
 

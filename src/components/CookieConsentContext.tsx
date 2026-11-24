@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { setConsentEnabled } from '../analytics'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,11 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
   const [hasDecided, setHasDecided] = useState(stored.hasDecided)
   const [consent, setConsent] = useState<ConsentState>(stored.consent)
   const [bannerVisible, setBannerVisible] = useState(!stored.hasDecided)
+
+  // Sync consent state with analytics module
+  useEffect(() => {
+    setConsentEnabled(consent.analytics)
+  }, [consent.analytics])
 
   const decide = useCallback((next: ConsentState) => {
     writeStorage(next)

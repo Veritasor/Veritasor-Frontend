@@ -1,12 +1,16 @@
+import { FunctionalConsentWrapper, grantFunctionalConsent } from '../test/functional-consent-fixture'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useDensityMode } from './useDensityMode'
+
+const DENSITY_STORAGE_PREFIX = 'veritasor_density_'
 
 describe('useDensityMode', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
     localStorage.clear()
+    grantFunctionalConsent()
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
   })
@@ -22,13 +26,13 @@ describe('useDensityMode', () => {
       json: async () => ({ density: 'compact' }),
     })
 
-    const { result } = renderHook(() => useDensityMode('ws-1'))
+    const { result } = renderHook(() => useDensityMode('ws-1'), { wrapper: FunctionalConsentWrapper })
     expect(result.current.density).toBe('comfortable')
 
     await waitFor(() => {
       expect(result.current.density).toBe('compact')
     })
-    expect(localStorage.getItem('veritasor_density_ws-1')).toBe('compact')
+    expect(localStorage.getItem(`${DENSITY_STORAGE_PREFIX}ws-1`)).toBe('compact')
   })
 
   it('updates when another tab changes the preference (StorageEvent)', async () => {
@@ -66,29 +70,41 @@ describe('useDensityMode', () => {
   })
 
   it('reads initial value from localStorage when valid', async () => {
-    localStorage.setItem('veritasor_density_ws-2', 'compact')
+    localStorage.setItem(`${DENSITY_STORAGE_PREFIX}ws-2`, 'compact')
     fetchMock.mockResolvedValueOnce({ ok: false })
 
-    const { result } = renderHook(() => useDensityMode('ws-2'))
+    const { result } = renderHook(() => useDensityMode('ws-2'), { wrapper: FunctionalConsentWrapper })
     expect(result.current.density).toBe('compact')
   })
 
   it('optimistically updates density and persists via PUT', async () => {
+    let resolvePut: ((value: unknown) => void) | undefined
     fetchMock
       .mockResolvedValueOnce({ ok: false }) // initial GET
-      .mockResolvedValueOnce({ ok: true }) // PUT
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePut = resolve
+          }),
+      ) // PUT
 
     const onPersistError = vi.fn()
-    const { result } = renderHook(() =>
-      useDensityMode('ws-3', { onPersistError }),
+    const { result } = renderHook(
+      () => useDensityMode('ws-3', { onPersistError }),
+      { wrapper: FunctionalConsentWrapper },
     )
 
     act(() => {
       result.current.setDensity('compact')
     })
 
+    // Optimistic update is applied immediately before PUT resolves
     expect(result.current.density).toBe('compact')
-    expect(localStorage.getItem('veritasor_density_ws-3')).toBe('compact')
+    expect(localStorage.getItem(`${DENSITY_STORAGE_PREFIX}ws-3`)).toBe('compact')
+
+    await act(async () => {
+      resolvePut?.({ ok: true, status: 200 })
+    })
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -99,54 +115,86 @@ describe('useDensityMode', () => {
         }),
       )
     })
+    expect(result.current.density).toBe('compact')
+    expect(localStorage.getItem(`${DENSITY_STORAGE_PREFIX}ws-3`)).toBe('compact')
     expect(onPersistError).not.toHaveBeenCalled()
   })
 
-  it('reverts density and calls onPersistError when PUT returns non-ok', async () => {
-    localStorage.setItem('veritasor_density_ws-4', 'comfortable')
+  it('reverts density and localStorage and calls onPersistError when PUT returns 500', async () => {
+    localStorage.setItem(`${DENSITY_STORAGE_PREFIX}ws-4`, 'comfortable')
+    let resolvePut: ((value: unknown) => void) | undefined
     fetchMock
       .mockResolvedValueOnce({ ok: false }) // initial GET
-      .mockResolvedValueOnce({ ok: false, status: 500 }) // PUT failure
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePut = resolve
+          }),
+      ) // PUT failure
 
     const onPersistError = vi.fn()
-    const { result } = renderHook(() =>
-      useDensityMode('ws-4', { onPersistError }),
+    const { result } = renderHook(
+      () => useDensityMode('ws-4', { onPersistError }),
+      { wrapper: FunctionalConsentWrapper },
     )
 
     act(() => {
       result.current.setDensity('compact')
     })
     expect(result.current.density).toBe('compact')
+    expect(localStorage.getItem(`${DENSITY_STORAGE_PREFIX}ws-4`)).toBe('compact')
+
+    await act(async () => {
+      resolvePut?.({ ok: false, status: 500 })
+    })
 
     await waitFor(() => {
       expect(result.current.density).toBe('comfortable')
     })
-    expect(localStorage.getItem('veritasor_density_ws-4')).toBe('comfortable')
+    expect(localStorage.getItem(`${DENSITY_STORAGE_PREFIX}ws-4`)).toBe(
+      'comfortable',
+    )
+    expect(onPersistError).toHaveBeenCalledTimes(1)
     expect(onPersistError).toHaveBeenCalledWith(
       'Could not save density preference. Changes reverted.',
     )
   })
 
-  it('reverts density and calls onPersistError on network failure', async () => {
-    localStorage.setItem('veritasor_density_ws-5', 'compact')
+  it('reverts density and localStorage and calls onPersistError on network failure', async () => {
+    localStorage.setItem(`${DENSITY_STORAGE_PREFIX}ws-5`, 'compact')
+    let rejectPut: ((reason?: unknown) => void) | undefined
     fetchMock
       .mockResolvedValueOnce({ ok: false }) // initial GET
-      .mockRejectedValueOnce(new Error('Network down')) // PUT network error
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectPut = reject
+          }),
+      ) // PUT network error
 
     const onPersistError = vi.fn()
-    const { result } = renderHook(() =>
-      useDensityMode('ws-5', { onPersistError }),
+    const { result } = renderHook(
+      () => useDensityMode('ws-5', { onPersistError }),
+      { wrapper: FunctionalConsentWrapper },
     )
 
     act(() => {
       result.current.setDensity('comfortable')
     })
     expect(result.current.density).toBe('comfortable')
+    expect(localStorage.getItem(`${DENSITY_STORAGE_PREFIX}ws-5`)).toBe(
+      'comfortable',
+    )
+
+    await act(async () => {
+      rejectPut?.(new Error('Network down'))
+    })
 
     await waitFor(() => {
       expect(result.current.density).toBe('compact')
     })
-    expect(localStorage.getItem('veritasor_density_ws-5')).toBe('compact')
+    expect(localStorage.getItem(`${DENSITY_STORAGE_PREFIX}ws-5`)).toBe('compact')
+    expect(onPersistError).toHaveBeenCalledTimes(1)
     expect(onPersistError).toHaveBeenCalledWith(
       'Could not save density preference. Changes reverted.',
     )
@@ -156,7 +204,7 @@ describe('useDensityMode', () => {
     const abortError = new DOMException('Aborted', 'AbortError')
     fetchMock.mockRejectedValueOnce(abortError)
 
-    const { unmount } = renderHook(() => useDensityMode('ws-6'))
+    const { unmount } = renderHook(() => useDensityMode('ws-6'), { wrapper: FunctionalConsentWrapper })
     expect(() => unmount()).not.toThrow()
   })
 })

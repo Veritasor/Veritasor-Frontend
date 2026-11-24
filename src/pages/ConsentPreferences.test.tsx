@@ -7,6 +7,7 @@ import { CookieConsentProvider } from '../components/CookieConsentContext'
 // Mock the CookieConsentContext
 const mockSavePreferences = vi.fn()
 const mockConsent = {
+  functional: false,
   analytics: false,
   marketing: false,
   productCommunications: false,
@@ -169,10 +170,21 @@ describe('ConsentPreferences', () => {
       fireEvent.click(saveButton)
 
       expect(mockSavePreferences).toHaveBeenCalledWith({
+        functional: false,
         analytics: true,
         marketing: true,
         productCommunications: false,
       })
+    })
+
+    it('documents Functional storage and saves an explicit grant', () => {
+      renderComponent()
+      const functional = screen.getByRole('switch', { name: 'Functional' })
+      expect(functional).not.toBeChecked()
+      expect(functional).toHaveAccessibleDescription(/clears these local preferences across workspaces/i)
+      fireEvent.click(functional)
+      fireEvent.click(screen.getByRole('button', { name: /Save preferences/i }))
+      expect(mockSavePreferences).toHaveBeenCalledWith({ ...mockConsent, functional: true })
     })
 
     it('should show saved state after successful save', async () => {
@@ -355,7 +367,7 @@ describe('ConsentPreferences', () => {
     it('should render toggle rows with proper class', () => {
       renderComponent()
       const toggleRows = screen.getAllByTestId('toggle-row')
-      expect(toggleRows.length).toBe(4)
+      expect(toggleRows.length).toBe(5)
       toggleRows.forEach((row: HTMLElement) => {
         expect(row).toHaveClass('cp-toggle-row')
       })

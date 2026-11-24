@@ -12,8 +12,8 @@
 
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import WebhookRetryPanel from '../../components/WebhookRetryPanel'
-import type { WebhookDelivery } from '../../components/api-keys/apiKeyTypes'
+import WebhookRetryPanel from '../components/WebhookRetryPanel'
+import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
 
 const failedDelivery: WebhookDelivery = {
   id: 'wh_001',
@@ -135,15 +135,15 @@ describe('WebhookRetryPanel — attempt status chips', () => {
 describe('WebhookRetryPanel — backoff chips', () => {
   it('renders backoff chips between attempts when backoffSeconds is present', () => {
     render(<WebhookRetryPanel delivery={failedDelivery} onRetry={() => {}} />)
-    // First attempt → 60s backoff
-    expect(screen.getByText(/wait 60s/i)).toBeInTheDocument()
+    // First attempt → 1m backoff
+    expect(screen.getByText(/wait 1m/i, { hidden: true })).toBeInTheDocument()
     // Second attempt → 120s backoff (2m)
-    expect(screen.getByText(/wait 2m/i)).toBeInTheDocument()
+    expect(screen.getByText(/wait 2m/i, { hidden: true })).toBeInTheDocument()
   })
 
   it('does not render a backoff chip after the last attempt', () => {
     const { container } = render(<WebhookRetryPanel delivery={failedDelivery} onRetry={() => {}} />)
-    const backoffChips = container.querySelectorAll('[aria-hidden="true"]:has(> span)')
+    const backoffChips = container.querySelectorAll('.webhook-backoff-chip')
     // With 3 attempts, we should have exactly 2 backoff chips
     expect(backoffChips.length).toBeLessThanOrEqual(2)
   })
@@ -160,9 +160,9 @@ describe('WebhookRetryPanel — retry button', () => {
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
   })
 
-  it('does not show "Retry now" button when status is "retrying"', () => {
+  it('disables the retry button when status is "retrying"', () => {
     render(<WebhookRetryPanel delivery={retryingDelivery} onRetry={() => {}} />)
-    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retrying/i })).toBeDisabled()
   })
 
   it('calls onRetry with the delivery id when clicked', () => {

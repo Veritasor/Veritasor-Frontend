@@ -74,6 +74,7 @@ export function AttestationsProvider({
   initialAttestations?: Attestation[]
 }) {
   const [list, dispatch] = useReducer(attestationsReducer, initialAttestations)
+  const [lastUpdated, setLastUpdated] = useState(() => new Date().toISOString())
   const nextId = useRef(1)
 
   const refresh = useCallback(() => {

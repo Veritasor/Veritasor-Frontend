@@ -20,7 +20,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Getting Started with Veritasor',
     description: 'Learn how to set up your workspace, connect revenue sources, and create your first attestation.',
     keywords: ['setup', 'workspace', 'first steps', 'introduction', 'onboarding', 'beginner'],
-    href: '/help',
+    href: '/help/getting-started',
     categories: ['Getting Started'],
   },
   {
@@ -28,7 +28,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Connecting Revenue Sources',
     description: 'Integrate Stripe, Shopify, PayPal, and other platforms to pull revenue data for attestations.',
     keywords: ['stripe', 'shopify', 'paypal', 'integration', 'connect', 'api', 'revenue source'],
-    href: '/sources?connect=true',
+    href: '/help/connect-sources',
     categories: ['Revenue Sources', 'Integrations'],
   },
   {
@@ -36,7 +36,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Creating an Attestation',
     description: 'Trigger a new revenue proof attestation—select sources, review data, and submit to chain.',
     keywords: ['attestation', 'proof', 'revenue', 'trigger', 'create', 'submit', 'on-chain'],
-    href: '/attestations?new=true',
+    href: '/help/create-attestation',
     categories: ['Attestations'],
   },
   {
@@ -44,7 +44,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Verifying Attestation Proofs',
     description: 'Understand Merkle roots, Stellar transaction hashes, and how to independently verify proofs.',
     keywords: ['merkle', 'stellar', 'hash', 'verify', 'proof', 'blockchain', 'transaction'],
-    href: '/attestations',
+    href: '/help/verify-proofs',
     categories: ['Attestations', 'Security'],
   },
   {
@@ -52,7 +52,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Managing API Keys',
     description: 'Create, rotate, and revoke API keys for programmatic access to the Veritasor verification API.',
     keywords: ['api', 'key', 'secret', 'rotate', 'revoke', 'token', 'authentication'],
-    href: '/api-keys',
+    href: '/help/api-keys',
     categories: ['Settings', 'Security'],
   },
   {
@@ -60,7 +60,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Managing Team Access & Permissions',
     description: 'Invite team members, assign roles, and configure workspace-level access controls.',
     keywords: ['team', 'permissions', 'roles', 'access', 'invite', 'members', 'rbac'],
-    href: '/settings',
+    href: '/help/team-access',
     categories: ['Settings', 'Team'],
   },
   {
@@ -68,7 +68,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Configuring Webhooks',
     description: 'Set up webhook endpoints to receive real-time attestation status updates and event notifications.',
     keywords: ['webhook', 'endpoint', 'event', 'notification', 'real-time', 'callback'],
-    href: '/settings',
+    href: '/help/webhooks',
     categories: ['Settings', 'Integrations'],
   },
   {
@@ -76,7 +76,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Understanding Billing & Plans',
     description: 'Explore pricing tiers, view invoices, update payment methods, and manage your subscription.',
     keywords: ['billing', 'plan', 'invoice', 'payment', 'subscription', 'pricing', 'upgrade'],
-    href: '/settings',
+    href: '/help/billing',
     categories: ['Settings', 'Billing'],
   },
   {
@@ -84,7 +84,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Troubleshooting Failed Attestations',
     description: 'Diagnose common attestation failures—network timeouts, data mismatches, and remediation steps.',
     keywords: ['failed', 'error', 'timeout', 'troubleshoot', 'diagnose', 'retry', 'remediation'],
-    href: '/help',
+    href: '/help/troubleshooting',
     categories: ['Troubleshooting'],
   },
   {
@@ -92,7 +92,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Security Best Practices',
     description: 'Enable MFA, manage session timeouts, and follow recommendations to keep your account secure.',
     keywords: ['security', 'mfa', '2fa', 'session', 'password', 'authentication', 'hardware key'],
-    href: '/settings',
+    href: '/help/security',
     categories: ['Security', 'Getting Started'],
   },
   {
@@ -100,7 +100,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Exporting Attestation Data',
     description: 'Download attestation records and revenue proofs in CSV, JSON, or PDF formats.',
     keywords: ['export', 'download', 'csv', 'json', 'pdf', 'data', 'report'],
-    href: '/attestations',
+    href: '/help/export-data',
     categories: ['Attestations'],
   },
   {
@@ -108,7 +108,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Supported Data Sources & Formats',
     description: 'Review the list of supported revenue platforms, file formats, and data schema requirements.',
     keywords: ['format', 'schema', 'csv', 'api', 'supported', 'platform', 'compatible'],
-    href: '/sources',
+    href: '/help/data-sources',
     categories: ['Revenue Sources', 'Getting Started'],
   },
   {
@@ -116,7 +116,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Business Onboarding (KYB/KYC)',
     description: 'Complete identity verification for your business—upload documents, selfie capture, and bank details.',
     keywords: ['kyb', 'kyc', 'onboarding', 'verification', 'document', 'identity', 'business'],
-    href: '/onboarding',
+    href: '/help/onboarding',
     categories: ['Getting Started'],
   },
   {
@@ -124,7 +124,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Customizing Display Density & Theme',
     description: 'Switch between comfortable and compact density modes, and toggle light/dark/system themes.',
     keywords: ['density', 'theme', 'dark mode', 'light mode', 'compact', 'comfortable', 'display'],
-    href: '/settings',
+    href: '/help/density-theme',
     categories: ['Settings'],
   },
   {
@@ -132,7 +132,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: 'Keyboard Shortcuts Reference',
     description: 'Full list of keyboard shortcuts for navigation, actions, and power-user workflows.',
     keywords: ['shortcut', 'keyboard', 'hotkey', 'navigation', 'quick', 'productivity'],
-    href: '/help',
+    href: '/help/shortcuts',
     categories: ['Getting Started'],
   },
 ]
@@ -401,6 +401,7 @@ export default function ContextualHelpSearch({ open, onClose }: ContextualHelpSe
 
   return (
     <div className="hs-overlay" role="presentation" onClick={handleOverlayClick}>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"
@@ -475,7 +476,7 @@ export default function ContextualHelpSearch({ open, onClose }: ContextualHelpSe
 
         {/* Results */}
         <div ref={resultsRef} id="hs-results" className="hs-results" role="listbox" aria-label="Help articles">
-          {visibleItems.map((item, vi) => {
+          {visibleItems.map((item) => {
             if (item.type === 'header') {
               return (
                 <div key={item.label} className="hs-section-header" role="presentation">
@@ -502,6 +503,7 @@ export default function ContextualHelpSearch({ open, onClose }: ContextualHelpSe
             const optionId = `hs-opt-${article.id}`
 
             return (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- keyboard navigation is handled via aria-activedescendant on the combobox input
               <div
                 key={article.id}
                 id={optionId}

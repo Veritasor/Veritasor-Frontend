@@ -47,7 +47,7 @@ export const COMMANDS: Command[] = [
     description: 'View and manage revenue proof attestations',
     shortcut: ['G', 'A'],
     category: 'Navigation',
-    pageRoutes: [ROUTES.home, ROUTES.sources, ROUTES.settings],
+    pageRoutes: [ROUTES.dashboard, ROUTES.sources, ROUTES.settings],
   },
   {
     id: 'nav-sources',
@@ -55,7 +55,7 @@ export const COMMANDS: Command[] = [
     description: 'View connected integrations and revenue flow',
     shortcut: ['G', 'S'],
     category: 'Navigation',
-    pageRoutes: [ROUTES.home, ROUTES.attestations, ROUTES.settings],
+    pageRoutes: [ROUTES.dashboard, ROUTES.attestations, ROUTES.settings],
   },
   {
     id: 'action-workspace-jump',
@@ -70,7 +70,7 @@ export const COMMANDS: Command[] = [
     description: 'Integrate Stripe, Shopify, or other platforms',
     shortcut: ['C', 'S'],
     category: 'Actions',
-    pageRoutes: [ROUTES.home, ROUTES.sources],
+    pageRoutes: [ROUTES.dashboard, ROUTES.sources],
   },
   {
     id: 'action-create-attestation',
@@ -78,7 +78,7 @@ export const COMMANDS: Command[] = [
     description: 'Trigger a new revenue proof attestation',
     shortcut: ['N', 'A'],
     category: 'Actions',
-    pageRoutes: [ROUTES.home, ROUTES.attestations],
+    pageRoutes: [ROUTES.dashboard, ROUTES.attestations],
   },
   {
     id: 'action-toggle-theme',
@@ -381,6 +381,7 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
       role="presentation"
       onClick={handleOverlayClick}
     >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- dialog handles Escape and focus-trap keyboard navigation */}
       <div
         className="cmd-dialog"
         role="dialog"
@@ -482,6 +483,7 @@ export default function CommandPalette({ isOpen, onClose, onWorkspaceJump }: Com
                     const itemId = `cmd-opt-${cmd.id}${cmd.isRecent ? '-recent' : ''}`
 
                     return (
+                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard selection is handled via aria-activedescendant on the combobox input
                       <li
                         key={itemId}
                         id={itemId}

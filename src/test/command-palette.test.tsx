@@ -3,7 +3,8 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../components/ToastContext'
-import CommandPalette from '../components/CommandPalette'
+import CommandPalette, { COMMANDS } from '../components/CommandPalette'
+import { ROUTES } from '../routes'
 
 // Mock useNavigate
 const mockNavigate = vi.fn()
@@ -25,10 +26,10 @@ function PaletteLauncher() {
   )
 }
 
-function renderWithProviders(component: ReactNode) {
+function renderWithProviders(component: ReactNode, initialEntries: string[] = [ROUTES.dashboard]) {
   return render(
     <ToastProvider>
-      <MemoryRouter>{component}</MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>{component}</MemoryRouter>
     </ToastProvider>,
   )
 }
@@ -242,5 +243,33 @@ describe('CommandPalette Component', () => {
     expect(scope).toHaveFocus()
     fireEvent.keyDown(scope, { key: 'Tab' })
     expect(input).toHaveFocus()
+  })
+
+  it('defines only valid route paths from ROUTES in every command pageRoutes', () => {
+    const validRoutes = new Set<string>(Object.values(ROUTES))
+    const commandsWithPageRoutes = COMMANDS.filter((cmd) => cmd.pageRoutes && cmd.pageRoutes.length > 0)
+
+    expect(commandsWithPageRoutes.length).toBeGreaterThan(0)
+    for (const cmd of commandsWithPageRoutes) {
+      for (const route of cmd.pageRoutes!) {
+        expect(validRoutes.has(route)).toBe(true)
+        expect(route).not.toBe(ROUTES.home)
+      }
+    }
+  })
+
+  it('shows expected page-scoped commands when on /sources', () => {
+    sessionStorage.setItem('veritasor-palette-scope', 'page')
+    renderWithProviders(<CommandPalette isOpen={true} onClose={vi.fn()} />, [ROUTES.sources])
+
+    expect(screen.getByRole('radio', { name: /this page/i })).toBeChecked()
+    // Navigation commands for other pages are shown
+    expect(screen.getByRole('option', { name: /go to dashboard/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /go to attestations/i })).toBeInTheDocument()
+    // Navigation command for the current page (/sources) is hidden
+    expect(screen.queryByRole('option', { name: /go to revenue sources/i })).not.toBeInTheDocument()
+    // Sources-relevant action is shown; attestations-only action is hidden
+    expect(screen.getByRole('option', { name: /connect revenue source/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /new attestation/i })).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,6 @@
 import type { OnboardingDraft } from '../hooks/useOnboardingDraft'
 import type { FileMap } from '../pages/onboarding/DocumentUploadStep'
+import { ApiError, request } from './apiClient'
 
 export const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const
 export const ALLOWED_SELFIE_TYPES = ['image/jpeg', 'image/png'] as const

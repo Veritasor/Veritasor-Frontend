@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { render, screen, fireEvent, act } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import ContextualHelpSearch, { HELP_ARTICLES, type HelpArticle } from './ContextualHelpSearch'
 
 // Mocking useLocation if necessary, but MemoryRouter initialEntries might be enough

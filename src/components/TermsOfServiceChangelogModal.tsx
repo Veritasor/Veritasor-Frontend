@@ -19,6 +19,7 @@ export interface TermsChange {
 
 export interface TermsOfServiceChangelogModalProps {
   open: boolean
+  blocking?: boolean
   currentVersion: string
   previousVersion: string
   effectiveDate: string
@@ -27,11 +28,12 @@ export interface TermsOfServiceChangelogModalProps {
   fullTextHref: string
   pdfHref: string
   onAcknowledge: (version: string) => void
-  onClose: () => void
+  onClose?: () => void
 }
 
 export default function TermsOfServiceChangelogModal({
   open,
+  blocking = false,
   currentVersion,
   previousVersion,
   effectiveDate,
@@ -66,7 +68,9 @@ export default function TermsOfServiceChangelogModal({
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onClose()
+        if (!blocking) {
+          onClose?.()
+        }
         return
       }
 
@@ -89,10 +93,12 @@ export default function TermsOfServiceChangelogModal({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, onClose])
+  }, [open, blocking, onClose])
 
   function handleBackdropClick() {
-    onClose()
+    if (!blocking) {
+      onClose?.()
+    }
   }
 
   function handleAcknowledge() {
@@ -115,7 +121,9 @@ export default function TermsOfServiceChangelogModal({
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div className="modal-backdrop" onClick={handleBackdropClick}>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"
@@ -133,9 +141,11 @@ export default function TermsOfServiceChangelogModal({
               Review the latest terms change log
             </h2>
           </div>
-          <button type="button" className="modal-close" aria-label="Close dialog" onClick={onClose}>
-            <span aria-hidden="true">✕</span>
-          </button>
+          {!blocking && (
+            <button type="button" className="modal-close" aria-label="Close dialog" onClick={onClose}>
+              <span aria-hidden="true">✕</span>
+            </button>
+          )}
         </div>
 
         <div className="modal-body tos-body">
@@ -210,9 +220,11 @@ export default function TermsOfServiceChangelogModal({
         </div>
 
         <div className="modal-footer tos-footer">
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-            Cancel
-          </button>
+          {!blocking && (
+            <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
+              Cancel
+            </button>
+          )}
           <button
             type="button"
             className="modal-btn modal-btn-confirm tos-confirm"
