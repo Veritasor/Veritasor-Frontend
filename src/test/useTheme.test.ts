@@ -251,6 +251,46 @@ describe('useTheme - reacting to external changes', () => {
     expect(result.current.theme).toBe('high-contrast')
   })
 
+  it('updates a scoped hook when another tab changes the base key', () => {
+    const { result } = renderHook(() => useTheme('u9'))
+
+    localStorage.setItem(BASE_KEY, 'dark')
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: BASE_KEY, newValue: 'dark', storageArea: localStorage }),
+      )
+    })
+
+    expect(result.current.theme).toBe('dark')
+    expect(dataTheme()).toBe('dark')
+  })
+
+  it('re-reads storage when another tab clears storage', () => {
+    localStorage.setItem(BASE_KEY, 'light')
+    const { result } = renderHook(() => useTheme())
+
+    localStorage.clear()
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: null, storageArea: localStorage }))
+    })
+
+    expect(result.current.theme).toBe('system')
+  })
+
+  it('ignores sessionStorage events', () => {
+    localStorage.setItem(BASE_KEY, 'light')
+    const { result } = renderHook(() => useTheme())
+    localStorage.removeItem(BASE_KEY)
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: BASE_KEY, newValue: 'dark', storageArea: sessionStorage }),
+      )
+    })
+
+    expect(result.current.theme).toBe('light')
+  })
+
   it('ignores a storage event for an unrelated key', () => {
     localStorage.setItem(BASE_KEY, 'light')
     const { result } = renderHook(() => useTheme())

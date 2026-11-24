@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
     "preview": "vite preview",
+    "audit": "npm audit --omit=dev",
     "test:e2e": "playwright test",
     "test:e2e-update": "playwright test --update-snapshots"
   },
@@ -32,7 +34,9 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "@vitest/coverage-v8": "^4.1.2",
+    "axe-core": "^4.12.1",
     "eslint": "^9.15.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.12.0",

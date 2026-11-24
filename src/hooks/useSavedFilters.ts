@@ -4,7 +4,7 @@
  *
  * Persistence model:
  *   - Per-workspace localStorage key: `veritasor.savedAuditFilters.<id>`
- *   - Storage is *only* read/written in the browser.
+ *   - Storage is only read or written with Functional consent.
  *   - We hydrate synchronously inside a lazy initializer so the first
  *     render already reflects the user's list (avoids a flash of empty).
  *   - On rename, we enforce case-insensitive uniqueness within the same
@@ -12,12 +12,11 @@
  *   - On save, we cap the workspace at MAX_FILTERS_PER_WORKSPACE items,
  *     dropping the oldest entry first.
  *
- * The hook returns a stable object with both *data* and *actions*. React
- * callers should depend on the action identities (they are stable) and
- * when in doubt wrap consumers in `useMemo`.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useFunctionalConsentGrant } from '../state/cookieConsent'
+import { readConsentStorage, writeConsentStorage } from '../utils/consentStorage'
 import {
   MAX_FILTERS_PER_WORKSPACE,
   makeSavedFilterId,
@@ -45,10 +44,9 @@ export interface UseSavedFiltersReturn {
   maxNameLength: number
 }
 
-function readFromStorage(key: string): SavedFilter[] {
-  if (typeof window === 'undefined') return []
+function readFromStorage(key: string, grant?: AbortSignal): SavedFilter[] {
   try {
-    const raw = window.localStorage.getItem(key)
+    const raw = readConsentStorage(key, grant)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -66,39 +64,36 @@ function readFromStorage(key: string): SavedFilter[] {
   }
 }
 
-function writeToStorage(key: string, value: SavedFilter[]): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // Quota or privacy mode — silently drop the write.
-  }
-}
-
 export function useSavedFilters(workspaceId?: string): UseSavedFiltersReturn {
+  const grant = useFunctionalConsentGrant()
   const workspaceCtx = useOptionalWorkspace()
   const effectiveWorkspaceId = workspaceId ?? workspaceCtx?.activeWorkspaceId ?? 'default'
   const key = savedFilterStorageKey(effectiveWorkspaceId)
-  // Lazy initializer → first render already has persisted data.
-  const [filters, setFilters] = useState<SavedFilter[]>(() => readFromStorage(key))
-  const [isHydrated, setIsHydrated] = useState(true)
-  const previousEntriesRef = useRef<SavedFilter[]>(filters)
+  const [list, setList] = useState(() => ({
+    key,
+    grant,
+    filters: readFromStorage(key, grant),
+    edited: false,
+  }))
 
-  // Re-hydrate when the workspace key changes (e.g. user switches tenant).
-  useEffect(() => {
-    const next = readFromStorage(key)
-    setFilters(next)
-    previousEntriesRef.current = next
-    setIsHydrated(true)
-  }, [key])
+  // Reset before committing a render in a different workspace or consent state.
+  if (list.key !== key || list.grant !== grant) {
+    setList({ key, grant, filters: readFromStorage(key, grant), edited: false })
+  }
 
-  // Persist whenever the list changes — runs after every mutation as well
-  // as on hydration (no-op write is fine; we gate it via a shallow check).
+  const { filters } = list
+  const updateFilters = useCallback((update: (prev: SavedFilter[]) => SavedFilter[]) => {
+    setList((prev) => {
+      if (prev.key !== key || prev.grant !== grant || grant?.aborted) return prev
+      return { ...prev, filters: update(prev.filters), edited: true }
+    })
+  }, [key, grant])
+
   useEffect(() => {
-    if (previousEntriesRef.current === filters) return
-    previousEntriesRef.current = filters
-    writeToStorage(key, filters)
-  }, [filters, key])
+    if (list.edited && list.grant && !list.grant.aborted) {
+      writeConsentStorage(list.key, JSON.stringify(list.filters), list.grant)
+    }
+  }, [list])
 
   const getById = useCallback(
     (id: string) => filters.find((f) => f.id === id),
@@ -118,7 +113,7 @@ export function useSavedFilters(workspaceId?: string): UseSavedFiltersReturn {
         createdAt: now,
         updatedAt: now,
       }
-      setFilters((prev) => {
+      updateFilters((prev) => {
         const next = [
           newEntry,
           ...prev,
@@ -129,7 +124,7 @@ export function useSavedFilters(workspaceId?: string): UseSavedFiltersReturn {
       })
       return { ok: true, name: result.name }
     },
-    [filters],
+    [filters, updateFilters],
   )
 
   const rename = useCallback(
@@ -142,7 +137,7 @@ export function useSavedFilters(workspaceId?: string): UseSavedFiltersReturn {
       const result = validateFilterName(rawName, others)
       if (!result.ok) return result
       const now = new Date().toISOString()
-      setFilters((prev) =>
+      updateFilters((prev) =>
         prev.map((f) =>
           f.id === id
             ? { ...f, name: result.name, updatedAt: now }
@@ -151,16 +146,16 @@ export function useSavedFilters(workspaceId?: string): UseSavedFiltersReturn {
       )
       return { ok: true, name: result.name }
     },
-    [filters],
+    [filters, updateFilters],
   )
 
   const remove = useCallback((id: string) => {
-    setFilters((prev) => prev.filter((f) => f.id !== id))
-  }, [])
+    updateFilters((prev) => prev.filter((f) => f.id !== id))
+  }, [updateFilters])
 
   return {
     filters,
-    isHydrated,
+    isHydrated: true,
     save,
     rename,
     remove,

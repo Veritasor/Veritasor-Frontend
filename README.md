@@ -32,6 +32,7 @@ Requires Node 18+ (CI uses Node 22).
 |---|---|
 | `npm run dev` | Vite dev server (proxies `/api/*` to `http://localhost:3000`) |
 | `npm run build` | Production build into `dist/` |
+| `npm run check:bundle` | Verify the main JS entry chunk in `dist/assets/` stays within the 450 KB budget |
 | `npm run preview` | Serve the production build locally |
 | `npm run typecheck` | `tsc -b` (currently reports pre-existing type errors, mostly in tests) |
 | `npm run lint` | ESLint |
@@ -55,6 +56,17 @@ All unit tests must mock network calls (`fetch`) and use fake timers (`vi.useFak
 ## Routes
 
 `/` landing, `/login`, `/signup`, `/forgot-password`, `/onboarding`, `/dashboard`, `/attestations`, `/attestations/:id`, `/sources`, `/connect-source/*`, `/settings`, `/api-keys`, `/help`, `/consent-preferences`, `/motion-tokens`, `/500`, anything else renders the 404 page.
+
+Route pages are code-split with `React.lazy` and wrapped in a root `Suspense` fallback (`SkeletonLoader` with `aria-busy="true"`) and router `errorElement` (`ServerError`).
+
+## Bundle-size budget
+
+After running `npm run build`, run `npm run check:bundle` to enforce the main entry chunk (`dist/assets/index-*.js`) budget:
+
+- **Default budget**: `450 KB` (raw)
+- **Override**: pass `--budget=<kb>` (e.g. `node scripts/check-bundle-size.mjs --budget=400`) or set `BUNDLE_BUDGET_KB=<kb>`.
+
+The script exits non-zero if the main entry chunk exceeds the configured budget.
 
 ## Environment variables
 

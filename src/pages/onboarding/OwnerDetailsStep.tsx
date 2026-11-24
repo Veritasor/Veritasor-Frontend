@@ -1,5 +1,6 @@
-import { useState } from 'react'
 import type { OwnerDetails } from '../../hooks/useOnboardingDraft'
+import { useForm, type FormValidators } from '../../hooks/useForm'
+import { required } from '../../utils/validation'
 
 type Props = {
   data: OwnerDetails
@@ -7,40 +8,32 @@ type Props = {
   onNext: (data: OwnerDetails) => void
 }
 
-type Errors = Partial<Record<keyof OwnerDetails, string>>
-
-function validate(d: OwnerDetails): Errors {
-  const e: Errors = {}
-  if (!d.fullName.trim()) e.fullName = 'Full name is required'
-  if (!d.dateOfBirth) e.dateOfBirth = 'Date of birth is required'
-  if (!d.nationality.trim()) e.nationality = 'Nationality is required'
-  if (!d.addressLine1.trim()) e.addressLine1 = 'Address is required'
-  if (!d.city.trim()) e.city = 'City is required'
-  if (!d.postalCode.trim()) e.postalCode = 'Postal code is required'
-  return e
+const VALIDATORS: FormValidators<OwnerDetails> = {
+  fullName: required('Full name is required'),
+  dateOfBirth: required('Date of birth is required', { trim: false }),
+  nationality: required('Nationality is required'),
+  addressLine1: required('Address is required'),
+  city: required('City is required'),
+  postalCode: required('Postal code is required'),
 }
 
 export default function OwnerDetailsStep({ data, onBack, onNext }: Props) {
-  const [form, setForm] = useState<OwnerDetails>(data)
-  const [errors, setErrors] = useState<Errors>({})
-  const [touched, setTouched] = useState(false)
+  const {
+    values: form,
+    errors,
+    setFieldValue: set,
+    handleSubmit,
+  } = useForm<OwnerDetails>({
+    initialValues: data,
+    validators: VALIDATORS,
+    validateOnBlur: false,
+    revalidateOnChangeAfterSubmit: true,
+  })
 
-  function set(field: keyof OwnerDetails, value: string) {
-    const next = { ...form, [field]: value }
-    setForm(next)
-    if (touched) setErrors(validate(next))
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const errs = validate(form)
-    setErrors(errs)
-    setTouched(true)
-    if (Object.keys(errs).length === 0) onNext(form)
-  }
+  const onSubmit = handleSubmit((values) => onNext(values))
 
   return (
-    <form className="ob-form" onSubmit={handleSubmit} noValidate aria-label="Owner details">
+    <form className="ob-form" onSubmit={onSubmit} noValidate aria-label="Owner details">
       <div className="ob-grid-2">
         <div className="ob-field">
           <label className="ob-label ob-label-required" htmlFor="ob-full-name">Full legal name</label>

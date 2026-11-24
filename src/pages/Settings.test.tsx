@@ -12,9 +12,17 @@
 
 import { createMemoryRouter, Link, RouterProvider } from 'react-router-dom'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { LocaleProvider } from '../i18n/provider'
+import { LOCALE_STORAGE_KEY } from '../i18n/config'
+import { auditLogApi } from '../services/auditLogApi'
 import Settings from '../pages/Settings'
+import {
+  addNotification,
+  buildInitialPrefs,
+  getNotifications,
+  resetNotificationsStore,
+} from '../store/notificationsStore'
 
 function renderSettings(hash = '') {
   const router = createMemoryRouter([
@@ -351,7 +359,28 @@ describe('Settings — panel content', () => {
 
   it('Notifications panel lists notification items', () => {
     renderSettings('#notifications')
-    expect(screen.getByLabelText(/attestation completed/i)).toBeInTheDocument()
+    expect(
+      screen.getByLabelText(/attestation completed — in-app/i),
+    ).toBeInTheDocument()
+  })
+
+  it('disabling an in-app notification category prevents new notifications for that category', () => {
+    resetNotificationsStore([], buildInitialPrefs())
+    renderSettings('#notifications')
+
+    const checkbox = screen.getByLabelText(/attestation completed — in-app/i)
+    expect(checkbox).toBeChecked()
+
+    fireEvent.click(checkbox)
+    expect(checkbox).not.toBeChecked()
+
+    const result = addNotification({
+      category: 'attestation-completed',
+      title: 'Should be suppressed',
+      message: 'Category was disabled in Settings.',
+    })
+    expect(result).toBeNull()
+    expect(getNotifications()).toHaveLength(0)
   })
 
   it('API Keys panel shows a code element', () => {
@@ -538,5 +567,37 @@ describe('Security — MFA recovery codes', () => {
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.click(screen.getByRole('button', { name: /disable/i }))
     expect(screen.getByRole('button', { name: /set up two-factor authentication/i })).toBeInTheDocument()
+  })
+})
+
+describe('Settings — Audit Log panel', () => {
+  afterEach(() => {
+    window.localStorage.removeItem(LOCALE_STORAGE_KEY)
+    vi.restoreAllMocks()
+  })
+
+  it('translates the Audit Log heading when the locale changes', () => {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, 'es')
+    const { unmount } = renderSettings('#audit-log')
+    expect(screen.getByRole('heading', { level: 2, name: 'Registro de auditoría' })).toBeInTheDocument()
+    unmount()
+
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, 'fr')
+    renderSettings('#audit-log')
+    expect(screen.getByRole('heading', { level: 2, name: 'Journal d’audit' })).toBeInTheDocument()
+  })
+
+  it('fetches audit event detail via auditLogApi and opens the detail drawer', async () => {
+    const spy = vi.spyOn(auditLogApi, 'getAuditEventDetail')
+    renderSettings('#audit-log')
+
+    const eventButtons = screen.getAllByRole('button', { name: /attestation completed/i })
+    fireEvent.click(eventButtons[0])
+
+    expect(spy).toHaveBeenCalledWith('1')
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+    expect(screen.getByText('joel@example.com')).toBeInTheDocument()
   })
 })

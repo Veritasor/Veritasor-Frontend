@@ -14,6 +14,18 @@ import { ReauthModal } from "./ReauthModal";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { ROUTES } from "../routes";
 import { useOptionalWorkspace } from "../state/workspace";
+import { useTrackPageViews } from "../analytics";
+import TermsOfServiceChangelogModal from "./TermsOfServiceChangelogModal";
+import {
+  CURRENT_TOS_VERSION,
+  PREVIOUS_TOS_VERSION,
+  TOS_CHANGES,
+  TOS_EFFECTIVE_DATE,
+  TOS_FULL_TEXT_HREF,
+  TOS_PDF_HREF,
+  TOS_SUMMARY,
+  useTosStore,
+} from "../store/tosStore";
 
 const configuredSessionDuration = Number(
   import.meta.env.VITE_SESSION_DURATION_MINUTES
@@ -95,6 +107,7 @@ function LayoutInner() {
   const navigate = useNavigate();
   const location = useLocation();
   const workspaceCtx = useOptionalWorkspace();
+  const { acceptedVersion, needsAcceptance, acceptTos } = useTosStore();
   const [reauthError, setReauthError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -156,6 +169,9 @@ function LayoutInner() {
     document.title = getPageTitle(location.pathname);
     requestAnimationFrame(() => { mainRef.current?.focus(); });
   }, [location.pathname]);
+
+  // Track page views
+  useTrackPageViews();
 
   // Escape key closes the sidebar and returns focus to the hamburger
   useEffect(() => {
@@ -241,9 +257,24 @@ function LayoutInner() {
 
         <main id="main-content" ref={mainRef} tabIndex={-1} className="app-main">
           <BillingBannerSlot />
-          <Outlet key={workspaceCtx ? `${workspaceCtx.activeWorkspaceId}-${workspaceCtx.switchVersion}` : undefined} />
+          {!needsAcceptance && (
+            <Outlet key={workspaceCtx ? `${workspaceCtx.activeWorkspaceId}-${workspaceCtx.switchVersion}` : undefined} />
+          )}
         </main>
       </div>
+
+      <TermsOfServiceChangelogModal
+        open={needsAcceptance}
+        blocking
+        currentVersion={CURRENT_TOS_VERSION}
+        previousVersion={acceptedVersion ?? PREVIOUS_TOS_VERSION}
+        effectiveDate={TOS_EFFECTIVE_DATE}
+        summary={TOS_SUMMARY}
+        changes={TOS_CHANGES}
+        fullTextHref={TOS_FULL_TEXT_HREF}
+        pdfHref={TOS_PDF_HREF}
+        onAcknowledge={(version) => acceptTos(version)}
+      />
 
       <BottomTabBar />
       <ToastContainer />

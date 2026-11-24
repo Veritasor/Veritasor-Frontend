@@ -20,11 +20,11 @@ Redesigned the "Create API key" modal scope selector from a flat 3-scope checkbo
 
 | Feature | Description |
 |---|---|
-| **Grouped tree** | 4 resource groups (Attestations, Revenue Sources, Webhooks, API Keys), each with read/write scopes — 8 scopes total |
+| **Grouped tree** | 5 groups (Attestations, Revenue Sources, Webhooks, API Keys, Administration), including 8 resource scopes and a full-administrator scope — 9 scopes total |
 | **Tri-state group checkboxes** | Groups show **checked** (all children selected), **indeterminate** (some children selected), or **unchecked** (none selected). Clicking a group checkbox toggles all its scopes atomically. |
 | **Search/filter** | `type="search"` input filters across scope labels, descriptions, and group names. Matching scopes are shown in-place; groups with no matches are hidden. Empty state with dashed border when 0 results. |
-| **Selected-count summary** | `aria-live="polite"` badge showing `N / 8 selected` with accent highlighting when > 0. |
-| **Select all / Clear all** | Quick-action buttons with proper disabled states (Select all disabled when all 8 selected; Clear all disabled when 0 selected). |
+| **Selected-count summary** | `aria-live="polite"` badge showing `N / 9 selected` with accent highlighting when > 0. |
+| **Select all / Clear all** | Quick-action buttons with proper disabled states (Select all disabled when all 9 selected; Clear all disabled when 0 selected). |
 | **Accessibility (WCAG 2.1 AA)** | `role="tree"` → `role="treeitem"` → `role="group"` hierarchy. Every checkbox has `aria-label`. Group headers have `aria-expanded`. Search input has `aria-label`. Empty state has `role="status"`. All interactive elements meet minimum touch-target sizing. |
 | **Design consistency** | Uses existing CSS variable tokens (`--text`, `--muted`, `--accent`, `--border`, `--radius-sm`, etc.) and class patterns (`auth-input`, `app-button`, `modal-*`). Group cards use accent-highlighted borders/backgrounds when scopes are selected. Transitions on border, background, and color. |
 
@@ -35,11 +35,11 @@ Redesigned the "Create API key" modal scope selector from a flat 3-scope checkbo
 | Category | Tests |
 |---|---|
 | **Rendering** | Closed state (null), dialog role, `aria-modal`/`aria-labelledby`, heading, form fields |
-| **Scope groups** | 4 group headers, 12 total checkboxes (4 group + 8 scope), treeitem roles with `aria-expanded` |
+| **Scope groups** | 5 group headers, 14 total checkboxes (5 group + 9 scope), treeitem roles with `aria-expanded` |
 | **Tri-state checkboxes** | All-checked, indeterminate, unchecked, group toggle (deselect/select), indeterminate→checked→indeterminate transitions |
 | **Search/filter** | By label, by description, by group name (cross-scope matching), empty state, clearing search restores all |
-| **Selected-count summary** | Default "1/8", increment, "0/8" on clear, "8/8" on select all, `aria-live`/`aria-atomic` attributes |
-| **Select all / Clear all** | Bulk select all 8 scopes, bulk deselect, disabled states for both buttons |
+| **Selected-count summary** | Default "1/9", increment, "0/9" on clear, "9/9" on select all, `aria-live`/`aria-atomic` attributes |
+| **Select all / Clear all** | Bulk select all 9 scopes, bulk deselect, disabled states for both buttons |
 | **Form validation** | Short label, out-of-range expiry, no scopes selected, valid form opens confirm dialog |
 | **Confirm dialog** | Scope labels in description, minting produces correct `key_` ID and `vtsr_live_` secret |
 | **Close interactions** | Cancel button, X close button, backdrop click |
@@ -80,10 +80,10 @@ npx vitest run src/test/create-api-key-modal.test.tsx
 ```
 
 Manual testing paths:
-1. **Basic flow:** Navigate to API Keys page → "Create key" → verify 4 grouped sections, select/deselect individual scopes, observe group tri-state updates and count badge.
+1. **Basic flow:** Navigate to API Keys page → "Create key" → verify 5 grouped sections, select/deselect individual scopes, observe group tri-state updates and count badge.
 2. **Group toggle:** Click a group header checkbox → all scopes in that group toggle. Click again → all deselect.
 3. **Search:** Type "webhook" → only Webhooks group appears. Type "read" → only read scopes visible across all groups. Clear → all groups restored.
-4. **Select all:** Click "Select all" → badge shows "8/8 selected", button disables. Click "Clear all" → badge shows "0/8 selected", validation error on submit.
+4. **Select all:** Click "Select all" → badge shows "9/9 selected", button disables. Click "Clear all" → badge shows "0/9 selected", validation error on submit.
 5. **Keyboard:** Tab through checkboxes, Space to toggle. Escape closes the modal. Tab trapped within ConfirmDialog.
 6. **Screen reader:** Verify group tree hierarchy announced, live count updates, search results.
 
@@ -108,7 +108,7 @@ Manual testing paths:
 | Number of tests | **37** |
 | Passing | 37 / 37 |
 | Categories covered | Rendering, scope groups, tri-state checkboxes, search/filter, count summary, select/clear all, form validation, confirm dialog, close interactions |
-| Edge cases covered | Empty search state, 0/8 and 8/8 count extremes, disabled button states, cross-group search matching, indeterminate → checked → indeterminate transitions |
+| Edge cases covered | Empty search state, 0/9 and 9/9 count extremes, disabled button states, cross-group search matching, indeterminate → checked → indeterminate transitions |
 
 ---
 
@@ -122,7 +122,7 @@ npm run dev
 ```
 
 **Before:** Flat list of 3 scopes with no grouping, search, or bulk actions.
-**After:** Grouped tree with 4 resource groups, tri-state checkboxes, search/filter, select-all/clear-all, and live count badge.
+**After:** Grouped tree with 5 groups, including the legacy administrator permission, tri-state checkboxes, search/filter, select-all/clear-all, and live count badge.
 
 ---
 

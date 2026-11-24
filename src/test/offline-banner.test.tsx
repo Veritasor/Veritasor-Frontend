@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import OfflineBanner from '../components/OfflineBanner'
 
@@ -59,13 +59,55 @@ describe('OfflineBanner', () => {
   })
 
   it('calls retry when retry button is clicked', async () => {
-    const retryFn = vi.fn()
+    const retryFn = vi.fn().mockResolvedValue(false)
     const hookMock = await getHookMock()
     hookMock.useOnlineStatus.mockReturnValue({ isOnline: false, retry: retryFn })
 
     render(<OfflineBanner />)
     fireEvent.click(screen.getByRole('button', { name: /retry/i }))
-    expect(retryFn).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(retryFn).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('announces success feedback when retry resolves to true', async () => {
+    const retryFn = vi.fn().mockResolvedValue(true)
+    const hookMock = await getHookMock()
+    hookMock.useOnlineStatus.mockReturnValue({ isOnline: false, retry: retryFn })
+
+    render(<OfflineBanner />)
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/connection restored/i)).toBeInTheDocument()
+    })
+    expect(screen.getByRole('status')).toHaveAccessibleName(/connection restored/i)
+  })
+
+  it('announces failure feedback when retry resolves to false', async () => {
+    const retryFn = vi.fn().mockResolvedValue(false)
+    const hookMock = await getHookMock()
+    hookMock.useOnlineStatus.mockReturnValue({ isOnline: false, retry: retryFn })
+
+    render(<OfflineBanner />)
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/still offline/i)).toBeInTheDocument()
+    })
+  })
+
+  it('announces failure feedback when retry rejects with a network error', async () => {
+    const retryFn = vi.fn().mockRejectedValue(new Error('network error'))
+    const hookMock = await getHookMock()
+    hookMock.useOnlineStatus.mockReturnValue({ isOnline: false, retry: retryFn })
+
+    render(<OfflineBanner />)
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/still offline/i)).toBeInTheDocument()
+    })
   })
 
   it('retry button has accessible label', async () => {

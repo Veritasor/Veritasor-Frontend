@@ -147,6 +147,7 @@
   "security.newPassword": "New password",
   "security.updatePassword": "Update password",
   "auditLog.filters.title": "Audit Log",
+  "auditLog.filters.title": "Audit Log",
   "auditLog.filters.toolbarLabel": "Filter and manage saved views",
   "auditLog.filters.trigger": "Saved filters",
   "auditLog.filters.menuLabel": "Saved filters",

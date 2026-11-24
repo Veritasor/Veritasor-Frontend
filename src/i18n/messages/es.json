@@ -109,5 +109,6 @@
   "auditLog.filters.error.invalid": "Quita los caracteres de control del nombre.",
   "auditLog.filters.results.singular": "Mostrando {count} de {total} entradas",
   "auditLog.filters.results.plural": "Mostrando {count} de {total} entradas",
-  "auditLog.filters.count": "{count, plural, =0 {No hay filtros guardados} one {# filtro guardado} other {# filtros guardados}}"
+  "auditLog.filters.count": "{count, plural, =0 {No hay filtros guardados} one {# filtro guardado} other {# filtros guardados}}",
+  "auditLog.filters.title": "Registro de auditoría"
 }
