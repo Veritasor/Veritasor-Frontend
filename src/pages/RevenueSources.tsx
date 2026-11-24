@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useDragReorder } from '../hooks/useDragReorder'
+import { useMutation } from '../hooks/useMutation'
 import { useToast } from '../components/ToastContext'
 import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
 import { useSources, sourcesStore, type Source, type HealthStatus } from '../store/sourcesStore'
@@ -483,7 +484,9 @@ function DragHandle({ label, isGrabbed, onPointerDown, onKeyDown, onClick }: Dra
       data-testid="drag-handle"
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
-      onClick={onClick}
+      onClick={(e) => {
+        if (e.detail === 0) onClick()
+      }}
       style={{
         flexShrink: 0,
         width: HANDLE_SIZE + 16,
@@ -699,7 +702,7 @@ function SourceRow({
 // Keyboard interaction model (WCAG 2.1 AA):
 //
 // 1. Drag handle (six-dot grip)
-//    - Click/Tap         → Enter keyboard-reorder mode (grab)
+//    - Keyboard activation → Enter keyboard-reorder mode (grab)
 //    - Pointer drag      → Drag-and-drop reorder
 //    - When grabbed: Arrow Up/Down to move, Enter/Space to drop, Escape to cancel
 //
@@ -716,6 +719,28 @@ function SourceRow({
 export default function RevenueSources() {
   const { addToast } = useToast()
   const sources = useSources()
+  const reorderMutation = useMutation<Source[], Source[]>({
+    mutationKey: 'revenue-sources-reorder',
+    mutationFn: async (nextSources) => {
+      const response = await fetch('/v1/revenue-sources/order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceIds: nextSources.map((source) => source.id) }),
+      })
+      if (!response.ok) {
+        throw new Error(`Could not save source order (HTTP ${response.status}).`)
+      }
+    },
+    onMutate: (nextSources) => {
+      const previousSources = sourcesStore.getAll()
+      sourcesStore.setAll(nextSources)
+      return previousSources
+    },
+    onError: (error, _nextSources, previousSources) => {
+      sourcesStore.setAll(previousSources)
+      addToast(error.message, 'error')
+    },
+  })
   const [pendingDisconnect, setPendingDisconnect] = useState<Source | null>(null)
   const [dismissedBannerIds, setDismissedBannerIds] = useState<Set<string>>(new Set())
   const dismissTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -728,12 +753,16 @@ export default function RevenueSources() {
     announcement,
     handlePointerDown,
     handlePointerEnter,
+    handlePointerMove,
     handlePointerUp,
+    handlePointerCancel,
     handleKeyboardGrab,
     handleKeyDown,
     moveUp,
     moveDown,
-  } = useDragReorder(sources, sourcesStore.setAll, getLabel)
+  } = useDragReorder(sources, (nextSources) => {
+    void reorderMutation.mutate(nextSources)
+  }, getLabel)
 
   function handleReconnect(id: string) {
     sourcesStore.update(id, { status: 'healthy', lastSync: new Date().toISOString(), tokenExpiredAt: undefined })
@@ -830,7 +859,8 @@ export default function RevenueSources() {
         <ul
           aria-label="Connected revenue sources"
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onPointerMove={handlePointerMove}
           style={{ listStyle: 'none', margin: '2rem 0 0', padding: 0, display: 'grid', gap: '0.75rem' }}
         >
           {sources.map((source, index) => (

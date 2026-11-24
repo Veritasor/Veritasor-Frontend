@@ -5,18 +5,116 @@ import RotationReminderBanner from '../components/api-keys/RotationReminderBanne
 import { ApiKeyDetailPanel } from '../components/api-keys/ApiKeyDetailPanel'
 import type { ApiKey, ApiKeyStatus } from '../components/api-keys/apiKeyTypes'
 import { useToast } from '../components/ToastContext'
+import { useMutation } from '../hooks/useMutation'
+import { track } from '../analytics'
+
+// 14-day lead-time window relative to today (2026-07-28)
+const today = new Date('2026-07-28T10:08:33Z')
+function addDays(base: Date, days: number) {
+  const d = new Date(base)
+  d.setDate(d.getDate() + days)
+  return d.toISOString()
+}
+
+const INITIAL_KEYS: ApiKey[] = [
+  {
+    id: 'key_001',
+    label: 'Admin (rotatable)',
+    status: 'active',
+    createdAt: '2026-06-01T14:00:00Z',
+    expiresAt: '2026-12-01T00:00:00Z',
+    scopes: ['read:attestations', 'write:attestations'],
+    maskedKey: 'vtsr_live_5e3a…b91c',
+    // Due in 8 days – within the 14-day reminder window
+    rotationDue: addDays(today, 8),
+  },
+  {
+    id: 'key_002',
+    label: 'Auditor (read-only)',
+    status: 'active',
+    createdAt: '2026-05-20T10:15:00Z',
+    expiresAt: '2026-11-20T00:00:00Z',
+    scopes: ['read:attestations'],
+    maskedKey: 'vtsr_live_aa1f…0c2d',
+    // Due in 20 days – outside the window, no banner
+    rotationDue: addDays(today, 20),
+  },
+  {
+    id: 'key_003',
+    label: 'Expired (history)',
+    status: 'expired',
+    createdAt: '2026-03-10T09:00:00Z',
+    expiresAt: '2026-04-10T00:00:00Z',
+    scopes: ['read:attestations'],
+    maskedKey: 'vtsr_live_1f2e…d9a0',
+  },
+]
 import { apiKeysStore, useApiKeys } from '../store/apiKeysStore'
 
 function statusOrder(s: ApiKeyStatus) {
   return s === 'active' ? 0 : s === 'expired' ? 1 : 2
 }
 
+function snoozeStorageKey(id: string) {
+  return `veritasor:api-key-rotation-snooze:${id}`
+}
+
+function restoreSnooze(key: ApiKey): ApiKey {
+  try {
+    const snoozedAt = window.localStorage.getItem(snoozeStorageKey(key.id))
+    return snoozedAt ? { ...key, snoozedAt } : key
+  } catch {
+    return key
+  }
+}
+
+function saveSnooze(id: string, snoozedAt?: string) {
+  try {
+    const key = snoozeStorageKey(id)
+    if (snoozedAt) {
+      window.localStorage.setItem(key, snoozedAt)
+    } else {
+      window.localStorage.removeItem(key)
+    }
+  } catch {
+    // The in-memory snooze still works when browser storage is unavailable.
+  }
+}
+
 export default function ApiKeys() {
+  const [keys, setKeys] = useState(() => INITIAL_KEYS.map(restoreSnooze))
   const keys = useApiKeys()
   const [createOpen, setCreateOpen] = useState(false)
   const [mintedOnce, setMintedOnce] = useState<null | { keyId: string; fullKey: string }>(null)
   const [detailKey, setDetailKey] = useState<ApiKey | null>(null)
   const { addToast } = useToast()
+  const revokeMutation = useMutation<string, ApiKeyStatus>({
+    mutationKey: 'api-key-revoke',
+    mutationFn: async (id) => {
+      const response = await fetch(`/v1/api-keys/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        throw new Error(`Could not revoke API key (HTTP ${response.status}).`)
+      }
+    },
+    onMutate: (id) => {
+      const previousStatus = keys.find((key) => key.id === id)?.status ?? 'active'
+      setKeys((previous) =>
+        previous.map((key) => (key.id === id ? { ...key, status: 'revoked' } : key)),
+      )
+      setMintedOnce(null)
+      return previousStatus
+    },
+    onError: (error, id, previousStatus) => {
+      setKeys((previous) =>
+        previous.map((key) =>
+          key.id === id ? { ...key, status: previousStatus } : key,
+        ),
+      )
+      addToast(error.message, 'error')
+    },
+  })
 
   const sortedKeys = useMemo(() => {
     return [...keys].sort((a, b) => {
@@ -34,6 +132,33 @@ export default function ApiKeys() {
     setCreateOpen(false)
   }
 
+  function handleMinted(keyId: string, fullKey: string) {
+    setMintedOnce({ keyId, fullKey })
+    setKeys((prev) => {
+      const masked = fullKey
+        ? `${fullKey.slice(0, 12)}…${fullKey.slice(-4)}`
+        : 'vtsr_live_????????'
+      const createdKey = prev.find((k) => k.id === keyId)
+      if (createdKey) return prev
+
+      track('api_key_created', {
+        keyId,
+        scopes: ['read:attestations'],
+      })
+
+      return [
+        {
+          id: keyId,
+          label: 'New key',
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString(),
+          scopes: ['read:attestations'],
+          maskedKey: masked,
+        },
+        ...prev,
+      ]
+    })
   function handleMinted(key: ApiKey, fullKey: string) {
     apiKeysStore.add(key)
     setMintedOnce({ keyId: key.id, fullKey })
@@ -45,11 +170,26 @@ export default function ApiKeys() {
   }
 
   function handleSnooze(id: string) {
+    const snoozedAt = new Date().toISOString()
+    saveSnooze(id, snoozedAt)
+    setKeys((prev) =>
+      prev.map((k) =>
+        k.id === id ? { ...k, snoozedAt } : k,
+      ),
+    )
     apiKeysStore.update(id, { snoozedAt: new Date().toISOString() })
     addToast('Rotation reminder snoozed for 24 h', 'info', 4000)
   }
 
   function handleRotate(id: string) {
+    saveSnooze(id)
+    setKeys((prev) =>
+      prev.map((k) =>
+        k.id === id
+          ? { ...k, createdAt: new Date().toISOString(), maskedKey: 'vtsr_live_rotated…', snoozedAt: undefined }
+          : k,
+      ),
+    )
     apiKeysStore.update(id, {
       createdAt: new Date().toISOString(),
       maskedKey: 'vtsr_live_rotated…',
@@ -159,6 +299,12 @@ export default function ApiKeys() {
                       sortedKeys.filter((item) => item.status === 'active' && item.scopes.includes('admin')).length === 1
                     }
                     onRotate={handleRotate}
+                    onRevoke={(id) => {
+                      saveSnooze(id)
+                      setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, status: 'revoked' } : k)))
+                      setMintedOnce(null)
+                    }}
+                    onRevoke={(id) => void revokeMutation.mutate(id)}
                     onRevoke={handleRevoke}
                     onDetails={setDetailKey}
                   />

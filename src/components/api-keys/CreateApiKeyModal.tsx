@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from '../ConfirmDialog'
 import { useToast } from '../ToastContext'
+import {
+  SCOPE_GROUPS,
+  ALL_SCOPE_IDS,
+  type ScopeId,
+  getScopeLabels,
+  groupTriState,
+} from './scopeDefinitions'
+import { randomBase36, randomHex } from '../../utils/secureRandom'
 import type { ApiKey } from './apiKeyTypes'
 import { generateApiKeyCredentials } from '../../utils/apiKeyCredentials'
 
@@ -112,8 +120,7 @@ export default function CreateApiKeyModal({
   const totalScopeCount = ALL_SCOPE_IDS.length
 
   const chosenLabels = useMemo(() => {
-    const flat = SCOPE_GROUPS.flatMap((g) => g.scopes)
-    return selected.map((id) => flat.find((s) => s.id === id)?.label ?? id).filter(Boolean)
+    return getScopeLabels(selected)
   }, [selected])
 
   /** Groups filtered by search query. A group is shown if its label or any of its scope labels/descriptions match. */
@@ -205,6 +212,12 @@ export default function CreateApiKeyModal({
     setConfirmOpen(true)
   }
 
+  const keyId = useMemo(() => `key_${randomBase36(6)}`, [])
+
+  function mint() {
+    // Demo-only: generate a fake secret.
+    // Real implementation would come from backend and only reveal it once.
+    const fullKey = `vtsr_live_${randomHex(6)}${randomHex(4)}_${randomHex(2)}`
   function mint() {
     let credentials: ReturnType<typeof generateApiKeyCredentials>
     try {

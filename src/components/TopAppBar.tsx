@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import LocalePicker from "./LocalePicker/LocalePicker";
 import { useEnvironment } from "./EnvironmentContext";
 import ConfirmDialog from "./ConfirmDialog";
+import { ROUTES } from "../routes";
+import { useOptionalWorkspace } from "../state/workspace";
 
 export interface WorkspaceMetadata {
   id: string;
@@ -73,8 +75,8 @@ function loadDraftFromStorage(): CreateWorkspaceDraft {
 }
 
 export default function TopAppBar({
-  workspaces = DEFAULT_WORKSPACES,
-  initialWorkspace = DEFAULT_WORKSPACES[0]?.id,
+  workspaces: workspacesProp,
+  initialWorkspace,
   initialEnvironment = "testnet",
   userName = "Joel Agboola",
   userInitials = "JA",
@@ -88,9 +90,35 @@ export default function TopAppBar({
   openWorkspaceSwitcherInSearchMode = false,
   onWorkspaceSwitcherOpenChange,
 }: TopAppBarProps) {
-  const [workspaceId, setWorkspaceId] = useState(initialWorkspace);
+  const workspaceCtx = useOptionalWorkspace();
+  const isControlledByContext = Boolean(workspaceCtx && !workspacesProp);
+  const workspaces = useMemo<WorkspaceMetadata[]>(
+    () =>
+      workspacesProp ??
+      (workspaceCtx?.workspaces.map((ws) => ({
+        id: ws.id,
+        name: ws.name,
+        displayName: ws.displayName,
+        description: ws.description,
+        avatar: ws.avatarUrl,
+        initials: ws.initials,
+        plan:
+          ws.plan === "starter" || ws.plan === "growth" || ws.plan === "business"
+            ? ws.plan
+            : undefined,
+        region: ws.region,
+      })) ??
+        DEFAULT_WORKSPACES),
+    [workspacesProp, workspaceCtx?.workspaces],
+  );
+  const resolvedInitialWorkspace =
+    initialWorkspace ?? workspaceCtx?.activeWorkspaceId ?? workspaces[0]?.id;
+  const [localWorkspaceId, setLocalWorkspaceId] = useState(resolvedInitialWorkspace);
+  const workspaceId = isControlledByContext
+    ? workspaceCtx!.activeWorkspaceId
+    : localWorkspaceId;
   const [recentWorkspaceIds, setRecentWorkspaceIds] = useState<string[]>([
-    initialWorkspace || "",
+    workspaceId || "",
   ]);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [workspaceSearch, setWorkspaceSearch] = useState("");
@@ -136,6 +164,19 @@ export default function TopAppBar({
       // Ignore storage errors
     }
   }, [createWsDraft]);
+
+  // Open workspace switcher in search mode on Ctrl+Shift+W / Cmd+Shift+W
+  useEffect(() => {
+    function handleShortcut(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "w") {
+        e.preventDefault();
+        setWorkspaceOpen(true);
+        window.setTimeout(() => workspaceSearchRef.current?.focus(), 0);
+      }
+    }
+    document.addEventListener("keydown", handleShortcut);
+    return () => document.removeEventListener("keydown", handleShortcut);
+  }, []);
 
   // Open workspace switcher in search mode when triggered externally (e.g. Ctrl+K→W shortcut)
   useEffect(() => {
@@ -321,7 +362,8 @@ export default function TopAppBar({
   );
 
   function selectWorkspace(ws: WorkspaceMetadata) {
-    setWorkspaceId(ws.id);
+    setLocalWorkspaceId(ws.id);
+    workspaceCtx?.switchWorkspace(ws.id);
     onWorkspaceChange?.(ws.id);
 
     setRecentWorkspaceIds((prev) => {
@@ -370,7 +412,18 @@ export default function TopAppBar({
         createWsDraft.name.trim() ||
         "New Workspace";
       const newId = newName.toLowerCase().replace(/\s+/g, "-");
-      setWorkspaceId(newId);
+      setLocalWorkspaceId(newId);
+      workspaceCtx?.addWorkspace({
+        id: newId,
+        name: newName,
+        displayName: createWsDraft.displayName.trim() || undefined,
+        description: createWsDraft.description.trim() || undefined,
+        plan: createWsDraft.plan,
+        role: "Owner",
+        memberCount: 1,
+        region: createWsDraft.region,
+      });
+      workspaceCtx?.switchWorkspace(newId);
       setRecentWorkspaceIds((prev) => [newId, ...prev].slice(0, 5));
       setCreateWsDraft({ ...EMPTY_DRAFT });
       try {
@@ -997,11 +1050,11 @@ export default function TopAppBar({
                     role="menuitem"
                     tabIndex={0}
                     className="disclosure-item"
-                    onClick={() => handleAccountNavigate("/settings")}
+                    onClick={() => handleAccountNavigate(ROUTES.settings)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        handleAccountNavigate("/settings");
+                        handleAccountNavigate(ROUTES.settings);
                       }
                     }}
                   >
@@ -1011,11 +1064,11 @@ export default function TopAppBar({
                     role="menuitem"
                     tabIndex={0}
                     className="disclosure-item"
-                    onClick={() => handleAccountNavigate("/api-keys")}
+                    onClick={() => handleAccountNavigate(ROUTES.apiKeys)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        handleAccountNavigate("/api-keys");
+                        handleAccountNavigate(ROUTES.apiKeys);
                       }
                     }}
                   >

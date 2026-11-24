@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useOptionalWorkspace } from "../state/workspace";
 
 export type DensityMode = "comfortable" | "compact";
 
 const DENSITY_STORAGE_PREFIX = "veritasor_density_";
-const API_BASE = "/v1/preferences/density";
+const API_BASE = "/api/v1/preferences/density";
 
 export interface UseDensityModeOptions {
   /** Called when server persistence fails — use for toast notification */
@@ -14,19 +15,22 @@ export interface UseDensityModeOptions {
  * useDensityMode — manages density preference with optimistic server persistence.
  *
  * 1. Updates localStorage and React state immediately (optimistic).
- * 2. Fires PUT /v1/preferences/density to persist on the server.
+ * 2. Fires PUT /api/v1/preferences/density to persist on the server.
  * 3. On success: no additional UI change needed.
  * 4. On failure: reverts to the previous value and calls onPersistError.
  *
- * Also reads from GET /v1/preferences/density on initial load (after
+ * Also reads from GET /api/v1/preferences/density on initial load (after
  * reading localStorage as the fast default).
  */
 export function useDensityMode(
-  workspace: string,
+  workspace?: string,
   options: UseDensityModeOptions = {},
 ) {
   const { onPersistError } = options;
-  const storageKey = `${DENSITY_STORAGE_PREFIX}${workspace}`;
+  const workspaceCtx = useOptionalWorkspace();
+  const effectiveWorkspace =
+    workspace ?? workspaceCtx?.activeWorkspaceId ?? "default";
+  const storageKey = `${DENSITY_STORAGE_PREFIX}${effectiveWorkspace}`;
   const onPersistErrorRef = useRef(onPersistError);
   onPersistErrorRef.current = onPersistError;
 
@@ -59,10 +63,10 @@ export function useDensityMode(
       }
 
       // 2. API persistence (fire-and-forget with rollback)
-      fetch(`${API_BASE}`, {
+      request(API_BASE, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspace, density: mode }),
+        body: JSON.stringify({ workspace: effectiveWorkspace, density: mode }),
       })
         .then(async (res) => {
           if (!res.ok) {
@@ -92,7 +96,7 @@ export function useDensityMode(
           );
         });
     },
-    [storageKey],
+    [storageKey, effectiveWorkspace],
   );
 
   // On mount / workspace change, sync with localStorage and attempt server read
@@ -112,7 +116,7 @@ export function useDensityMode(
     }
 
     // Attempt to fetch server preference to sync across devices
-    fetch(`${API_BASE}?workspace=${encodeURIComponent(workspace)}`, {
+    fetch(`${API_BASE}?workspace=${encodeURIComponent(effectiveWorkspace)}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: abortController.signal,
@@ -133,14 +137,14 @@ export function useDensityMode(
         }
       })
       .catch((err) => {
-        if (err.name === "AbortError") return;
+        if (err instanceof ApiError && err.code === "ABORTED") return;
         // Server unavailable — keep localStorage value
       });
 
     return () => {
       abortController.abort();
     };
-  }, [storageKey]);
+  }, [storageKey, effectiveWorkspace]);
 
   return { density, setDensity };
 }

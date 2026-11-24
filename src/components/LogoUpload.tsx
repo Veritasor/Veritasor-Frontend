@@ -25,15 +25,52 @@ type Phase = 'idle' | 'cropping' | 'preview'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const ACCEPT = 'image/jpeg,image/png,image/webp,image/svg+xml'
+const ACCEPT = 'image/jpeg,image/png'
 const MAX_MB = 2
 const MAX_BYTES = MAX_MB * 1024 * 1024
+const MIN_DIMENSION = 64
+const MAX_DIMENSION = 4096
 const CANVAS_SIZE = 320 // crop output px
+
+type AllowedType = 'image/png' | 'image/jpeg'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v))
+}
+
+function detectImageType(bytes: Uint8Array): AllowedType | null {
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return 'image/png'
+  }
+
+  // JPEG: FF D8 FF
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg'
+  }
+
+  return null
+}
+
+function loadImageDimensions(url: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    img.onerror = () => reject(new Error('image-load-failed'))
+    img.src = url
+  })
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -55,21 +92,73 @@ export default function LogoUpload({ currentLogoUrl, onSave, onCancel }: LogoUpl
   const cropCanvasRef = useRef<HTMLCanvasElement>(null)
   const cropViewRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const ingestToken = useRef(0)
 
   // ── File ingestion ──────────────────────────────────────────────────────
 
-  const ingestFile = useCallback((file: File) => {
+  const ingestFile = useCallback(async (file: File) => {
+    const token = ++ingestToken.current
     setFileError(null)
-    if (!file.type.startsWith('image/')) {
-      setFileError('Please upload an image file (JPG, PNG, WebP or SVG).')
-      return
-    }
+
     if (file.size > MAX_BYTES) {
-      setFileError(`File exceeds ${MAX_MB} MB limit.`)
+      setFileError(`File is too large. Maximum size is ${MAX_MB} MB.`)
       return
     }
+
+    let bytes: Uint8Array
+    try {
+      bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer())
+    } catch {
+      if (token !== ingestToken.current) return
+      setFileError('Could not read the selected file. Please try another image.')
+      return
+    }
+
+    if (token !== ingestToken.current) return
+
+    const detectedType = detectImageType(bytes)
+    if (!detectedType) {
+      setFileError('Unsupported file type. Please upload a PNG or JPEG image.')
+      return
+    }
+
     const url = URL.createObjectURL(file)
-    setSourceUrl(url)
+    try {
+      const { width, height } = await loadImageDimensions(url)
+      if (token !== ingestToken.current) {
+        URL.revokeObjectURL(url)
+        return
+      }
+      if (width < MIN_DIMENSION || height < MIN_DIMENSION) {
+        URL.revokeObjectURL(url)
+        setFileError(
+          `Image dimensions are too small. Minimum size is ${MIN_DIMENSION}×${MIN_DIMENSION} pixels.`,
+        )
+        return
+      }
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+        URL.revokeObjectURL(url)
+        setFileError(
+          `Image dimensions are too large. Maximum size is ${MAX_DIMENSION}×${MAX_DIMENSION} pixels.`,
+        )
+        return
+      }
+    } catch {
+      URL.revokeObjectURL(url)
+      if (token !== ingestToken.current) return
+      setFileError('Could not load image. Please upload a valid PNG or JPEG file.')
+      return
+    }
+
+    if (token !== ingestToken.current) {
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    setSourceUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return url
+    })
     setZoom(1)
     setOffset({ x: 0, y: 0 })
     setPhase('cropping')
@@ -77,7 +166,7 @@ export default function LogoUpload({ currentLogoUrl, onSave, onCancel }: LogoUpl
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
-    if (f) ingestFile(f)
+    if (f) void ingestFile(f)
     // Reset so re-selecting the same file fires onChange
     e.target.value = ''
   }, [ingestFile])
@@ -86,16 +175,26 @@ export default function LogoUpload({ currentLogoUrl, onSave, onCancel }: LogoUpl
     e.preventDefault()
     setDragOver(false)
     const f = e.dataTransfer.files[0]
-    if (f) ingestFile(f)
+    if (f) void ingestFile(f)
   }, [ingestFile])
+
+  const sourceUrlRef = useRef<string | null>(null)
+  const croppedUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    sourceUrlRef.current = sourceUrl
+  }, [sourceUrl])
+
+  useEffect(() => {
+    croppedUrlRef.current = croppedUrl
+  }, [croppedUrl])
 
   // Revoke object URLs on cleanup
   useEffect(() => {
     return () => {
-      if (sourceUrl) URL.revokeObjectURL(sourceUrl)
-      if (croppedUrl) URL.revokeObjectURL(croppedUrl)
+      if (sourceUrlRef.current) URL.revokeObjectURL(sourceUrlRef.current)
+      if (croppedUrlRef.current) URL.revokeObjectURL(croppedUrlRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Crop interactions ────────────────────────────────────────────────────
@@ -173,15 +272,7 @@ export default function LogoUpload({ currentLogoUrl, onSave, onCancel }: LogoUpl
     if (!ctx) return
 
     const viewSize = view.getBoundingClientRect().width
-    const scale = CANVAS_SIZE / viewSize
-    const displayedImgSize = viewSize * zoom
-    // Center of view in display coords:
-    const cx = viewSize / 2 - offset.x
-    const cy = viewSize / 2 - offset.y
-    // In natural image coords:
-    const ratio = img.naturalWidth / displayedImgSize
-    const srcX = (cx - displayedImgSize / 2 * (1 - 1 / zoom)) * ratio / zoom * zoom
-    // Simplified: map crop view center to source image
+    // Map crop view center to source image
     const displayCenterX = viewSize / 2 - offset.x
     const displayCenterY = viewSize / 2 - offset.y
     const imgDisplayW = img.naturalWidth * (viewSize * zoom / Math.min(img.naturalWidth, img.naturalHeight))
@@ -248,7 +339,7 @@ export default function LogoUpload({ currentLogoUrl, onSave, onCancel }: LogoUpl
           >
             <span className="ob-dropzone-icon" aria-hidden="true">🖼</span>
             <span className="ob-dropzone-label"><strong>Click to upload</strong> or drag and drop</span>
-            <span className="ob-dropzone-meta">JPG, PNG, WebP, SVG · max {MAX_MB} MB</span>
+            <span className="ob-dropzone-meta">PNG or JPEG · max {MAX_MB} MB</span>
           </div>
 
           {fileError && <p className="ob-error" role="alert">{fileError}</p>}

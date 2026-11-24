@@ -1,21 +1,43 @@
-import { describe, it, expect } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Dashboard from './Dashboard'
+import { isAttestationDataStale, STALE_DATA_THRESHOLD_MS } from './Dashboard'
+import { describe, it, expect } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import Dashboard from './Dashboard'
+import Attestations from './Attestations'
 import { ToastProvider } from '../components/ToastContext'
 import { AttestationsProvider } from '../state/attestations'
 
-function renderPage() {
+function renderPage(initialEntries: string[] = ['/dashboard']) {
   return render(
     <AttestationsProvider>
       <ToastProvider>
-        <MemoryRouter><Dashboard /></MemoryRouter>
+        <MemoryRouter initialEntries={initialEntries}>
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/attestations" element={<Attestations />} />
+          </Routes>
+        </MemoryRouter>
       </ToastProvider>
     </AttestationsProvider>,
   )
 }
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe('Dashboard Page', () => {
+  it('exports the stale threshold and detects stale timestamps', () => {
+    const now = Date.parse('2026-07-27T12:00:00Z')
+    expect(STALE_DATA_THRESHOLD_MS).toBe(5 * 60 * 1000)
+    expect(isAttestationDataStale(new Date(now - STALE_DATA_THRESHOLD_MS).toISOString(), now)).toBe(true)
+    expect(isAttestationDataStale(new Date(now - STALE_DATA_THRESHOLD_MS + 1).toISOString(), now)).toBe(false)
+  })
+
   it('renders heading', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Dashboard')
@@ -30,6 +52,23 @@ describe('Dashboard Page', () => {
   it('renders trigger button', () => {
     renderPage()
     expect(screen.getByRole('button', { name: /trigger monthly revenue report/i })).toBeInTheDocument()
+  })
+
+  it('shows stale data after the threshold and hides it after refresh', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-27T12:00:00Z'))
+    renderPage()
+
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(STALE_DATA_THRESHOLD_MS)
+    })
+
+    expect(screen.getByText('Stale')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh data/i }))
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument()
   })
 
   it('has muted description text', () => {
@@ -49,9 +88,9 @@ describe('Dashboard Page', () => {
     expect(container.querySelector('.dashboard-grid')).toBeInTheDocument()
   })
 
-  it('renders three dashboard-section cards', () => {
+  it('renders four dashboard-section cards', () => {
     const { container } = renderPage()
-    expect(container.querySelectorAll('.dashboard-section').length).toBe(3)
+    expect(container.querySelectorAll('.dashboard-section').length).toBe(4)
   })
 
   it('renders dashboard-metrics-grid', () => {
@@ -59,9 +98,9 @@ describe('Dashboard Page', () => {
     expect(container.querySelector('.dashboard-metrics-grid')).toBeInTheDocument()
   })
 
-  it('renders three dashboard-metric-card elements', () => {
+  it('renders four dashboard-metric-card elements', () => {
     const { container } = renderPage()
-    expect(container.querySelectorAll('.dashboard-metric-card').length).toBe(3)
+    expect(container.querySelectorAll('.dashboard-metric-card').length).toBe(4)
   })
 
   it('renders metric labels, values, and sub-labels', () => {
@@ -120,10 +159,10 @@ describe('Dashboard Page', () => {
 // prop pass-through would go unnoticed.
 
 describe('Dashboard Page – usage meters', () => {
-  it('renders one progressbar per usage entry, keyed by label', () => {
+  it('renders one meter per usage entry, keyed by label', () => {
     renderPage()
 
-    const meters = screen.getAllByRole('progressbar')
+    const meters = screen.getAllByRole('meter')
     expect(meters).toHaveLength(2)
     expect(meters.map((m) => m.getAttribute('aria-label'))).toEqual([
       'Attestations',
@@ -134,7 +173,7 @@ describe('Dashboard Page – usage meters', () => {
   it('exposes the attestation usage as a critical (90%) meter', () => {
     renderPage()
 
-    const meter = screen.getByRole('progressbar', { name: 'Attestations' })
+    const meter = screen.getByRole('meter', { name: 'Attestations' })
     expect(meter).toHaveAttribute('aria-valuenow', '90')
     expect(meter).toHaveAttribute('aria-valuemin', '0')
     expect(meter).toHaveAttribute('aria-valuemax', '100')
@@ -144,16 +183,17 @@ describe('Dashboard Page – usage meters', () => {
   it('rounds API usage down to the warning boundary (75%), not the normal tier', () => {
     renderPage()
 
-    const meter = screen.getByRole('progressbar', { name: 'API calls' })
+    const meter = screen.getByRole('meter', { name: 'API calls' })
     // 7_520 / 10_000 = 75.2 % → Math.round → 75, which is inclusive of "warning".
     expect(meter).toHaveAttribute('aria-valuenow', '75')
     expect(meter).toHaveAttribute('aria-valuetext', '7,520 of 10,000 calls used (75%)')
   })
 
   it('surfaces the critical advisory for the attestation meter only', () => {
-    renderPage()
+    const { container } = renderPage()
 
-    const advisories = screen.getAllByRole('status')
+    const usageSection = container.querySelector('section[aria-labelledby="usage-heading"]')!
+    const advisories = usageSection.querySelectorAll('[role="status"]')
     expect(advisories).toHaveLength(2)
     expect(advisories[0]).toHaveTextContent(/used 90 % or more of your monthly limit/i)
     expect(advisories[1]).toHaveTextContent(/used 75 % or more of your monthly limit/i)
@@ -164,7 +204,7 @@ describe('Dashboard Page – usage meters', () => {
 
     const section = container.querySelector('section[aria-labelledby="usage-heading"]')
     expect(section).not.toBeNull()
-    expect(section!.querySelectorAll('[role="progressbar"]')).toHaveLength(2)
+    expect(section!.querySelectorAll('[role="meter"]')).toHaveLength(2)
   })
 })
 
@@ -173,36 +213,69 @@ describe('Dashboard Page – usage meters', () => {
 // ---------------------------------------------------------------------------
 
 describe('Dashboard Page – key metrics', () => {
-  it('renders the three metric cards with their copy', () => {
+  it('renders the four data-driven KPI cards with their copy', () => {
     const { container } = renderPage()
 
     const grid = container.querySelector('.dashboard-metrics-grid')!
     const text = grid.textContent ?? ''
 
-    expect(text).toContain('Total Revenue')
-    expect(text).toContain('$84,320')
-    expect(text).toContain('YTD 2026')
+    expect(text).toContain('Verified Rate')
+    expect(text).toContain('33.3%')
+    expect(text).toContain('1 of 3 attestations')
 
-    expect(text).toContain('Attestations')
-    expect(text).toContain('This month')
+    expect(text).toContain('Pending')
+    expect(text).toContain('Awaiting verification')
 
-    expect(text).toContain('Revenue Sources')
-    expect(text).toContain('Connected')
+    expect(text).toContain('Failed')
+    expect(text).toContain('Needs attention')
+
+    expect(text).toContain('Avg Time')
+    expect(text).toContain('Mean verification time')
 
     expect(Array.from(grid.querySelectorAll('.dashboard-metric-value')).map((el) => el.textContent)).toEqual([
-      '$84,320',
-      '12',
-      '3',
+      '33.3%',
+      '1',
+      '1',
+      '—',
     ])
+  })
+
+  it('updates KPIs when the date range changes', () => {
+    const { container } = renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: '7 days' }))
+
+    const grid = container.querySelector('.dashboard-metrics-grid')!
+    expect(Array.from(grid.querySelectorAll('.dashboard-metric-value')).map((el) => el.textContent)).toEqual([
+      '100%',
+      '0',
+      '0',
+      '—',
+    ])
+  })
+
+  it('drills down from a trend chart bar to a filtered Attestations page', async () => {
+    renderPage()
+
+    const barLink = screen.getByRole('link', { name: /2026-05-20: verified 0, pending 0, failed 1/i })
+    expect(barLink).toHaveAttribute('href', '/attestations?status=failed&from=2026-05-20&to=2026-05-20')
+
+    fireEvent.click(barLink)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Attestations' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Filter by status')).toHaveValue('failed')
+    const detailLinks = screen.getAllByRole('link', { name: /view details/i })
+    expect(detailLinks).toHaveLength(1)
+    expect(detailLinks[0]).toHaveAttribute('href', '/attestations/att-003')
   })
 
   it('staggers card animations by 60ms in render order', () => {
     const { container } = renderPage()
 
     const cards = Array.from(container.querySelectorAll<HTMLElement>('.dashboard-metric-card'))
-    expect(cards).toHaveLength(3)
-    expect(cards.map((card) => card.style.transitionDelay)).toEqual(['0ms', '60ms', '120ms'])
-    expect(cards.map((card) => card.style.animationDelay)).toEqual(['0ms', '60ms', '120ms'])
+    expect(cards).toHaveLength(4)
+    expect(cards.map((card) => card.style.transitionDelay)).toEqual(['0ms', '60ms', '120ms', '180ms'])
+    expect(cards.map((card) => card.style.animationDelay)).toEqual(['0ms', '60ms', '120ms', '180ms'])
   })
 
   it('keeps cards in the pre-animation state until they intersect the viewport', () => {
@@ -245,7 +318,7 @@ describe('Dashboard Page – key metrics', () => {
       const animated = container.querySelectorAll<HTMLElement>(
         '.dashboard-metric-card.chart-entrance-animate',
       )
-      expect(animated).toHaveLength(3)
+      expect(animated).toHaveLength(4)
       animated.forEach((card) => {
         expect(card.style.willChange).toBe('')
       })

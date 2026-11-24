@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useToast } from './ToastContext'
+import { validatePassword, scorePassword } from '../utils/passwordPolicy'
+import { createProofPasswordVerifier } from '../utils/proofShare'
 
 // Shared password strength logic
 function computeStrength(password: string): number {
@@ -22,6 +24,7 @@ const STRENGTH_COPY: Record<number, string> = {
   2: 'Fair — try adding uppercase and numbers',
   3: 'Good — add a symbol for maximum strength',
   4: 'Strong enough for a production workspace',
+  5: 'Strong enough for a production workspace',
 }
 
 interface ProofShareModalProps {
@@ -39,11 +42,13 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
   const [expiry, setExpiry] = useState('none')
   const [generatedLink, setGeneratedLink] = useState('')
   const [isCopied, setIsCopied] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   
   const { addToast } = useToast()
   const modalRef = useRef<HTMLDivElement>(null)
   
-  const strength = computeStrength(password)
+  const passwordPolicy = validatePassword(password)
+  const strength = scorePassword(password)
   
   // Close on Escape
   useEffect(() => {
@@ -72,18 +77,34 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
   if (!isOpen) return null
 
   const handleGenerateLink = () => {
+    if (permission === 'password' && !passwordPolicy.valid) {
+  const handleGenerateLink = async () => {
     if (permission === 'password' && strength < 2) {
       addToast('Please enter a stronger password.', 'error')
       return
     }
 
-    // Deterministic demo URL derived solely from the attestation ID
-    const params = new URLSearchParams({ share: attestationId })
-    if (expiry !== 'none') params.set('expires', expiry)
-    if (permission === 'password') params.set('protected', '1')
-    const link = `https://veritasor.app/proof/${attestationId}?${params.toString()}`
-    setGeneratedLink(link)
-    addToast('Link generated successfully.', 'success')
+    setIsGenerating(true)
+    try {
+      const params = new URLSearchParams({ share: attestationId })
+      if (expiry !== 'none') {
+        params.set('expires', expiry)
+        params.set('createdAt', new Date().toISOString())
+      }
+      let passwordFragment = ''
+      if (permission === 'password') {
+        const verifier = await createProofPasswordVerifier(password)
+        params.set('protected', '1')
+        passwordFragment = `#password=${encodeURIComponent(verifier)}`
+      }
+      const link = `https://veritasor.app/proof/${attestationId}?${params.toString()}${passwordFragment}`
+      setGeneratedLink(link)
+      addToast('Link generated successfully.', 'success')
+    } catch {
+      addToast('Could not generate a protected link in this browser.', 'error')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const handleCopy = async () => {
@@ -192,7 +213,11 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  aria-describedby="share-password-strength"
+                  aria-describedby={
+                    password.length > 0 && passwordPolicy.failures.length > 0
+                      ? 'share-password-strength share-password-failures'
+                      : 'share-password-strength'
+                  }
                 />
                 <button
                   type="button"
@@ -221,8 +246,25 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
                     }
                   />
                 ))}
-                <p className="auth-strength-copy">{STRENGTH_COPY[strength]}</p>
+                <p className="auth-strength-copy">{STRENGTH_COPY[strength] ?? STRENGTH_COPY[4]}</p>
               </div>
+              {password.length > 0 && passwordPolicy.failures.length > 0 && (
+                <ul
+                  id="share-password-failures"
+                  className="auth-message auth-message-help"
+                  aria-label="Password requirements"
+                  style={{
+                    margin: '0.5rem 0 0',
+                    paddingLeft: '1.25rem',
+                    color: 'var(--muted)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  {passwordPolicy.failures.map((failure) => (
+                    <li key={failure}>{failure}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           
@@ -301,10 +343,11 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
             <button 
               type="button" 
               onClick={handleGenerateLink}
+              disabled={isGenerating}
               className="auth-button auth-button-primary"
               style={{ width: 'auto', padding: '0.5rem 1.5rem' }}
             >
-              Generate Link
+              {isGenerating ? 'Generating…' : 'Generate Link'}
             </button>
           )}
         </div>

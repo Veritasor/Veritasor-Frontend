@@ -1,5 +1,14 @@
 import { useState } from 'react'
 import type { OnboardingDraft } from '../../hooks/useOnboardingDraft'
+import { formatFileSize, type UploadProgress } from '../../services/onboardingApi'
+
+const FILE_FIELD_LABELS: Record<string, string> = {
+  selfie: 'Selfie verification',
+  registrationCert: 'Registration cert.',
+  govIdFront: 'Gov. ID front',
+  govIdBack: 'Gov. ID back',
+  proofOfAddress: 'Proof of address',
+}
 
 type Props = {
   draft: OnboardingDraft
@@ -8,6 +17,10 @@ type Props = {
   submitting: boolean
   submitError?: string | null
   onRetry?: () => void
+  onCancel?: () => void
+  uploadProgress?: UploadProgress | null
+  fileErrors?: Record<string, string>
+  onRetryFile?: (fieldKey: string) => void
 }
 
 type ReviewRow = {
@@ -32,7 +45,18 @@ function rows(entries: [string, string][]): ReviewRow[] {
   return entries.filter(([, v]) => v).map(([label, value]) => ({ label, value }))
 }
 
-export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting, submitError, onRetry }: Props) {
+export default function ReviewSubmitStep({
+  draft,
+  onBack,
+  onSubmit,
+  submitting,
+  submitError,
+  onRetry,
+  onCancel,
+  uploadProgress,
+  fileErrors,
+  onRetryFile,
+}: Props) {
   const { business, owner, selfie, documents, bank } = draft
   const [showAccountNumber, setShowAccountNumber] = useState(false)
   const [showIbanSwift, setShowIbanSwift] = useState(false)
@@ -99,6 +123,56 @@ export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting, 
         Review your information before submitting. Once submitted, your application will be set to <strong style={{ color: 'var(--text)' }}>pending review</strong> and our compliance team will be in touch within 2 business days.
       </p>
 
+      {submitting && (
+        <div
+          className="ob-upload-progress"
+          style={{
+            marginTop: '1rem',
+            padding: '0.875rem 1rem',
+            borderRadius: 'var(--radius-sm, 8px)',
+            background: 'var(--surface-strong, rgba(255, 255, 255, 0.04))',
+            border: '1px solid var(--border, rgba(255, 255, 255, 0.12))',
+            display: 'grid',
+            gap: '0.5rem',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
+            <span>
+              Uploading application…{' '}
+              <strong>{uploadProgress ? `${uploadProgress.percent}%` : '0%'}</strong>
+            </span>
+            {uploadProgress && uploadProgress.total > 0 && (
+              <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>
+                {formatFileSize(uploadProgress.loaded)} / {formatFileSize(uploadProgress.total)}
+              </span>
+            )}
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Upload progress"
+            aria-valuenow={uploadProgress?.percent ?? 0}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            style={{
+              height: '0.5rem',
+              width: '100%',
+              borderRadius: '999px',
+              background: 'var(--border, rgba(255, 255, 255, 0.12))',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${uploadProgress?.percent ?? 0}%`,
+                background: 'var(--accent, #5eead4)',
+                transition: 'width 120ms ease-out',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {submitError && (
         <div
           className="wizard-inline-alert"
@@ -124,6 +198,49 @@ export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting, 
         </div>
       )}
 
+      {fileErrors && Object.keys(fileErrors).length > 0 && (
+        <div
+          className="ob-file-errors"
+          role="alert"
+          aria-label="File upload errors"
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.875rem 1rem',
+            borderRadius: 'var(--radius-sm, 8px)',
+            background: 'var(--danger-soft, rgba(239, 68, 68, 0.1))',
+            border: '1px solid var(--danger, #ef4444)',
+            display: 'grid',
+            gap: '0.5rem',
+          }}
+        >
+          {Object.entries(fileErrors).map(([fieldKey, message]) => (
+            <div
+              key={fieldKey}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                fontSize: '0.875rem',
+              }}
+            >
+              <span>
+                <strong>{FILE_FIELD_LABELS[fieldKey] ?? fieldKey}:</strong> {message}
+              </span>
+              <button
+                type="button"
+                className="ob-btn ob-btn-secondary"
+                onClick={() => (onRetryFile ? onRetryFile(fieldKey) : (onRetry ?? onSubmit)())}
+                disabled={submitting}
+                style={{ minHeight: '2rem', padding: '0.25rem 0.75rem', fontSize: '0.8rem', flexShrink: 0 }}
+              >
+                Retry {FILE_FIELD_LABELS[fieldKey] ?? fieldKey}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="ob-review-sections">
         <ReviewSection title="Business details" rows={businessRows} />
         <ReviewSection title="Owner / Director" rows={ownerRows} />
@@ -134,6 +251,15 @@ export default function ReviewSubmitStep({ draft, onBack, onSubmit, submitting, 
 
       <div className="ob-actions">
         <button type="button" className="ob-btn ob-btn-secondary" onClick={onBack} disabled={submitting}>← Back</button>
+        {submitting && onCancel && (
+          <button
+            type="button"
+            className="ob-btn ob-btn-secondary"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="button"
           className="ob-btn ob-btn-primary"

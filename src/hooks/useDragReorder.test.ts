@@ -50,7 +50,9 @@ describe('public contract types', () => {
     const handlers: DragReorderHandlers = {
       handlePointerDown: result.current.handlePointerDown,
       handlePointerEnter: result.current.handlePointerEnter,
+      handlePointerMove: result.current.handlePointerMove,
       handlePointerUp: result.current.handlePointerUp,
+      handlePointerCancel: result.current.handlePointerCancel,
       handleKeyboardGrab: result.current.handleKeyboardGrab,
       handleKeyDown: result.current.handleKeyDown,
       moveUp: result.current.moveUp,
@@ -125,6 +127,53 @@ describe('pointer drag flow', () => {
     })
 
     expect(result.current.dropTargetIndex).toBe(2)
+  })
+
+  it('uses pointer coordinates to select a row while pointer capture is active', () => {
+    const { result } = makeHook()
+    const rows = [0, 1, 2].map((index) => ({
+      getBoundingClientRect: () => ({
+        top: index * 50,
+        height: 50,
+      }),
+    }))
+    const list = { children: rows, parentElement: null }
+
+    act(() => {
+      result.current.handlePointerDown(0)(noopEvent)
+      result.current.handlePointerMove({ currentTarget: list, clientY: 60 })
+    })
+
+    expect(result.current.dropTargetIndex).toBe(1)
+    expect(result.current.announcement).toBe('Alpha over position 2 of 3.')
+  })
+
+  it('scrolls the viewport when dragging near an edge', () => {
+    const { result } = makeHook()
+    const rows = [0, 1, 2].map((index) => ({
+      getBoundingClientRect: () => ({ top: index * 50, height: 50 }),
+    }))
+    const list = { children: rows, parentElement: null }
+    const callbacks: FrameRequestCallback[] = []
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callbacks.push(callback)
+      return callbacks.length
+    })
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {})
+
+    act(() => {
+      result.current.handlePointerDown(0)(noopEvent)
+      result.current.handlePointerMove({ currentTarget: list, clientY: window.innerHeight - 4 })
+    })
+    act(() => callbacks.shift()?.(0))
+
+    expect(requestFrame).toHaveBeenCalled()
+    expect(scrollBy).toHaveBeenCalledWith(0, expect.any(Number))
+    expect((scrollBy.mock.calls[0][1] as number)).toBeGreaterThan(0)
+
+    act(() => result.current.handlePointerUp())
+    requestFrame.mockRestore()
+    scrollBy.mockRestore()
   })
 
   it('pointerenter is a no-op when no drag is in progress', () => {
@@ -239,38 +288,59 @@ describe('pointer drag flow', () => {
     expect(releasePointerCapture).toHaveBeenCalledWith(7)
   })
 
-  it('handles pointer cancel gracefully by releasing capture and resetting state', () => {
-    const { result } = makeHook()
+  it('cancels pointer drag without reordering and releases capture', () => {
+    const onReorder = vi.fn<(next: Item[]) => void>()
+    const { result: dragResult } = makeHook(ITEMS, onReorder)
     const setPointerCapture = vi.fn()
     const releasePointerCapture = vi.fn()
     const element = { setPointerCapture, releasePointerCapture }
 
     act(() => {
-      result.current.handlePointerDown(0)({
+      dragResult.current.handlePointerDown(0)({
         preventDefault: vi.fn(),
         pointerId: 101,
         currentTarget: element,
       })
     })
 
-    expect(result.current.grabbedIndex).toBe(0)
+    expect(dragResult.current.grabbedIndex).toBe(0)
 
     act(() => {
-      result.current.handlePointerEnter(2)()
+      dragResult.current.handlePointerEnter(2)()
     })
-    expect(result.current.dropTargetIndex).toBe(2)
+    expect(dragResult.current.dropTargetIndex).toBe(2)
 
-    // Simulated pointercancel
     act(() => {
-      result.current.handlePointerUp({
+      dragResult.current.handlePointerCancel({
         pointerId: 101,
         currentTarget: element,
       })
     })
 
     expect(releasePointerCapture).toHaveBeenCalledWith(101)
-    expect(result.current.grabbedIndex).toBeNull()
-    expect(result.current.dropTargetIndex).toBeNull()
+    expect(onReorder).not.toHaveBeenCalled()
+    expect(dragResult.current.grabbedIndex).toBeNull()
+    expect(dragResult.current.dropTargetIndex).toBeNull()
+    expect(dragResult.current.announcement).toContain('cancelled')
+  })
+
+  it('ignores pointerup from a different pointer', () => {
+    const onReorder = vi.fn<(next: Item[]) => void>()
+    const { result } = makeHook(ITEMS, onReorder)
+    const element = { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn() }
+
+    act(() => {
+      result.current.handlePointerDown(0)({
+        preventDefault: vi.fn(),
+        pointerId: 1,
+        currentTarget: element,
+      })
+      result.current.handlePointerEnter(2)()
+      result.current.handlePointerUp({ pointerId: 2 })
+    })
+
+    expect(result.current.grabbedIndex).toBe(0)
+    expect(onReorder).not.toHaveBeenCalled()
   })
 
   it('resets state after a completed drag', () => {
@@ -429,6 +499,24 @@ describe('keyboard reorder flow', () => {
     expect(result.current.grabbedIndex).toBeNull()
     expect(onReorder).not.toHaveBeenCalled()
     expect(result.current.announcement).toContain('cancelled')
+  })
+
+  it('Escape announcement reports the current position after keyboard moves', () => {
+    const onReorder = vi.fn<(next: Item[]) => void>()
+    const { result, rerender } = makeHook(ITEMS, onReorder)
+
+    act(() => {
+      result.current.handleKeyboardGrab(0)
+    })
+    act(() => {
+      result.current.handleKeyDown({ key: 'ArrowDown', preventDefault: vi.fn() })
+    })
+    rerender({ list: [ITEMS[1], ITEMS[0], ITEMS[2]], cb: onReorder })
+    act(() => {
+      result.current.handleKeyDown({ key: 'Escape', preventDefault: vi.fn() })
+    })
+
+    expect(result.current.announcement).toContain('Alpha remains at position 2 of 3')
   })
 
   it('handleKeyDown calls e.preventDefault() for handled keys', () => {

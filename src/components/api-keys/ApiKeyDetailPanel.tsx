@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { ApiKey } from '../../pages/ApiKeyManagement';
+import EditScopesModal from './EditScopesModal';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { ApiKey } from './apiKeyTypes';
 
@@ -101,15 +104,18 @@ function MetaRow({
 export interface ApiKeyDetailPanelProps {
   keyData: ApiKey | null;
   onClose: () => void;
+  onScopesUpdated?: (keyId: string, newScopes: string[]) => void;
 }
 
 export function ApiKeyDetailPanel({
   keyData,
   onClose,
+  onScopesUpdated,
 }: ApiKeyDetailPanelProps) {
   const isOpen = keyData !== null;
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [editScopesOpen, setEditScopesOpen] = useState(false);
 
   useFocusTrap(drawerRef, isOpen);
 
@@ -306,18 +312,47 @@ export function ApiKeyDetailPanel({
 
           {/* Scopes */}
           <div style={{ display: 'grid', gap: '0.5rem' }}>
-            <h3
+            <div
               style={{
-                margin: 0,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: 'var(--muted, #71717a)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
               }}
             >
-              Allowed Scopes
-            </h3>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: 'var(--muted, #71717a)',
+                }}
+              >
+                Allowed Scopes
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditScopesOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: 6,
+                  border: '1px solid var(--border, #e4e4e7)',
+                  background: 'var(--surface-strong, #f4f4f5)',
+                  color: 'var(--muted, #71717a)',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  transition: 'background 120ms ease, color 120ms ease',
+                }}
+              >
+                Edit
+              </button>
+            </div>
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
               {keyData.scopes.map((s) => (
                 <span
@@ -401,6 +436,23 @@ export function ApiKeyDetailPanel({
 
         </div>
       </div>
+
+      {/* Edit Scopes Modal */}
+      {keyData && (
+        <EditScopesModal
+          open={editScopesOpen}
+          onClose={() => setEditScopesOpen(false)}
+          keyId={keyData.id}
+          keyName={keyData.name}
+          currentScopes={keyData.scopes}
+          onUpdated={(newScopes) => {
+            if (onScopesUpdated) {
+              onScopesUpdated(keyData.id, newScopes);
+            }
+            setEditScopesOpen(false);
+          }}
+        />
+      )}
 
       {/* Keyframe animations */}
       <style>{`

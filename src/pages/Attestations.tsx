@@ -1,13 +1,40 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { memo, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
 import AttestationConfirmModal, { type FeeInfo } from '../components/AttestationConfirmModal'
 import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
 import { getAttestationChartGeometry, getAttestationChartLabelIndices } from '../utils/attestationChartData'
+import { extractIsoDate, isValidIsoDate } from '../utils/dashboardSelectors'
 import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
+import SearchFilter, { parseFilterState, type ChipDef } from '../components/SearchFilter'
 import { useToast } from '../components/ToastContext'
 import { useAttestations, type Attestation } from '../state/attestations'
 import { DEFAULT_TRIGGER_DETAILS } from '../state/attestationMocks'
+import {
+  generateOccurrences,
+  getDateInTimeZone,
+  scheduleStore,
+  useSchedules,
+  type ScheduleRule,
+} from '../store/scheduleStore'
+import { track } from '../analytics'
+
+export const PAGE_SIZE = 50
+
+const STATUS_CHIPS: ChipDef[] = [
+  { id: 'verified', label: 'Verified', color: 'success' },
+  { id: 'pending', label: 'Pending', color: 'warning' },
+  { id: 'failed', label: 'Failed', color: 'danger' },
+]
+
+const MOCK_FEE_INFO: FeeInfo = {
+  total: 2.5,
+  breakdown: [
+    { label: 'Network fee', amount: 0.001 },
+    { label: 'Attestation service', amount: 2.499 },
+  ],
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -292,7 +319,11 @@ function EmptyState({ onRunReport }: { onRunReport: () => void }) {
     </section>
   );
 }
-function AttestationTrendChart({ attestations }: { attestations: AttestationListItem[] }) {
+const AttestationTrendChart = memo(function AttestationTrendChart({
+  attestations,
+}: {
+  attestations: AttestationListItem[]
+}) {
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const buckets = buildTrendBuckets(attestations);
@@ -336,7 +367,7 @@ function AttestationTrendChart({ attestations }: { attestations: AttestationList
 
       {view === 'table' ? (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <table aria-label="Attestation history" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
             <caption style={{ textAlign: 'left', marginBottom: '0.5rem', color: 'var(--muted)' }}>Attestation volume by date and status</caption>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)', textAlign: 'left' }}>
@@ -362,6 +393,7 @@ function AttestationTrendChart({ attestations }: { attestations: AttestationList
         </div>
       ) : (
         <>
+          <figure aria-label="Attestation history" style={{ margin: 0 }}>
           <div role="status" style={{ minHeight: '1.5rem', fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
             {selected
               ? `${selected.label}: ${selected.total} attestations, ${selected.counts.verified} verified, ${selected.counts.pending} pending, ${selected.counts.failed} failed`
@@ -468,13 +500,14 @@ function AttestationTrendChart({ attestations }: { attestations: AttestationList
               );
             })}
           </div>
+          </figure>
         </>
       )}
     </section>
   );
-}
+})
 
-function TimelineRow({ item }: { item: AttestationListItem }) {
+const TimelineRow = memo(function TimelineRow({ item }: { item: AttestationListItem }) {
   const meta = STATUS_META[item.status];
   const formattedDate = formatCompactDate(item.createdAt);
   const shortRoot = middleEllipsis(item.merkleRoot, 12, 12);
@@ -589,9 +622,132 @@ function TimelineRow({ item }: { item: AttestationListItem }) {
       </article>
     </li>
   );
-}
+})
 
 // ─── Page ─────────────────────────────────────────────────────────────────
+
+function getUpcomingOccurrences(rule: ScheduleRule, count: number) {
+  const now = new Date()
+  return generateOccurrences(rule, {
+    fromDate: getDateInTimeZone(now, rule.timeZone),
+    after: now.toISOString(),
+    count,
+  })
+}
+
+function AttestationScheduleView() {
+  const schedules = useSchedules()
+  const [editingRule, setEditingRule] = useState<ScheduleRule | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+
+  const scheduledDates = useMemo(
+    () =>
+      schedules.flatMap((rule) =>
+        getUpcomingOccurrences(rule, 10).map(({ date }) => date),
+      ),
+    [schedules],
+  )
+
+  const upcomingRuns = useMemo(
+    () =>
+      schedules
+        .flatMap((rule) =>
+          getUpcomingOccurrences(rule, 5).map((occurrence) => ({ rule, occurrence })),
+        )
+        .sort((a, b) => a.occurrence.scheduledAt.localeCompare(b.occurrence.scheduledAt))
+        .slice(0, 10),
+    [schedules],
+  )
+
+  function saveRule(rule: Parameters<typeof scheduleStore.add>[0]) {
+    if (editingRule) {
+      scheduleStore.update(editingRule.id, rule)
+      setEditingRule(null)
+    } else {
+      scheduleStore.add(rule)
+    }
+  }
+
+  function deleteRule(rule: ScheduleRule) {
+    scheduleStore.remove(rule.id)
+    if (editingRule?.id === rule.id) setEditingRule(null)
+    setAnnouncement('Attestation schedule deleted.')
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: '1.25rem', marginTop: '1.25rem' }}>
+      <AttestationCalendar
+        key={editingRule?.id ?? 'new-schedule'}
+        scheduledDates={scheduledDates}
+        initialRule={editingRule ?? undefined}
+        onSave={saveRule}
+        onCancelEdit={() => setEditingRule(null)}
+      />
+
+      <section
+        aria-label="Saved attestation schedules"
+        style={{
+          padding: 'var(--density-padding)',
+          borderRadius: 14,
+          border: '1px solid var(--border)',
+          background: 'var(--surface)',
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Upcoming runs</h2>
+        {upcomingRuns.length === 0 ? (
+          <p style={{ color: 'var(--muted)' }}>No schedules saved yet.</p>
+        ) : (
+          <ol style={{ display: 'grid', gap: '0.65rem', paddingLeft: '1.25rem' }}>
+            {upcomingRuns.map(({ rule, occurrence }) => (
+              <li key={`${rule.id}-${occurrence.scheduledAt}`}>
+                <time dateTime={occurrence.scheduledAt}>
+                  {new Intl.DateTimeFormat(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                    timeZone: rule.timeZone,
+                  }).format(new Date(occurrence.scheduledAt))}
+                </time>
+                {' — '}
+                {rule.cadence} schedule ({rule.timeZone})
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {schedules.length > 0 && (
+          <div style={{ display: 'grid', gap: '0.65rem', marginTop: '1rem' }}>
+            {schedules.map((rule) => (
+              <div
+                key={rule.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap',
+                  borderTop: '1px solid var(--border)',
+                  paddingTop: '0.75rem',
+                }}
+              >
+                <span>
+                  {rule.cadence} from {rule.startDate} at {rule.localTime} ({rule.timeZone})
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" onClick={() => setEditingRule(rule)}>Edit</button>
+                  <button type="button" onClick={() => deleteRule(rule)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </div>
+    </div>
+  )
+}
+const VALID_STATUS_FILTERS = new Set<AttestationStatus>(['verified', 'pending', 'failed'])
 
 export default function Attestations() {
   // Modal state
@@ -600,20 +756,94 @@ export default function Attestations() {
   const [error, setError] = useState<string | null>(null)
   const { list: attestations, trigger } = useAttestations()
   const { addToast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeView, setActiveView] = useState<'overview' | 'schedule'>('overview')
 
-  // Mock scheduled runs for calendar indicators.
-  const scheduledDates = [
-    '2026-05-15',
-    '2026-05-28',
-  ]
+  const filters = useMemo(() => parseFilterState(searchParams), [searchParams])
 
-  // Mock attestation details (would come from API in real app)
-  const mockFeeInfo: FeeInfo = {
-    total: 2.5,
-    breakdown: [
-      { label: 'Network fee', amount: 0.001 },
-      { label: 'Attestation service', amount: 2.499 },
-    ],
+  const filteredAttestations = useMemo(() => {
+    const normalizedQuery = filters.query.trim().toLowerCase()
+    return attestations.filter((item) => {
+      if (filters.activeChips.length > 0 && !filters.activeChips.includes(item.status)) {
+        return false
+      }
+      if (normalizedQuery) {
+        const matches =
+          item.id.toLowerCase().includes(normalizedQuery) ||
+          item.merkleRoot.toLowerCase().includes(normalizedQuery) ||
+          item.status.toLowerCase().includes(normalizedQuery) ||
+          item.source.toLowerCase().includes(normalizedQuery) ||
+          item.period.toLowerCase().includes(normalizedQuery)
+        if (!matches) return false
+      }
+      if (filters.dateFrom || filters.dateTo) {
+        const dateKey = item.createdAt.slice(0, 10)
+        if (filters.dateFrom && dateKey < filters.dateFrom) return false
+        if (filters.dateTo && dateKey > filters.dateTo) return false
+      }
+      return true
+    })
+  }, [attestations, filters])
+
+  const totalPages = Math.max(1, Math.ceil(filteredAttestations.length / PAGE_SIZE))
+  const rawPage = Number(searchParams.get('page'))
+  const currentPage =
+    Number.isInteger(rawPage) && rawPage >= 1 ? Math.min(rawPage, totalPages) : 1
+
+  const paginatedAttestations = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE
+    return filteredAttestations.slice(startIndex, startIndex + PAGE_SIZE)
+  }, [filteredAttestations, currentPage])
+
+  const rawStatus = searchParams.get('status')?.toLowerCase() ?? ''
+  const statusFilter: AttestationStatus | 'all' = VALID_STATUS_FILTERS.has(rawStatus as AttestationStatus)
+    ? (rawStatus as AttestationStatus)
+    : 'all'
+  const rawFrom = searchParams.get('from') ?? undefined
+  const rawTo = searchParams.get('to') ?? undefined
+  const fromFilter = isValidIsoDate(rawFrom) ? rawFrom : ''
+  const toFilter = isValidIsoDate(rawTo) ? rawTo : ''
+  const hasActiveFilters = statusFilter !== 'all' || Boolean(fromFilter) || Boolean(toFilter)
+
+  const filteredAttestations = useMemo(() => {
+    return attestations.filter((item) => {
+      if (statusFilter !== 'all' && item.status !== statusFilter) return false
+      const itemDate = extractIsoDate(item)
+      if (fromFilter && (!itemDate || itemDate < fromFilter)) return false
+      if (toFilter && (!itemDate || itemDate > toFilter)) return false
+      return true
+    })
+  }, [attestations, statusFilter, fromFilter, toFilter])
+
+  function updateFilterParam(key: 'status' | 'from' | 'to', value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (!value || value === 'all') {
+      next.delete(key)
+    } else {
+      next.set(key, value)
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  function clearFilters() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('status')
+    next.delete('from')
+    next.delete('to')
+    setSearchParams(next, { replace: true })
+  }
+
+  function setPage(nextPage: number) {
+    const clamped = Math.max(1, Math.min(totalPages, nextPage))
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (clamped <= 1) next.delete('page')
+        else next.set('page', String(clamped))
+        return next
+      },
+      { replace: true },
+    )
   }
 
   function handleOpenModal() {
@@ -633,6 +863,11 @@ export default function Attestations() {
 
     try {
       await trigger(DEFAULT_TRIGGER_DETAILS)
+      track('attestation_created', {
+        source: DEFAULT_TRIGGER_DETAILS.source,
+        period: DEFAULT_TRIGGER_DETAILS.period,
+        recordCount: DEFAULT_TRIGGER_DETAILS.recordCount,
+      })
       addToast('Attestation submitted successfully.', 'success')
       setModalOpen(false)
     } catch (err) {
@@ -660,20 +895,290 @@ export default function Attestations() {
           </p>
         </header>
 
-        <AttestationCalendar scheduledDates={scheduledDates} />
+        <div
+          role="tablist"
+          aria-label="Attestations sections"
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            const nextView = activeView === 'overview' ? 'schedule' : 'overview'
+            setActiveView(nextView)
+            document.getElementById(`attestations-tab-${nextView}`)?.focus()
+          }}
+          style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', borderBottom: '1px solid var(--border)' }}
+        >
+          {(['overview', 'schedule'] as const).map((view) => (
+            <button
+              key={view}
+              id={`attestations-tab-${view}`}
+              type="button"
+              role="tab"
+              aria-selected={activeView === view}
+              aria-controls={`attestations-panel-${view}`}
+              tabIndex={activeView === view ? 0 : -1}
+              onClick={() => setActiveView(view)}
+              style={{
+                minHeight: 44,
+                padding: '0.55rem 0.9rem',
+                border: 0,
+                borderBottom: activeView === view ? '2px solid var(--accent)' : '2px solid transparent',
+                background: 'transparent',
+                color: activeView === view ? 'var(--text)' : 'var(--muted)',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              {view === 'overview' ? 'Overview' : 'Schedule'}
+            </button>
+          ))}
+        </div>
 
-        {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
+        <section
+          id="attestations-panel-schedule"
+          role="tabpanel"
+          aria-labelledby="attestations-tab-schedule"
+          tabIndex={0}
+          hidden={activeView !== 'schedule'}
+        >
+          <AttestationScheduleView />
+        </section>
+        <section
+          id="attestations-panel-overview"
+          role="tabpanel"
+          aria-labelledby="attestations-tab-overview"
+          tabIndex={0}
+          hidden={activeView !== 'overview'}
+        >
+          {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
+        {attestations.length > 0 && <AttestationTrendChart attestations={filteredAttestations} />}
 
-        <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
+        <section
+          aria-label="Filter attestations"
+          className="attestations-filter-bar"
+          style={{
+            marginTop: '1.25rem',
+            padding: 'var(--density-padding)',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'flex-end',
+            gap: '0.75rem',
+          }}
+        >
+          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            <span>Status</span>
+            <select
+              aria-label="Filter by status"
+              value={statusFilter}
+              onChange={(e) => updateFilterParam('status', e.target.value)}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.4rem 0.65rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+              }}
+            >
+              <option value="all">All statuses</option>
+              <option value="verified">Verified</option>
+              <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
+            </select>
+          </label>
+
+          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            <span>From</span>
+            <input
+              type="date"
+              aria-label="Filter from date"
+              value={fromFilter}
+              max={toFilter || undefined}
+              onChange={(e) => updateFilterParam('from', e.target.value)}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.4rem 0.65rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+              }}
+            />
+          </label>
+
+          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            <span>To</span>
+            <input
+              type="date"
+              aria-label="Filter to date"
+              value={toFilter}
+              min={fromFilter || undefined}
+              onChange={(e) => updateFilterParam('to', e.target.value)}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.4rem 0.65rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+              }}
+            />
+          </label>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.45rem 0.75rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'rgba(148, 163, 184, 0.08)',
+                color: 'var(--text)',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+        </section>
+
+          <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
           {attestations.length === 0 ? (
             <EmptyState onRunReport={handleOpenModal} />
+          ) : filteredAttestations.length === 0 ? (
+            <div
+              role="status"
+              style={{
+                padding: 'var(--density-padding)',
+                borderRadius: 12,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                display: 'grid',
+                gap: '0.75rem',
+              }}
+            >
+              <p style={{ margin: 0, color: 'var(--muted)' }}>
+                No attestations match the selected filters.
+              </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  style={{
+                    minHeight: 'var(--density-touch-min)',
+                    padding: '0.5rem 0.85rem',
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: 'rgba(148, 163, 184, 0.12)',
+                    color: 'var(--text)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            </div>
           ) : (
+            <>
+              <SearchFilter
+                placeholder="Search attestations by ID, Merkle root, source, or status…"
+                chips={STATUS_CHIPS}
+                showDateRange
+                resultCount={filteredAttestations.length}
+                totalCount={attestations.length}
+                entityLabel="attestation"
+              />
+
+              {filteredAttestations.length === 0 ? (
+                <p
+                  style={{
+                    marginTop: '1rem',
+                    padding: 'var(--density-padding)',
+                    borderRadius: 12,
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  No attestations match the current filters.
+                </p>
+              ) : (
+                <>
+                  <ol style={{ margin: '1rem 0 0', padding: 0 }}>
+                    {paginatedAttestations.map((item) => (
+                      <TimelineRow key={item.id} item={item} />
+                    ))}
+                  </ol>
+
+                  {totalPages > 1 && (
+                    <nav
+                      aria-label="Attestations pagination"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        marginTop: '1.25rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setPage(currentPage - 1)}
+                        disabled={currentPage <= 1}
+                        style={{
+                          minHeight: 'var(--density-touch-min)',
+                          padding: '0.5rem 0.9rem',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'rgba(148, 163, 184, 0.08)',
+                          color: 'var(--text)',
+                          fontWeight: 700,
+                          cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                          opacity: currentPage <= 1 ? 0.5 : 1,
+                        }}
+                      >
+                        Previous
+                      </button>
+                      <span style={{ color: 'var(--muted)', fontSize: '0.9rem', fontWeight: 600 }}>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPage(currentPage + 1)}
+                        disabled={currentPage >= totalPages}
+                        style={{
+                          minHeight: 'var(--density-touch-min)',
+                          padding: '0.5rem 0.9rem',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'rgba(148, 163, 184, 0.08)',
+                          color: 'var(--text)',
+                          fontWeight: 700,
+                          cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                          opacity: currentPage >= totalPages ? 0.5 : 1,
+                        }}
+                      >
+                        Next
+                      </button>
+                    </nav>
+                  )}
+                </>
+              )}
+            </>
             <ol style={{ margin: 0, padding: 0 }}>
-              {attestations.map((item) => (
+              {filteredAttestations.map((item) => (
                 <TimelineRow key={item.id} item={item} />
               ))}
             </ol>
           )}
+          </section>
         </section>
       </div>
 
@@ -691,7 +1196,7 @@ export default function Attestations() {
         isLoading={isLoading}
         error={error}
         details={DEFAULT_TRIGGER_DETAILS}
-        feeInfo={mockFeeInfo}
+        feeInfo={MOCK_FEE_INFO}
       />
     </>
   )
