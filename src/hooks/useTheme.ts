@@ -48,6 +48,8 @@ export function useTheme(userId?: string) {
   const subscribeToStore = useCallback(
     (callback: () => void): (() => void) => {
       const handleStorage = (event: StorageEvent) => {
+        // Only react to localStorage changes (not sessionStorage) for our keys.
+        if (event.storageArea && event.storageArea !== localStorage) return
         if (
           event.key === storageKey ||
           event.key === BASE_STORAGE_KEY ||

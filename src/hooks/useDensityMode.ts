@@ -99,6 +99,23 @@ export function useDensityMode(
     [storageKey, effectiveWorkspace],
   );
 
+  // Cross-tab sync: another tab writing this workspace's key updates us.
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.storageArea && event.storageArea !== localStorage) return;
+      if (event.key !== storageKey && event.key !== null) return;
+      let raw: string | null = null;
+      try {
+        raw = localStorage.getItem(storageKey);
+      } catch {
+        raw = null;
+      }
+      setDensityState(raw === "compact" ? "compact" : "comfortable");
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [storageKey]);
+
   // On mount / workspace change, sync with localStorage and attempt server read
   useEffect(() => {
     const abortController = new AbortController();

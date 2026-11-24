@@ -31,6 +31,40 @@ describe('useDensityMode', () => {
     expect(localStorage.getItem('veritasor_density_ws-1')).toBe('compact')
   })
 
+  it('updates when another tab changes the preference (StorageEvent)', async () => {
+    localStorage.setItem('veritasor_density_ws-x', 'comfortable')
+    fetchMock.mockResolvedValue({ ok: false })
+    const { result } = renderHook(() => useDensityMode('ws-x'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    localStorage.setItem('veritasor_density_ws-x', 'compact')
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'veritasor_density_ws-x',
+          newValue: 'compact',
+          storageArea: localStorage,
+        }),
+      )
+    })
+    expect(result.current.density).toBe('compact')
+  })
+
+  it('ignores storage events for other workspaces', async () => {
+    localStorage.setItem('veritasor_density_ws-y', 'comfortable')
+    fetchMock.mockResolvedValue({ ok: false })
+    const { result } = renderHook(() => useDensityMode('ws-y'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    localStorage.setItem('veritasor_density_ws-y', 'compact')
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: 'veritasor_density_other', newValue: 'compact' }),
+      )
+    })
+    expect(result.current.density).toBe('comfortable')
+  })
+
   it('reads initial value from localStorage when valid', async () => {
     localStorage.setItem('veritasor_density_ws-2', 'compact')
     fetchMock.mockResolvedValueOnce({ ok: false })
