@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 export interface OnlineStatus {
   isOnline: boolean
-  retry: () => void
+  retry: () => Promise<boolean>
 }
 
 /**
@@ -36,11 +36,12 @@ export function useOnlineStatus(apiBaseUrl = ''): OnlineStatus {
     }
   }, [])
 
-  const retry = useCallback(async () => {
+  const retry = useCallback(async (): Promise<boolean> => {
     if (!apiBaseUrl) {
       // No endpoint configured – just check the browser flag.
-      setIsOnline(navigator.onLine)
-      return
+      const online = typeof navigator !== 'undefined' ? navigator.onLine : true
+      setIsOnline(online)
+      return online
     }
     try {
       const res = await fetch(apiBaseUrl, {
@@ -49,8 +50,10 @@ export function useOnlineStatus(apiBaseUrl = ''): OnlineStatus {
         signal: AbortSignal.timeout(5000),
       })
       setIsOnline(res.ok)
+      return res.ok
     } catch {
       setIsOnline(false)
+      return false
     }
   }, [apiBaseUrl])
 
