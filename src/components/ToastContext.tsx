@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { ToastSeverity } from './toastRules';
 import { newId } from '../utils/secureRandom';
 
@@ -77,19 +77,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [],
   );
 
-  return (
-    <ToastContext.Provider
-      value={{
-        toasts,
-        addToast,
-        removeToast,
-        dismissTopToast,
-        dismissAllToasts,
-      }}
-    >
-      {children}
-    </ToastContext.Provider>
+  const value = useMemo(
+    () => ({
+      toasts,
+      addToast,
+      removeToast,
+      dismissTopToast,
+      dismissAllToasts,
+    }),
+    [toasts, addToast, removeToast, dismissTopToast, dismissAllToasts],
   );
+
+  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
 };
 
 export const useToast = () => {

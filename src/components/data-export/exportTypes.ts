@@ -40,6 +40,8 @@ export interface ExportJob {
   error: string | null
   /** Optional email for async delivery notification. */
   notifyEmail?: string | null
+  cancelled?: boolean
+  byteSize?: number
 }
 
 export const FORMAT_META: Record<

@@ -32,6 +32,10 @@ export interface AddressValue {
   isManual: boolean
 }
 
+export interface AddressFetchOptions {
+  signal: AbortSignal
+}
+
 export interface AddressAutocompleteProps {
   /** Field label */
   label?: string
@@ -47,7 +51,7 @@ export interface AddressAutocompleteProps {
    * Async function that returns suggestions for a given query.
    * The default mock returns fake data; replace with a real geocoder call.
    */
-  fetchSuggestions?: (query: string) => Promise<AddressSuggestion[]>
+  fetchSuggestions?: (query: string, options?: AddressFetchOptions) => Promise<AddressSuggestion[]>
   /** Whether the field is required */
   required?: boolean
   /** External validation error */
@@ -121,6 +125,8 @@ export default function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const ignoreNextBlur = useRef(false)
+  const activeRequestRef = useRef<AbortController | null>(null)
+  const requestIdRef = useRef(0)
 
   const debouncedQuery = useDebounce(query, 300)
 
@@ -130,19 +136,33 @@ export default function AddressAutocomplete({
     if (value?.isManual !== undefined) setManualMode(value.isManual)
   }, [value])
 
-  // Fetch suggestions when query changes
   useEffect(() => {
-    if (manualMode) return
+    const requestId = ++requestIdRef.current
+    activeRequestRef.current?.abort()
+    activeRequestRef.current = null
+
+    if (manualMode) {
+      setSuggestions([])
+      setOpen(false)
+      setLoading(false)
+      return
+    }
+
     const q = debouncedQuery.trim()
     if (q.length < 2) {
       setSuggestions([])
       setOpen(false)
+      setLoading(false)
       return
     }
-    let cancelled = false
+
+    const controller = new AbortController()
+    activeRequestRef.current = controller
+    const isStale = () => requestId !== requestIdRef.current || controller.signal.aborted
+
     setLoading(true)
-    fetchSuggestions(q).then(results => {
-      if (cancelled) return
+    fetchSuggestions(q, { signal: controller.signal }).then(results => {
+      if (isStale()) return
       setSuggestions(results)
       setOpen(true)
       setActiveIdx(-1)
@@ -153,9 +173,17 @@ export default function AddressAutocomplete({
           : `${results.length} suggestion${results.length !== 1 ? 's' : ''} available`
       )
     }).catch(() => {
-      if (!cancelled) { setLoading(false); setStatusMsg('Could not fetch suggestions') }
+      if (isStale()) return
+      setLoading(false)
+      setStatusMsg('Could not fetch suggestions')
+    }).finally(() => {
+      if (activeRequestRef.current === controller) activeRequestRef.current = null
     })
-    return () => { cancelled = true }
+
+    return () => {
+      controller.abort()
+      if (activeRequestRef.current === controller) activeRequestRef.current = null
+    }
   }, [debouncedQuery, manualMode, fetchSuggestions])
 
   const selectSuggestion = useCallback((s: AddressSuggestion) => {
@@ -327,6 +355,7 @@ export default function AddressAutocomplete({
               </li>
             )}
             {suggestions.map((s, i) => (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard selection is handled via aria-activedescendant on the combobox input
               <li
                 key={s.id}
                 id={`${listboxId}-item-${i}`}

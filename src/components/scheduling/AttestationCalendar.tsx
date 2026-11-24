@@ -444,10 +444,12 @@ export function AttestationCalendar({
             </div>
           </div>
 
+          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- calendar grid handles roving arrow-key navigation across days */}
           <div
             ref={gridRef}
             aria-label="Attestation schedule calendar"
             aria-describedby="attestation-calendar-instructions"
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- grid container is focusable for keyboard date navigation
             tabIndex={0}
             onKeyDown={onGridKeyDown}
             style={{
@@ -473,6 +475,7 @@ export function AttestationCalendar({
               const isSelected = day.isoDate === selectedIsoDate
 
               return (
+                // eslint-disable-next-line jsx-a11y/role-supports-aria-props -- calendar day button uses aria-selected to indicate the active date
                 <button
                   key={day.isoDate}
                   ref={(el) => {

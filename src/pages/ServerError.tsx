@@ -1,12 +1,20 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
-export default function ServerError() {
+export interface ServerErrorProps {
+  onRetry?: () => void
+}
+
+export default function ServerError({ onRetry }: ServerErrorProps = {}) {
   useEffect(() => {
     document.title = 'Something went wrong - Veritasor'
   }, [])
 
   function handleRetry() {
+    if (onRetry) {
+      onRetry()
+      return
+    }
     window.location.reload()
   }
 

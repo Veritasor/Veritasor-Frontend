@@ -20,6 +20,7 @@ export const ROUTES = {
   settings: '/settings',
   apiKeys: '/api-keys',
   help: '/help',
+  helpArticle: '/help/:slug',
   consentPreferences: '/consent-preferences',
 
   connectSource: '/connect-source',

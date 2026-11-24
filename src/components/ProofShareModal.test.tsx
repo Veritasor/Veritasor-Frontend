@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { webcrypto } from 'node:crypto'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import ProofShareModal from './ProofShareModal'
 import { ToastProvider } from './ToastContext'
 
@@ -8,11 +9,16 @@ describe('ProofShareModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('crypto', webcrypto)
     Object.assign(navigator, {
       clipboard: {
         writeText: vi.fn().mockImplementation(() => Promise.resolve()),
       },
     })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   const renderModal = (isOpen = true) => {
@@ -46,7 +52,7 @@ describe('ProofShareModal', () => {
     expect(mockOnClose).toHaveBeenCalled()
   })
 
-  it('generates public link successfully', () => {
+  it('generates public link successfully', async () => {
     renderModal()
     const generateBtn = screen.getByText('Generate Link')
     fireEvent.click(generateBtn)
@@ -123,7 +129,7 @@ describe('ProofShareModal', () => {
     expect(screen.queryByLabelText('Password requirements')).not.toBeInTheDocument()
   })
 
-  it('generates password-protected link with strong password', () => {
+  it('generates a protected link with a password verifier', async () => {
     renderModal()
     fireEvent.click(screen.getByLabelText('Password Protected'))
     
@@ -132,8 +138,22 @@ describe('ProofShareModal', () => {
     
     const generateBtn = screen.getByText('Generate Link')
     fireEvent.click(generateBtn)
+    await waitFor(() => expect(screen.getByLabelText('Generated link')).toBeInTheDocument())
+    const link = new URL((screen.getByLabelText('Generated link') as HTMLInputElement).value)
+    expect(link.searchParams.get('protected')).toBe('1')
+    expect(link.hash).toMatch(/^#password=v1\./)
     
     expect(screen.getByLabelText('Generated link')).toBeInTheDocument()
+  })
+
+  it('includes a creation timestamp for links with an expiry', () => {
+    renderModal()
+    fireEvent.change(screen.getByLabelText('Expiry'), { target: { value: '1day' } })
+    fireEvent.click(screen.getByText('Generate Link'))
+
+    const link = new URL((screen.getByLabelText('Generated link') as HTMLInputElement).value)
+    expect(link.searchParams.get('expires')).toBe('1day')
+    expect(Date.parse(link.searchParams.get('createdAt') ?? '')).toBeLessThanOrEqual(Date.now())
   })
 
   it('toggles password visibility', () => {

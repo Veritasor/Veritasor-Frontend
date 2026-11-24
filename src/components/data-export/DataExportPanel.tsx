@@ -1,7 +1,14 @@
 import {
-  useCallback, useEffect, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
   type CSSProperties,
 } from 'react'
+import { useObjectUrl } from '../../hooks/useObjectUrl'
+import {
+  createExportService,
+  pollExportJob,
+  type ExportJobRequest,
+  type PollHandle,
+} from '../../services/exportService'
 import { EmptyStateIllustration } from '../EmptyStateIllustrations'
 import {
   FORMAT_META,
@@ -117,12 +124,6 @@ function ExpiryChip({ job, now }: { job: ExportJob; now: number }) {
   )
 }
 
-let jobCounter = 0
-function nextJobId() {
-  jobCounter += 1
-  return `export-${jobCounter}`
-}
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -158,8 +159,10 @@ const dangerGhostButton: CSSProperties = {
 // StatusBadge
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ status }: { status: ExportJobStatus }) {
-  const meta = STATUS_META[status]
+function StatusBadge({ status, cancelled }: { status: ExportJobStatus; cancelled?: boolean }) {
+  const meta = cancelled
+    ? { label: 'Cancelled', color: 'var(--muted)', bg: 'var(--surface-soft)', border: 'var(--border)' }
+    : STATUS_META[status]
   return (
     <span
       style={{
@@ -254,6 +257,7 @@ function ConfirmDialog({
   }, [onCancel])
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div
       ref={dialogRef}
       role="dialog"
@@ -425,11 +429,12 @@ interface DownloadsTrayProps {
   now: number
   onDownload: (job: ExportJob) => void
   onRetry: (job: ExportJob) => void
+  onCancel: (job: ExportJob) => void
   onFocusGenerate?: () => void
 }
 
 function DownloadsTray({
-  jobs, now, onDownload, onRetry, onFocusGenerate,
+  jobs, now, onDownload, onRetry, onCancel, onFocusGenerate,
 }: DownloadsTrayProps) {
   // Track per-row confirm state (only for expired jobs)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -520,11 +525,16 @@ function DownloadsTray({
                         )}
                       </td>
                       <td>
-                        <StatusBadge status={job.status} />
+                        <StatusBadge status={job.status} cancelled={job.cancelled} />
                         {isActive && (
                           <div style={{ marginTop: '0.4rem', minWidth: 120 }}>
                             <ProgressBar value={job.progress} labelId={labelId} />
                           </div>
+                        )}
+                        {job.status === 'failed' && (
+                          <span style={{ display: 'block', marginTop: '0.35rem', color: 'var(--danger)', fontSize: 'var(--density-text-sm)' }}>
+                            {job.error ?? 'Export failed'}
+                          </span>
                         )}
                       </td>
                       <td>
@@ -537,6 +547,16 @@ function DownloadsTray({
                               onClick={() => onDownload(job)}
                             >
                               Download
+                            </button>
+                          )}
+                          {isActive && (
+                            <button
+                              type="button"
+                              style={dangerGhostButton}
+                              aria-label={`Cancel ${fmt.label} export`}
+                              onClick={() => onCancel(job)}
+                            >
+                              Cancel
                             </button>
                           )}
                           {canRerun && !isConfirming && (
@@ -603,7 +623,7 @@ function DownloadsTray({
                     <span id={labelId} style={{ fontWeight: 700 }}>
                       {fmt.label} export · {SCOPE_META[job.scope].label}
                     </span>
-                    <StatusBadge status={job.status} />
+                    <StatusBadge status={job.status} cancelled={job.cancelled} />
                   </div>
 
                   {isActive && <ProgressBar value={job.progress} labelId={labelId} />}
@@ -641,6 +661,16 @@ function DownloadsTray({
                           Download
                         </button>
                       )}
+                      {isActive && (
+                        <button
+                          type="button"
+                          style={dangerGhostButton}
+                          aria-label={`Cancel ${fmt.label} export`}
+                          onClick={() => onCancel(job)}
+                        >
+                          Cancel
+                        </button>
+                      )}
                       {canRerun && !isConfirming && (
                         <button
                           type="button"
@@ -676,9 +706,10 @@ function DownloadsTray({
 
 interface DataExportPanelProps {
   tickMs?: number
+  failJobs?: number
 }
 
-export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) {
+export default function DataExportPanel({ tickMs = 600, failJobs = 0 }: DataExportPanelProps) {
   const [format, setFormat] = useState<ExportFormat>('csv')
   const [scope, setScope] = useState<ExportScope>('all')
   const [jobs, setJobs] = useState<ExportJob[]>([])
@@ -690,72 +721,85 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
   const [csvColumns, setCsvColumns] = useState<string[]>(CSV_COLUMNS.map((c) => c.id))
   const [csvDateFrom, setCsvDateFrom] = useState('')
   const [csvDateTo, setCsvDateTo] = useState('')
+  const [download, setDownload] = useState<{ job: ExportJob; blob: Blob } | null>(null)
+  const downloadUrl = useObjectUrl(download?.blob ?? null)
 
-  const timers = useRef<Record<string, ReturnType<typeof setInterval>>>({})
+  const polls = useRef<Record<string, PollHandle>>({})
   const generateBtnRef = useRef<HTMLButtonElement>(null)
 
-  const clearTimer = useCallback((id: string) => {
-    const t = timers.current[id]
-    if (t) { clearInterval(t); delete timers.current[id] }
-  }, [])
-
-  const runJob = useCallback(
-    (id: string) => {
-      clearTimer(id)
-      timers.current[id] = setInterval(() => {
-        setJobs((prev) =>
-          prev.map((job) => {
-            if (job.id !== id) return job
-            if (job.status !== 'queued' && job.status !== 'processing') return job
-            const nextProgress = Math.min(100, job.progress + 20)
-            if (nextProgress >= 100) {
-              clearTimer(id)
-              const ready: ExportJob = {
-                ...job,
-                status: 'ready',
-                progress: 100,
-                fileSize: scope === 'all' ? '24 MB' : '2.4 MB',
-                expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
-              }
-              setNow(Date.now())
-              const emailSuffix = ready.notifyEmail ? ` We'll send a download link to ${ready.notifyEmail}.` : ''
-              setAnnouncement(
-                `${FORMAT_META[ready.format].label} export ready to download.${emailSuffix}`,
-              )
-              return ready
-            }
-            return { ...job, status: 'processing', progress: nextProgress }
-          }),
-        )
-      }, tickMs)
-    },
-    [clearTimer, tickMs, scope],
+  const service = useMemo(
+    () => createExportService({ tickMs, failFirstAttempts: failJobs }),
+    [tickMs, failJobs],
   )
 
-  useEffect(() => {
-    const active = timers.current
-    return () => { Object.values(active).forEach(clearInterval) }
+  const stopPolling = useCallback((id: string) => {
+    polls.current[id]?.stop()
+    delete polls.current[id]
   }, [])
 
+  const applySnapshot = useCallback((snapshot: ExportJob) => {
+    setJobs((prev) => {
+      const existing = prev.find((job) => job.id === snapshot.id)
+      if (!existing) return [snapshot, ...prev]
+      if (existing === snapshot) return prev
+      return prev.map((job) => (job.id === snapshot.id ? snapshot : job))
+    })
+
+    if (snapshot.status === 'ready') {
+      setNow(Date.now())
+      const emailSuffix = snapshot.notifyEmail ? ` We'll send a download link to ${snapshot.notifyEmail}.` : ''
+      setAnnouncement(`${FORMAT_META[snapshot.format].label} export ready to download.${emailSuffix}`)
+    } else if (snapshot.status === 'failed') {
+      setAnnouncement(
+        snapshot.cancelled
+          ? `${FORMAT_META[snapshot.format].label} export cancelled.`
+          : `${FORMAT_META[snapshot.format].label} export failed. ${snapshot.error ?? ''}`.trim(),
+      )
+    }
+  }, [])
+
+  const startPolling = useCallback((id: string) => {
+    stopPolling(id)
+    polls.current[id] = pollExportJob(service, id, applySnapshot, {
+      initialDelayMs: Math.max(1, Math.round(tickMs / 4)),
+      maxDelayMs: tickMs,
+      backoffFactor: 2,
+    })
+  }, [service, tickMs, applySnapshot, stopPolling])
+
+  useEffect(() => {
+    const activePolls = polls.current
+    return () => {
+      Object.values(activePolls).forEach((poll) => poll.stop())
+      service.stop()
+    }
+  }, [service])
+
+  useEffect(() => {
+    if (!downloadUrl || !download) return
+    const anchor = document.createElement('a')
+    anchor.href = downloadUrl
+    anchor.download = `${download.job.id}${FORMAT_META[download.job.format].extension}`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+  }, [download, downloadUrl])
+
   const startExport = useCallback(() => {
-    const id = nextJobId()
-    const job: ExportJob = {
-      id,
+    const request: ExportJobRequest = {
       format,
       scope,
-      status: 'processing',
-      progress: 0,
-      createdAt: new Date().toISOString(),
-      expiresAt: null,
-      fileSize: null,
-      error: null,
       notifyEmail: notifyEmail || null,
+      columns: csvColumns,
+      dateFrom: csvDateFrom,
+      dateTo: csvDateTo,
     }
+    const job = service.createJob(request)
     setJobs((prev) => [job, ...prev])
     const emailSuffix = notifyEmail ? ` We'll notify ${notifyEmail}.` : ''
     setAnnouncement(`Preparing ${FORMAT_META[format].label} export.${emailSuffix}`)
-    runJob(id)
-  }, [format, scope, runJob, notifyEmail])
+    startPolling(job.id)
+  }, [format, scope, notifyEmail, csvColumns, csvDateFrom, csvDateTo, service, startPolling])
 
   const handleStartClick = useCallback(() => {
     if (scope === 'all') {
@@ -775,23 +819,29 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
   }, [])
 
   const handleDownload = useCallback((job: ExportJob) => {
+    const blob = service.getFile(job.id)
+    if (!blob) {
+      setAnnouncement(`${FORMAT_META[job.format].label} export is no longer available.`)
+      return
+    }
+    setDownload({ job, blob })
     setAnnouncement(`Downloading ${FORMAT_META[job.format].label} export.`)
-  }, [])
+  }, [service])
 
-  const handleRetry = useCallback(
-    (job: ExportJob) => {
-      setJobs((prev) =>
-        prev.map((j) =>
-          j.id === job.id
-            ? { ...j, status: 'processing', progress: 0, error: null }
-            : j,
-        ),
-      )
-      setAnnouncement(`Regenerating ${FORMAT_META[job.format].label} export.`)
-      runJob(job.id)
-    },
-    [runJob],
-  )
+  const handleCancel = useCallback((job: ExportJob) => {
+    stopPolling(job.id)
+    const cancelled = service.cancelJob(job.id)
+    if (cancelled) applySnapshot(cancelled)
+  }, [service, applySnapshot, stopPolling])
+
+  const handleRetry = useCallback((job: ExportJob) => {
+    stopPolling(job.id)
+    const retried = service.retryJob(job.id)
+    if (!retried) return
+    applySnapshot(retried)
+    setAnnouncement(`Regenerating ${FORMAT_META[job.format].label} export.`)
+    startPolling(job.id)
+  }, [service, applySnapshot, startPolling, stopPolling])
 
   const handleFocusGenerate = useCallback(() => {
     generateBtnRef.current?.focus()
@@ -939,6 +989,7 @@ export default function DataExportPanel({ tickMs = 600 }: DataExportPanelProps) 
         now={now}
         onDownload={handleDownload}
         onRetry={handleRetry}
+        onCancel={handleCancel}
         onFocusGenerate={handleFocusGenerate}
       />
     </section>
@@ -1058,6 +1109,7 @@ export function CsvColumnSelectorModal({
 
   return (
     /* Backdrop */
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div
       onClick={onClose}
       style={{
@@ -1068,6 +1120,7 @@ export function CsvColumnSelectorModal({
       }}
     >
       {/* Dialog */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"

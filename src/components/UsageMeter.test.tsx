@@ -3,6 +3,9 @@ import { render, screen } from '@testing-library/react'
 import UsageMeter, { getUsageTier } from './UsageMeter'
 import type { UsageTier } from './UsageMeter'
 
+const WARNING_COPY = 'You have used 75 % or more of your monthly limit. Consider upgrading before you hit the cap.'
+const CRITICAL_COPY = 'You have used 90 % or more of your monthly limit. Upgrade your plan to avoid service interruption.'
+
 describe('getUsageTier', () => {
   it('returns "normal" below the warning threshold', () => {
     expect(getUsageTier(0)).toBe('normal')
@@ -194,5 +197,48 @@ describe('UsageMeter', () => {
 
     expect(screen.getByText('1,234,567')).toBeInTheDocument()
     expect(screen.getAllByText(/10,000,000/).length).toBeGreaterThan(0)
+  })
+})
+
+describe('UsageMeter — boundary matrix', () => {
+  const cases = [
+    { name: '0%', used: 0, limit: 100, pct: 0, badge: 'On track', message: null, width: '0%' },
+    { name: '79%', used: 79, limit: 100, pct: 79, badge: 'Warning', message: WARNING_COPY, width: '79%' },
+    { name: '80%', used: 80, limit: 100, pct: 80, badge: 'Warning', message: WARNING_COPY, width: '80%' },
+    { name: '100%', used: 100, limit: 100, pct: 100, badge: 'Critical', message: CRITICAL_COPY, width: '100%' },
+    { name: 'over 100%', used: 125, limit: 100, pct: 100, badge: 'Critical', message: CRITICAL_COPY, width: '100%' },
+    { name: 'zero limit', used: 10, limit: 0, pct: 0, badge: 'On track', message: null, width: '0%' },
+  ]
+
+  it.each(cases)('$name renders $pct% with the $badge badge', ({ used, limit, pct, badge, message, width }) => {
+    render(<UsageMeter label="Attestations" used={used} limit={limit} />)
+
+    const meter = screen.getByRole('meter', { name: 'Attestations' })
+    expect(meter).toHaveAttribute('aria-valuenow', String(pct))
+    expect(meter).toHaveAttribute('aria-valuemin', '0')
+    expect(meter).toHaveAttribute('aria-valuemax', '100')
+    expect(meter).toHaveAttribute('aria-valuetext', expect.stringContaining(`(${pct}%)`))
+
+    const fill = meter.firstElementChild as HTMLElement
+    expect(fill.style.width).toBe(width)
+    expect(fill.style.width).not.toMatch(/NaN|-\d/)
+    expect(screen.getByText(badge)).toBeInTheDocument()
+
+    if (message) {
+      expect(screen.getByRole('status')).toHaveTextContent(message)
+    } else {
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    }
+    expect(document.body.textContent).not.toMatch(/NaN|Infinity/)
+  })
+
+  it('keeps the width finite for invalid numeric props', () => {
+    render(<UsageMeter label="Attestations" used={Number.NaN} limit={Number.NaN} />)
+
+    const meter = screen.getByRole('meter', { name: 'Attestations' })
+    expect(meter).toHaveAttribute('aria-valuenow', '0')
+    expect(meter).toHaveAttribute('aria-valuetext', '0 of 0 uses used (0%)')
+    expect((meter.firstElementChild as HTMLElement).style.width).toBe('0%')
+    expect(document.body.textContent).not.toMatch(/NaN|Infinity/)
   })
 })

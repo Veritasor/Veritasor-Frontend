@@ -12,8 +12,10 @@
 
 import { createMemoryRouter, Link, RouterProvider } from 'react-router-dom'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { LocaleProvider } from '../i18n/provider'
+import { LOCALE_STORAGE_KEY } from '../i18n/config'
+import { auditLogApi } from '../services/auditLogApi'
 import Settings from '../pages/Settings'
 
 function renderSettings(hash = '') {
@@ -538,5 +540,37 @@ describe('Security — MFA recovery codes', () => {
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.click(screen.getByRole('button', { name: /disable/i }))
     expect(screen.getByRole('button', { name: /set up two-factor authentication/i })).toBeInTheDocument()
+  })
+})
+
+describe('Settings — Audit Log panel', () => {
+  afterEach(() => {
+    window.localStorage.removeItem(LOCALE_STORAGE_KEY)
+    vi.restoreAllMocks()
+  })
+
+  it('translates the Audit Log heading when the locale changes', () => {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, 'es')
+    const { unmount } = renderSettings('#audit-log')
+    expect(screen.getByRole('heading', { level: 2, name: 'Registro de auditoría' })).toBeInTheDocument()
+    unmount()
+
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, 'fr')
+    renderSettings('#audit-log')
+    expect(screen.getByRole('heading', { level: 2, name: 'Journal d’audit' })).toBeInTheDocument()
+  })
+
+  it('fetches audit event detail via auditLogApi and opens the detail drawer', async () => {
+    const spy = vi.spyOn(auditLogApi, 'getAuditEventDetail')
+    renderSettings('#audit-log')
+
+    const eventButtons = screen.getAllByRole('button', { name: /attestation completed/i })
+    fireEvent.click(eventButtons[0])
+
+    expect(spy).toHaveBeenCalledWith('1')
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+    expect(screen.getByText('joel@example.com')).toBeInTheDocument()
   })
 })

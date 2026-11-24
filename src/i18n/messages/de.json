@@ -104,5 +104,6 @@
   "auditLog.filters.capReached": "Dieser Workspace hat das Limit von {max} gespeicherten Filtern erreicht. Löschen Sie einen, um Platz zu schaffen.",
   "auditLog.filters.results.singular": "Anzeige von {count} von {total} Einträgen",
   "auditLog.filters.results.plural": "Anzeige von {count} von {total} Einträgen",
-  "auditLog.filters.count": "{count, plural, =0 {Keine Filter gespeichert} one {# Filter gespeichert} other {# Filter gespeichert}}"
+  "auditLog.filters.count": "{count, plural, =0 {Keine Filter gespeichert} one {# Filter gespeichert} other {# Filter gespeichert}}",
+  "auditLog.filters.title": "Prüfprotokoll"
 }

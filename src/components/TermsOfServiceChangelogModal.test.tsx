@@ -64,6 +64,31 @@ describe('TermsOfServiceChangelogModal (Issue #598)', () => {
       
       expect(onClose).toHaveBeenCalled()
     })
+
+    it('cannot be dismissed via Escape, backdrop, or close controls when blocking is true', () => {
+      const onClose = vi.fn()
+      const onAcknowledge = vi.fn()
+      const { container } = render(
+        <TermsOfServiceChangelogModal
+          open
+          blocking
+          onAcknowledge={onAcknowledge}
+          onClose={onClose}
+          {...baseProps}
+        />
+      )
+
+      expect(screen.queryByRole('button', { name: /close dialog/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument()
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.click(container.querySelector('.modal-backdrop')!)
+      expect(onClose).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByLabelText(/i have reviewed version v2\.4\.0/i))
+      fireEvent.click(screen.getByRole('button', { name: /acknowledge and continue/i }))
+      expect(onAcknowledge).toHaveBeenCalledWith('v2.4.0')
+    })
   })
 
   describe('Failure Contract & Boundary Behavior', () => {

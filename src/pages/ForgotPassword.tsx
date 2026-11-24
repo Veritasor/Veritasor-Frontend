@@ -2,16 +2,7 @@ import React, { useState, useId, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import AuthShell from "../components/AuthShell";
 import { useToast } from "../components/ToastContext";
-import { validatePassword, scorePassword } from "../utils/passwordPolicy";
-
-// ---------------------------------------------------------------------------
-// Password strength helpers (shared with NewPasswordState)
-// ---------------------------------------------------------------------------
-
-function computeStrength(password: string): number {
-  if (!password) return 0;
-  return Math.max(1, Math.ceil((scorePassword(password) / 5) * 4));
-}
+import { validatePassword, strengthLevel } from "../utils/passwordPolicy";
 
 const STRENGTH_COPY: Record<number, string> = {
   0: "Enter a password to see its strength",
@@ -188,7 +179,7 @@ function NewPasswordState({ token }: { token: string | null }) {
   const matchId = useId();
   const passwordPolicyId = useId();
 
-  const strength = computeStrength(newPassword);
+  const strength = strengthLevel(newPassword);
   const passwordPolicy = validatePassword(newPassword);
   const passwordsMatch = newPassword === confirmPassword;
   const showMatchError =
