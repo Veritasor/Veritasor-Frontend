@@ -33,7 +33,7 @@ describe('Footer', () => {
     // Create a mock context value that matches CookieConsentContextValue
     const mockContextValue = {
       hasDecided: false,
-      consent: { analytics: false, marketing: false, productCommunications: false },
+      consent: { functional: false, analytics: false, marketing: false, productCommunications: false },
       bannerVisible: false,
       acceptAll: vi.fn(),
       rejectAll: vi.fn(),

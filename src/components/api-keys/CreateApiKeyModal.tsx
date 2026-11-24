@@ -8,6 +8,87 @@ import {
   getScopeLabels,
   groupTriState,
 } from './scopeDefinitions'
+import { randomBase36, randomHex } from '../../utils/secureRandom'
+import type { ApiKey } from './apiKeyTypes'
+import { generateApiKeyCredentials } from '../../utils/apiKeyCredentials'
+
+// ─── Scope definitions ─────────────────────────────────────────────────
+
+interface ScopeItem {
+  id: string
+  label: string
+  description: string
+}
+
+interface ScopeGroup {
+  id: string
+  label: string
+  description: string
+  scopes: ScopeItem[]
+}
+
+const SCOPE_GROUPS: ScopeGroup[] = [
+  {
+    id: 'attestations',
+    label: 'Attestations',
+    description: 'Create and manage revenue attestations',
+    scopes: [
+      { id: 'read:attestations', label: 'Read attestations', description: 'View attestation history and on-chain proof details.' },
+      { id: 'write:attestations', label: 'Write attestations', description: 'Trigger attestations for revenue reports.' },
+    ],
+  },
+  {
+    id: 'sources',
+    label: 'Revenue Sources',
+    description: 'Manage connected revenue data sources',
+    scopes: [
+      { id: 'read:sources', label: 'Read revenue sources', description: 'View connected revenue source metadata.' },
+      { id: 'write:sources', label: 'Write revenue sources', description: 'Connect and configure new revenue sources.' },
+    ],
+  },
+  {
+    id: 'webhooks',
+    label: 'Webhooks',
+    description: 'Manage webhook endpoints and deliveries',
+    scopes: [
+      { id: 'read:webhooks', label: 'Read webhooks', description: 'View webhook configurations and delivery history.' },
+      { id: 'write:webhooks', label: 'Write webhooks', description: 'Create and modify webhook endpoints.' },
+    ],
+  },
+  {
+    id: 'keys',
+    label: 'API Keys',
+    description: 'Manage API key lifecycle',
+    scopes: [
+      { id: 'read:keys', label: 'Read API keys', description: 'View API key metadata (masked values only).' },
+      { id: 'write:keys', label: 'Write API keys', description: 'Create, rotate, and revoke API keys.' },
+    ],
+  },
+  {
+    id: 'administration',
+    label: 'Administration',
+    description: 'Grant full administrative access',
+    scopes: [
+      { id: 'admin', label: 'Administrator access', description: 'Manage all Veritasor resources and settings.' },
+    ],
+  },
+]
+
+/** Flat map of every scope id for quick lookup. */
+const ALL_SCOPE_IDS: string[] = SCOPE_GROUPS.flatMap((g) => g.scopes.map((s) => s.id))
+
+type ScopeId = string
+
+// ─── Helpers ───────────────────────────────────────────────────────────
+
+/** Returns the tri-state for a group: 'all' | 'some' | 'none' */
+function groupTriState(group: ScopeGroup, selected: ScopeId[]): 'all' | 'some' | 'none' {
+  const ids = group.scopes.map((s) => s.id)
+  const checked = ids.filter((id) => selected.includes(id)).length
+  if (checked === 0) return 'none'
+  if (checked === ids.length) return 'all'
+  return 'some'
+}
 
 // ─── Component ─────────────────────────────────────────────────────────
 
@@ -18,7 +99,7 @@ export default function CreateApiKeyModal({
 }: {
   open: boolean
   onClose: () => void
-  onMinted: (keyId: string, fullKey: string) => void
+  onMinted: (key: ApiKey, fullKey: string) => void
 }) {
   const { addToast } = useToast()
   const [label, setLabel] = useState('Admin key')
@@ -131,20 +212,44 @@ export default function CreateApiKeyModal({
     setConfirmOpen(true)
   }
 
-  const keyId = useMemo(() => `key_${Math.random().toString(36).slice(2, 8)}`, [])
+  const keyId = useMemo(() => `key_${randomBase36(6)}`, [])
 
   function mint() {
     // Demo-only: generate a fake secret.
     // Real implementation would come from backend and only reveal it once.
-    const fullKey = `vtsr_live_${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 10)}_${Math.random().toString(16).slice(2, 6)}`
+    const fullKey = `vtsr_live_${randomHex(6)}${randomHex(4)}_${randomHex(2)}`
+  function mint() {
+    let credentials: ReturnType<typeof generateApiKeyCredentials>
+    try {
+      credentials = generateApiKeyCredentials()
+    } catch {
+      const message = 'Unable to securely generate an API key in this browser.'
+      setError(message)
+      addToast(message, 'error', 0)
+      setConfirmOpen(false)
+      return
+    }
+
+    const createdAt = new Date()
+    const key: ApiKey = {
+      id: credentials.keyId,
+      label: label.trim(),
+      status: 'active',
+      createdAt: createdAt.toISOString(),
+      expiresAt: new Date(createdAt.getTime() + expiryDays * 86400000).toISOString(),
+      scopes: [...selected],
+      maskedKey: `${credentials.fullKey.slice(0, 12)}…${credentials.fullKey.slice(-4)}`,
+    }
     setConfirmOpen(false)
-    onMinted(keyId, fullKey)
+    onMinted(key, credentials.fullKey)
   }
 
   return (
     <>
       {open && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
         <div className="modal-backdrop" onClick={() => (!confirmOpen ? onClose() : undefined)}>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
           <div
             className="modal-dialog"
             role="dialog"
@@ -307,6 +412,7 @@ export default function CreateApiKeyModal({
                             <li
                               key={group.id}
                               role="treeitem"
+                              aria-selected={groupChecked}
                               aria-expanded="true"
                               style={{
                                 border: `1px solid ${groupChecked || groupSome ? 'rgba(94, 234, 212, 0.28)' : 'var(--border)'}`,
@@ -366,7 +472,7 @@ export default function CreateApiKeyModal({
                                 {group.scopes.map((scope) => {
                                   const checked = selected.includes(scope.id)
                                   return (
-                                    <li key={scope.id} role="treeitem">
+                                    <li key={scope.id} role="treeitem" aria-selected={checked}>
                                       <label
                                         style={{
                                           display: 'flex',

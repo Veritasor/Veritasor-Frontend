@@ -1,9 +1,12 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthShell from "../components/AuthShell";
 import TermsOfServiceChangelogModal from "../components/TermsOfServiceChangelogModal";
 import SubmitButton, { SUBMIT_DEMO_MS } from "../components/SubmitButton";
 import { validatePassword, scorePassword } from "../utils/passwordPolicy";
+import { compose, email as emailValidator, required } from "../utils/validation";
+import { useForm } from "../hooks/useForm";
+import { validatePassword, strengthLevel } from "../utils/passwordPolicy";
 
 const highlights = [
   "Set up your business account in a minute",
@@ -38,8 +41,6 @@ const TOS_CHANGES = [
   },
 ];
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 const STRENGTH_COPY: Record<number, string> = {
   0: "Enter a password to see its strength",
   1: "Password requirements not met",
@@ -53,22 +54,46 @@ function computeStrength(password: string): number {
   return Math.max(1, Math.ceil((scorePassword(password) / 5) * 4));
 }
 
+interface SignupValues {
+  name: string;
+  company: string;
+  email: string;
+  password: string;
+}
+
+const SIGNUP_VALIDATORS = {
+  name: required("Full name is required."),
+  company: required("Company is required."),
+  email: compose(
+    required("Email is required."),
+    emailValidator("Please enter a valid email address."),
+  ),
+  password: compose(
+    required("Password is required.", { trim: false }),
+    (value: string) => {
+      const policy = validatePassword(value);
+      return policy.valid ? undefined : policy.failures[0];
+    },
+  ),
+};
+
 export default function Signup() {
   const navigate = useNavigate();
   const [tosModalOpen, setTosModalOpen] = useState(false);
   const [acknowledgedVersion, setAcknowledgedVersion] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  const [name, setName] = useState("");
-  const [company, setCompany] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [nameBlurred, setNameBlurred] = useState(false);
-  const [companyBlurred, setCompanyBlurred] = useState(false);
-  const [emailBlurred, setEmailBlurred] = useState(false);
-  const [passwordBlurred, setPasswordBlurred] = useState(false);
+  const form = useForm<SignupValues>({
+    initialValues: {
+      name: "",
+      company: "",
+      email: "",
+      password: "",
+    },
+    validators: SIGNUP_VALIDATORS,
+    validateOnBlur: true,
+    revalidateOnChangeAfterSubmit: true,
+  });
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const companyInputRef = useRef<HTMLInputElement>(null);
@@ -81,40 +106,18 @@ export default function Signup() {
   const emailErrorId = useId();
   const passwordErrorId = useId();
 
-  const trimmedName = name.trim();
-  let nameErrorMessage = "";
-  if (!trimmedName) {
-    nameErrorMessage = "Full name is required.";
-  }
+  const { name, company, email, password } = form.values;
+  const nameErrorMessage = form.errors.name ?? "";
+  const companyErrorMessage = form.errors.company ?? "";
+  const emailErrorMessage = form.errors.email ?? "";
+  const passwordErrorMessage = form.errors.password ?? "";
 
-  const trimmedCompany = company.trim();
-  let companyErrorMessage = "";
-  if (!trimmedCompany) {
-    companyErrorMessage = "Company is required.";
-  }
+  const showNameError = (form.hasSubmitted || Boolean(form.touched.name)) && Boolean(nameErrorMessage);
+  const showCompanyError = (form.hasSubmitted || Boolean(form.touched.company)) && Boolean(companyErrorMessage);
+  const showEmailError = (form.hasSubmitted || Boolean(form.touched.email)) && Boolean(emailErrorMessage);
+  const showPasswordError = (form.hasSubmitted || Boolean(form.touched.password)) && Boolean(passwordErrorMessage);
 
-  const trimmedEmail = email.trim();
-  let emailErrorMessage = "";
-  if (!trimmedEmail) {
-    emailErrorMessage = "Email is required.";
-  } else if (!EMAIL_REGEX.test(trimmedEmail)) {
-    emailErrorMessage = "Please enter a valid email address.";
-  }
-
-  const passwordPolicy = validatePassword(password);
-  let passwordErrorMessage = "";
-  if (!password) {
-    passwordErrorMessage = "Password is required.";
-  } else if (!passwordPolicy.valid) {
-    passwordErrorMessage = passwordPolicy.failures[0];
-  }
-
-  const showNameError = (hasSubmitted || nameBlurred) && Boolean(nameErrorMessage);
-  const showCompanyError = (hasSubmitted || companyBlurred) && Boolean(companyErrorMessage);
-  const showEmailError = (hasSubmitted || emailBlurred) && Boolean(emailErrorMessage);
-  const showPasswordError = (hasSubmitted || passwordBlurred) && Boolean(passwordErrorMessage);
-
-  const strength = computeStrength(password);
+  const strength = strengthLevel(password);
   const hasAcknowledgedCurrentTerms = acknowledgedVersion === CURRENT_TOS_VERSION;
 
   useEffect(() => {
@@ -125,53 +128,43 @@ export default function Signup() {
     };
   }, []);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setHasSubmitted(true);
+  const handleSubmit = form.handleSubmit(
+    (values) => {
+      if (!hasAcknowledgedCurrentTerms || isSubmitting) return;
 
-    if (nameErrorMessage) {
-      nameInputRef.current?.focus();
-      return;
-    }
-
-    if (companyErrorMessage) {
-      companyInputRef.current?.focus();
-      return;
-    }
-
-    if (emailErrorMessage) {
-      emailInputRef.current?.focus();
-      return;
-    }
-
-    if (passwordErrorMessage) {
-      passwordInputRef.current?.focus();
-      return;
-    }
-
-    if (!hasAcknowledgedCurrentTerms || isSubmitting) return;
-
-    setIsSubmitting(true);
-    submitTimerRef.current = window.setTimeout(() => {
-      submitTimerRef.current = null;
-      setIsSubmitting(false);
-      try {
-        const rawDraft = localStorage.getItem("veritasor_onboarding_draft");
-        const parsed = rawDraft ? JSON.parse(rawDraft) : {};
-        const updated = {
-          ...parsed,
-          business: {
-            ...(parsed.business || {}),
-            legalName: parsed.business?.legalName || trimmedCompany,
-          },
-        };
-        localStorage.setItem("veritasor_onboarding_draft", JSON.stringify(updated));
-      } catch {
-        // ignore storage errors
+      setIsSubmitting(true);
+      submitTimerRef.current = window.setTimeout(() => {
+        submitTimerRef.current = null;
+        setIsSubmitting(false);
+        try {
+          const rawDraft = localStorage.getItem("veritasor_onboarding_draft");
+          const parsed = rawDraft ? JSON.parse(rawDraft) : {};
+          const updated = {
+            ...parsed,
+            business: {
+              ...(parsed.business || {}),
+              legalName: parsed.business?.legalName || values.company.trim(),
+            },
+          };
+          localStorage.setItem("veritasor_onboarding_draft", JSON.stringify(updated));
+        } catch {
+          // ignore storage errors
+        }
+        navigate("/onboarding");
+      }, SUBMIT_DEMO_MS);
+    },
+    (errs) => {
+      if (errs.name) {
+        nameInputRef.current?.focus();
+      } else if (errs.company) {
+        companyInputRef.current?.focus();
+      } else if (errs.email) {
+        emailInputRef.current?.focus();
+      } else if (errs.password) {
+        passwordInputRef.current?.focus();
       }
-      navigate("/onboarding");
-    }, SUBMIT_DEMO_MS);
-  };
+    },
+  );
 
   return (
     <AuthShell
@@ -215,8 +208,8 @@ export default function Signup() {
               placeholder="Amina Adeyemi"
               autoComplete="name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={() => setNameBlurred(true)}
+              onChange={(e) => form.setFieldValue("name", e.target.value)}
+              onBlur={() => form.handleBlur("name")}
               aria-invalid={showNameError ? "true" : undefined}
               aria-describedby={showNameError ? nameErrorId : undefined}
             />
@@ -247,8 +240,8 @@ export default function Signup() {
               placeholder="Veritasor Labs"
               autoComplete="organization"
               value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              onBlur={() => setCompanyBlurred(true)}
+              onChange={(e) => form.setFieldValue("company", e.target.value)}
+              onBlur={() => form.handleBlur("company")}
               aria-invalid={showCompanyError ? "true" : undefined}
               aria-describedby={showCompanyError ? companyErrorId : undefined}
             />
@@ -280,8 +273,8 @@ export default function Signup() {
             placeholder="founder@veritasor.com"
             autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onBlur={() => setEmailBlurred(true)}
+            onChange={(e) => form.setFieldValue("email", e.target.value)}
+            onBlur={() => form.handleBlur("email")}
             aria-invalid={showEmailError ? "true" : undefined}
             aria-describedby={showEmailError ? emailErrorId : undefined}
           />
@@ -312,8 +305,8 @@ export default function Signup() {
             placeholder="Create a strong password"
             autoComplete="new-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onBlur={() => setPasswordBlurred(true)}
+            onChange={(e) => form.setFieldValue("password", e.target.value)}
+            onBlur={() => form.handleBlur("password")}
             aria-invalid={showPasswordError ? "true" : undefined}
             aria-describedby={
               showPasswordError

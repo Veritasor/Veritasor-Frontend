@@ -100,5 +100,6 @@
   "auditLog.filters.copied": "تم النسخ إلى الحافظة",
   "auditLog.filters.capReached": "وصلت مساحة العمل هذه إلى الحد الأقصى وهو {max} فلتر محفوظ. احذف واحدًا لتحرير مساحة.",
   "auditLog.filters.results.singular": "عرض {count} من أصل {total} إدخال",
-  "auditLog.filters.results.plural": "عرض {count} من أصل {total} إدخال"
+  "auditLog.filters.results.plural": "عرض {count} من أصل {total} إدخال",
+  "auditLog.filters.title": "سجل التدقيق"
 }

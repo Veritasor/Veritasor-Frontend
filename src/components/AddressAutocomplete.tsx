@@ -327,6 +327,7 @@ export default function AddressAutocomplete({
               </li>
             )}
             {suggestions.map((s, i) => (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard selection is handled via aria-activedescendant on the combobox input
               <li
                 key={s.id}
                 id={`${listboxId}-item-${i}`}

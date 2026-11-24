@@ -512,6 +512,8 @@ export default function AttestationDetail() {
           }}
           onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
           onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+          onFocus={(e) => (e.currentTarget.style.opacity = '0.9')}
+          onBlur={(e) => (e.currentTarget.style.opacity = '1')}
         >
           {status.label}
         </span>
@@ -715,6 +717,8 @@ export default function AttestationDetail() {
               }}
               onMouseOver={(e) => { if (!retryBusy && currentAttestation.status !== 'pending') e.currentTarget.style.opacity = '0.9' }}
               onMouseOut={(e) => { if (!retryBusy && currentAttestation.status !== 'pending') e.currentTarget.style.opacity = '1' }}
+              onFocus={(e) => { if (!retryBusy && currentAttestation.status !== 'pending') e.currentTarget.style.opacity = '0.9' }}
+              onBlur={(e) => { if (!retryBusy && currentAttestation.status !== 'pending') e.currentTarget.style.opacity = '1' }}
             >
               {retryBusy || currentAttestation.status === 'pending'
                 ? 'Retrying…'

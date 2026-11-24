@@ -12,6 +12,12 @@ const CONSENT_CATEGORIES = [
     locked: true,
   },
   {
+    id: 'functional' as const,
+    label: 'Functional',
+    description: 'Remember display density and saved audit-log filters. Disabling this clears these local preferences across workspaces and stops syncing display density with your account. Density preferences already saved to your account can be restored if you enable Functional consent again.',
+    locked: false,
+  },
+  {
     id: 'analytics' as const,
     label: 'Analytics',
     description: 'Help us understand how you use the product so we can measure and improve it.',

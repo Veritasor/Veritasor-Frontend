@@ -1,12 +1,11 @@
-import { useState } from 'react'
 import type { BusinessDetails } from '../../hooks/useOnboardingDraft'
+import { useForm, type FormValidators } from '../../hooks/useForm'
+import { required, url } from '../../utils/validation'
 
 type Props = {
   data: BusinessDetails
   onNext: (data: BusinessDetails) => void
 }
-
-type Errors = Partial<Record<keyof BusinessDetails, string>>
 
 interface EntityType {
   value: string
@@ -90,37 +89,31 @@ const ENTITY_TYPES: EntityType[] = [
   { value: 'Other', label: 'Other', description: 'Another entity type not listed above; please specify during review.', icon: <OtherIcon /> },
 ]
 
-function validate(d: BusinessDetails): Errors {
-  const e: Errors = {}
-  if (!d.legalName.trim()) e.legalName = 'Legal name is required'
-  if (!d.registrationNumber.trim()) e.registrationNumber = 'Registration number is required'
-  if (!d.country) e.country = 'Country is required'
-  if (!d.businessType) e.businessType = 'Business type is required'
-  if (d.website && !/^https?:\/\/.+/.test(d.website)) e.website = 'Enter a valid URL starting with http:// or https://'
-  return e
+const VALIDATORS: FormValidators<BusinessDetails> = {
+  legalName: required('Legal name is required'),
+  registrationNumber: required('Registration number is required'),
+  country: required('Country is required', { trim: false }),
+  businessType: required('Business type is required', { trim: false }),
+  website: url('Enter a valid URL starting with http:// or https://'),
 }
 
 export default function BusinessDetailsStep({ data, onNext }: Props) {
-  const [form, setForm] = useState<BusinessDetails>(data)
-  const [errors, setErrors] = useState<Errors>({})
-  const [touched, setTouched] = useState(false)
+  const {
+    values: form,
+    errors,
+    setFieldValue: set,
+    handleSubmit,
+  } = useForm<BusinessDetails>({
+    initialValues: data,
+    validators: VALIDATORS,
+    validateOnBlur: false,
+    revalidateOnChangeAfterSubmit: true,
+  })
 
-  function set(field: keyof BusinessDetails, value: string) {
-    const next = { ...form, [field]: value }
-    setForm(next)
-    if (touched) setErrors(validate(next))
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const errs = validate(form)
-    setErrors(errs)
-    setTouched(true)
-    if (Object.keys(errs).length === 0) onNext(form)
-  }
+  const onSubmit = handleSubmit((values) => onNext(values))
 
   return (
-    <form className="ob-form" onSubmit={handleSubmit} noValidate aria-label="Business details">
+    <form className="ob-form" onSubmit={onSubmit} noValidate aria-label="Business details">
       <div className="ob-grid-2">
         <div className="ob-field">
           <label className="ob-label ob-label-required" htmlFor="ob-legal-name">Legal business name</label>
@@ -199,7 +192,8 @@ export default function BusinessDetailsStep({ data, onNext }: Props) {
               const isChecked = form.businessType === entity.value
 
               return (
-                <label key={entity.value} className="ob-biz-card">
+                // eslint-disable-next-line jsx-a11y/label-has-associated-control -- label wraps radio input and visible entity label
+                <label key={entity.value} htmlFor={inputId} className="ob-biz-card">
                   <input
                     id={inputId}
                     className="ob-biz-input"

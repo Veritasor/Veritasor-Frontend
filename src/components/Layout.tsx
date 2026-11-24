@@ -14,6 +14,7 @@ import { ReauthModal } from "./ReauthModal";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { ROUTES } from "../routes";
 import { useOptionalWorkspace } from "../state/workspace";
+import { useTrackPageViews } from "../analytics";
 
 const configuredSessionDuration = Number(
   import.meta.env.VITE_SESSION_DURATION_MINUTES
@@ -156,6 +157,9 @@ function LayoutInner() {
     document.title = getPageTitle(location.pathname);
     requestAnimationFrame(() => { mainRef.current?.focus(); });
   }, [location.pathname]);
+
+  // Track page views
+  useTrackPageViews();
 
   // Escape key closes the sidebar and returns focus to the hamburger
   useEffect(() => {
