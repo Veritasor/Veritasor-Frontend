@@ -1,6 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import { useToast } from './ToastContext'
 import { validatePassword, scorePassword } from '../utils/passwordPolicy'
+import { createProofPasswordVerifier } from '../utils/proofShare'
+
+// Shared password strength logic
+function computeStrength(password: string): number {
+  if (!password) return 0
+  if (password.length < 8) return 1
+  const hasUpper = /[A-Z]/.test(password)
+  const hasLower = /[a-z]/.test(password)
+  const hasDigit = /[0-9]/.test(password)
+  const hasSym = /[^A-Za-z0-9]/.test(password)
+  const mixed = hasUpper && hasLower && hasDigit
+  if (password.length >= 12 && mixed && hasSym) return 4
+  if (password.length >= 12 && mixed) return 3
+  if (password.length >= 8 && (hasUpper || hasLower) && hasDigit) return 2
+  return 1
+}
 
 const STRENGTH_COPY: Record<number, string> = {
   0: 'Enter a password to see its strength',
@@ -26,6 +42,7 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
   const [expiry, setExpiry] = useState('none')
   const [generatedLink, setGeneratedLink] = useState('')
   const [isCopied, setIsCopied] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   
   const { addToast } = useToast()
   const modalRef = useRef<HTMLDivElement>(null)
@@ -61,17 +78,33 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
 
   const handleGenerateLink = () => {
     if (permission === 'password' && !passwordPolicy.valid) {
+  const handleGenerateLink = async () => {
+    if (permission === 'password' && strength < 2) {
       addToast('Please enter a stronger password.', 'error')
       return
     }
 
-    // Deterministic demo URL derived solely from the attestation ID
-    const params = new URLSearchParams({ share: attestationId })
-    if (expiry !== 'none') params.set('expires', expiry)
-    if (permission === 'password') params.set('protected', '1')
-    const link = `https://veritasor.app/proof/${attestationId}?${params.toString()}`
-    setGeneratedLink(link)
-    addToast('Link generated successfully.', 'success')
+    setIsGenerating(true)
+    try {
+      const params = new URLSearchParams({ share: attestationId })
+      if (expiry !== 'none') {
+        params.set('expires', expiry)
+        params.set('createdAt', new Date().toISOString())
+      }
+      let passwordFragment = ''
+      if (permission === 'password') {
+        const verifier = await createProofPasswordVerifier(password)
+        params.set('protected', '1')
+        passwordFragment = `#password=${encodeURIComponent(verifier)}`
+      }
+      const link = `https://veritasor.app/proof/${attestationId}?${params.toString()}${passwordFragment}`
+      setGeneratedLink(link)
+      addToast('Link generated successfully.', 'success')
+    } catch {
+      addToast('Could not generate a protected link in this browser.', 'error')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const handleCopy = async () => {
@@ -257,9 +290,10 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
           {/* Generated Link & Copy */}
           {generatedLink && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <label style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>Shareable Link</label>
+              <label htmlFor="proof-share-generated-link" style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>Shareable Link</label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input 
+                <input
+                  id="proof-share-generated-link"
                   type="text" 
                   readOnly 
                   value={generatedLink}
@@ -310,10 +344,11 @@ export default function ProofShareModal({ isOpen, onClose, attestationId }: Proo
             <button 
               type="button" 
               onClick={handleGenerateLink}
+              disabled={isGenerating}
               className="auth-button auth-button-primary"
               style={{ width: 'auto', padding: '0.5rem 1.5rem' }}
             >
-              Generate Link
+              {isGenerating ? 'Generating…' : 'Generate Link'}
             </button>
           )}
         </div>

@@ -6,6 +6,7 @@ import Layout from "./Layout";
 import { useBilling } from "./BillingContext";
 import { EnvironmentProvider } from "./EnvironmentContext";
 import { LocaleProvider } from "../i18n/provider";
+import { expectNoAxeViolations } from "../test/axe";
 import {
   CURRENT_TOS_VERSION,
   TOS_STORAGE_KEY,
@@ -29,6 +30,8 @@ function SeedFailedPayment() {
 
 function renderLayout(initialEntries: string[] = ["/dashboard"]) {
   return render(
+    <LocaleProvider>
+      <EnvironmentProvider>
     <EnvironmentProvider>
       <LocaleProvider>
         <MemoryRouter initialEntries={initialEntries}>
@@ -43,6 +46,8 @@ function renderLayout(initialEntries: string[] = ["/dashboard"]) {
             </Route>
           </Routes>
         </MemoryRouter>
+      </EnvironmentProvider>
+    </LocaleProvider>
       </LocaleProvider>
     </EnvironmentProvider>
   );
@@ -73,6 +78,11 @@ describe("Layout - BillingBannerSlot", () => {
     const main = document.getElementById("main-content");
     expect(main).toBeInTheDocument();
     expect(main).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("has no axe accessibility violations", async () => {
+    const { container } = renderLayout(["/dashboard"]);
+    await expectNoAxeViolations(container);
   });
 });
 
@@ -220,6 +230,8 @@ describe("Layout session integration", () => {
 
   const renderLayout = (initialPath = "/settings?tab=security#section") =>
     render(
+      <LocaleProvider>
+        <EnvironmentProvider>
       <EnvironmentProvider>
         <LocaleProvider>
           <MemoryRouter initialEntries={[initialPath]}>
@@ -230,6 +242,8 @@ describe("Layout session integration", () => {
               <Route path="/login" element={<LoginLocation />} />
             </Routes>
           </MemoryRouter>
+        </EnvironmentProvider>
+      </LocaleProvider>
         </LocaleProvider>
       </EnvironmentProvider>
     );

@@ -1,3 +1,4 @@
+import { FunctionalConsentWrapper, grantFunctionalConsent } from '../test/functional-consent-fixture'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -20,9 +21,11 @@ import { EnvironmentProvider } from '../components/EnvironmentContext'
 function createWrapper(initialWorkspaceId?: string) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
-        {children}
-      </WorkspaceProvider>
+      <FunctionalConsentWrapper>
+        <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
+          {children}
+        </WorkspaceProvider>
+      </FunctionalConsentWrapper>
     )
   }
 }
@@ -85,6 +88,7 @@ describe('WorkspaceProvider and workspace isolation', () => {
   })
 
   it('isolates saved filters per workspace via WorkspaceProvider', () => {
+    grantFunctionalConsent()
     const { result } = renderHook(
       () => ({
         ws: useWorkspace(),
@@ -162,6 +166,7 @@ describe('WorkspaceProvider and workspace isolation', () => {
   })
 
   it('isolates density preference per workspace via WorkspaceProvider', () => {
+    grantFunctionalConsent()
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({}), { status: 200 }),
     )

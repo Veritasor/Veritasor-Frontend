@@ -182,43 +182,49 @@ describe('useOnlineStatus', () => {
   })
 
   describe('retry', () => {
-    it('sets online to true when HEAD probe succeeds', async () => {
+    it('sets online to true and resolves true when HEAD probe succeeds', async () => {
       vi.stubGlobal('navigator', { onLine: false })
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
       const { result } = renderOnlineHook('https://api.example.com')
 
+      let ok: boolean | undefined
       await act(async () => {
-        await result.current.retry()
+        ok = await result.current.retry()
       })
 
+      expect(ok).toBe(true)
       expect(result.current.isOnline).toBe(true)
     })
 
-    it('sets online to false when HEAD probe fails', async () => {
+    it('sets online to false and resolves false when HEAD probe fails with network error', async () => {
       vi.stubGlobal('navigator', { onLine: true })
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')))
       const { result } = renderOnlineHook('https://api.example.com')
 
+      let ok: boolean | undefined
       await act(async () => {
-        await result.current.retry()
+        ok = await result.current.retry()
       })
 
+      expect(ok).toBe(false)
       expect(result.current.isOnline).toBe(false)
     })
 
-    it('sets online to false when HEAD probe returns non-OK', async () => {
+    it('sets online to false and resolves false when HEAD probe returns non-OK', async () => {
       vi.stubGlobal('navigator', { onLine: true })
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
       const { result } = renderOnlineHook('https://api.example.com')
 
+      let ok: boolean | undefined
       await act(async () => {
-        await result.current.retry()
+        ok = await result.current.retry()
       })
 
+      expect(ok).toBe(false)
       expect(result.current.isOnline).toBe(false)
     })
 
-    it('sets online to false when fetch itself is unavailable in the environment', async () => {
+    it('sets online to false and resolves false when fetch itself is unavailable in the environment', async () => {
       // Boundary case: a missing global fetch throws synchronously inside the
       // probe; the hook must catch it and report offline instead of crashing.
       vi.stubGlobal('navigator', { onLine: true })
@@ -226,27 +232,29 @@ describe('useOnlineStatus', () => {
       const { result } = renderOnlineHook('https://api.example.com')
 
       await act(async () => {
-        await expect(result.current.retry()).resolves.toBeUndefined()
+        await expect(result.current.retry()).resolves.toBe(false)
       })
 
       expect(result.current.isOnline).toBe(false)
     })
 
-    it('falls back to navigator.onLine when no apiBaseUrl is provided', async () => {
+    it('falls back to navigator.onLine and resolves true when no apiBaseUrl is provided', async () => {
       vi.stubGlobal('navigator', { onLine: true })
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
       const { result } = renderOnlineHook()
 
+      let ok: boolean | undefined
       await act(async () => {
-        await result.current.retry()
+        ok = await result.current.retry()
       })
 
       expect(fetchMock).not.toHaveBeenCalled()
+      expect(ok).toBe(true)
       expect(result.current.isOnline).toBe(true)
     })
 
-    it('falls back to navigator.onLine when apiBaseUrl is an empty string', async () => {
+    it('falls back to navigator.onLine and resolves false when apiBaseUrl is an empty string', async () => {
       // Invalid-input case: the empty string is falsy and must take the same
       // no-probe path as an omitted argument.
       vi.stubGlobal('navigator', { onLine: false })
@@ -254,11 +262,13 @@ describe('useOnlineStatus', () => {
       vi.stubGlobal('fetch', fetchMock)
       const { result } = renderOnlineHook('')
 
+      let ok: boolean | undefined
       await act(async () => {
-        await result.current.retry()
+        ok = await result.current.retry()
       })
 
       expect(fetchMock).not.toHaveBeenCalled()
+      expect(ok).toBe(false)
       expect(result.current.isOnline).toBe(false)
     })
 

@@ -1,3 +1,4 @@
+import { FunctionalConsentWrapper, grantFunctionalConsent } from '../test/functional-consent-fixture'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSavedFilters, type UseSavedFiltersReturn } from './useSavedFilters'
@@ -7,6 +8,7 @@ const ws = 'ws-test'
 
 beforeEach(() => {
   window.localStorage.clear()
+  grantFunctionalConsent()
 })
 
 afterEach(() => {
@@ -16,7 +18,7 @@ afterEach(() => {
 
 describe('useSavedFilters', () => {
   it('exposes the documented return contract', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     const value: UseSavedFiltersReturn = result.current
 
     expect(value).toMatchObject({
@@ -33,7 +35,7 @@ describe('useSavedFilters', () => {
   })
 
   it('starts empty when there is no entry in localStorage', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     expect(result.current.filters).toEqual([])
     expect(result.current.isHydrated).toBe(true)
   })
@@ -49,7 +51,7 @@ describe('useSavedFilters', () => {
       },
     ]
     window.localStorage.setItem(savedFilterStorageKey(ws), JSON.stringify(stored))
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     expect(result.current.filters).toEqual(stored)
   })
 
@@ -61,7 +63,7 @@ describe('useSavedFilters', () => {
       { id: 42, name: 'bad-shape' },
     ]
     window.localStorage.setItem(savedFilterStorageKey(ws), JSON.stringify(bad))
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     expect(result.current.filters).toEqual([
       { id: 'a', name: 'good', searchParams: '?q=x' },
     ])
@@ -71,7 +73,7 @@ describe('useSavedFilters', () => {
     'returns empty for invalid stored JSON: %s',
     (raw) => {
       window.localStorage.setItem(savedFilterStorageKey(ws), raw)
-      const { result } = renderHook(() => useSavedFilters(ws))
+      const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
       expect(result.current.filters).toEqual([])
     },
   )
@@ -84,7 +86,7 @@ describe('useSavedFilters', () => {
       throw new Error('storage unavailable')
     })
 
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     let saveResult: ReturnType<UseSavedFiltersReturn['save']> | undefined
     act(() => {
       saveResult = result.current.save('Still usable', '?status=failed')
@@ -112,7 +114,7 @@ describe('useSavedFilters', () => {
     )
     const { result, rerender } = renderHook(
       ({ id }: { id: string }) => useSavedFilters(id),
-      { initialProps: { id: 'ws-a' } },
+      { initialProps: { id: 'ws-a' }, wrapper: FunctionalConsentWrapper },
     )
     expect(result.current.filters.map((f) => f.name)).toEqual(['A1'])
     rerender({ id: 'ws-b' })
@@ -120,7 +122,7 @@ describe('useSavedFilters', () => {
   })
 
   it('save() validates and rejects empty / too-long / duplicate names', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     // Each call lives in its own act() so React 18 batching commits the
     // state update from the previous call before the next one reads
     // existingNames.
@@ -151,7 +153,7 @@ describe('useSavedFilters', () => {
   })
 
   it('save() adds an entry and updates the underlying state', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     act(() => {
       result.current.save('Failed Attestations', '?status=failed')
     })
@@ -176,7 +178,7 @@ describe('useSavedFilters', () => {
         })),
       ),
     )
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     expect(result.current.isFull).toBe(true)
     act(() => {
       result.current.save('NewEntry', '?q=new')
@@ -194,7 +196,7 @@ describe('useSavedFilters', () => {
   })
 
   it('rename() validates including excluding the target id from dup checks', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     act(() => {
       result.current.save('Original', '?q=o')
     })
@@ -217,7 +219,7 @@ describe('useSavedFilters', () => {
   })
 
   it('rename() rejects names that collide with another filter in the workspace', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     act(() => {
       result.current.save('Alpha', '?q=a')
       result.current.save('Beta', '?q=b')
@@ -230,7 +232,7 @@ describe('useSavedFilters', () => {
   })
 
   it('rename() returns empty reason when the target id does not exist', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     expect(result.current.rename('missing', 'whatever')).toEqual({
       ok: false,
       reason: 'empty',
@@ -238,7 +240,7 @@ describe('useSavedFilters', () => {
   })
 
   it('remove() deletes the entry and persists', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     act(() => {
       result.current.save('To delete', '?q=x')
     })
@@ -253,7 +255,7 @@ describe('useSavedFilters', () => {
   })
 
   it('getById returns the matching entry', () => {
-    const { result } = renderHook(() => useSavedFilters(ws))
+    const { result } = renderHook(() => useSavedFilters(ws), { wrapper: FunctionalConsentWrapper })
     act(() => {
       result.current.save('A', '?q=a')
       result.current.save('B', '?q=b')

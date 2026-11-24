@@ -100,5 +100,6 @@
   "auditLog.filters.copied": "已复制到剪贴板",
   "auditLog.filters.capReached": "此工作区已达到 {max} 个已保存筛选的上限。请删除一个以腾出空间。",
   "auditLog.filters.results.singular": "正在显示 {count} / {total} 条记录",
-  "auditLog.filters.results.plural": "正在显示 {count} / {total} 条记录"
+  "auditLog.filters.results.plural": "正在显示 {count} / {total} 条记录",
+  "auditLog.filters.title": "审计日志"
 }

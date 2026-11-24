@@ -1,9 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { expectNoAxeViolations } from '../test/axe'
 import CookieBanner from '../components/CookieBanner'
 import {
-  CookieConsentContext,
   CookieConsentProvider,
   STORAGE_KEY,
   useCookieConsent,
@@ -22,7 +22,7 @@ afterEach(() => {
  * Renders CookieBanner with CookieConsentProvider (and MemoryRouter for the
  * policy link inside the banner).
  */
-function renderBanner(initialStorage?: ConsentState | null) {
+function renderBanner(initialStorage?: Partial<ConsentState> | null) {
   if (initialStorage !== undefined) {
     if (initialStorage === null) {
       localStorage.removeItem(STORAGE_KEY)
@@ -53,7 +53,7 @@ function ConsentConsumer() {
   )
 }
 
-function renderConsumer(initialStorage?: ConsentState | null) {
+function renderConsumer(initialStorage?: Partial<ConsentState> | null) {
   if (initialStorage !== undefined) {
     if (initialStorage === null) {
       localStorage.removeItem(STORAGE_KEY)
@@ -384,6 +384,16 @@ describe('CookieBanner — Save preferences', () => {
     expect(screen.getByRole('button', { name: /save preferences/i })).toBeInTheDocument()
   })
 
+  it('defaults Functional to off and saves an explicit grant', () => {
+    renderBanner(null)
+    fireEvent.click(screen.getByRole('button', { name: /manage preferences/i }))
+    const functional = screen.getByRole('switch', { name: 'Functional' })
+    expect(functional).not.toBeChecked()
+    fireEvent.click(functional)
+    fireEvent.click(screen.getByRole('button', { name: /save preferences/i }))
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).functional).toBe(true)
+  })
+
   it('saves custom analytics=true, marketing=false', () => {
     renderBanner(null)
     fireEvent.click(screen.getByRole('button', { name: /manage preferences/i }))
@@ -536,5 +546,13 @@ describe('CookieBanner — accessibility', () => {
     renderBanner(null)
     fireEvent.click(screen.getByRole('button', { name: /manage preferences/i }))
     expect(screen.getByRole('group', { name: /cookie preferences/i })).toBeInTheDocument()
+  })
+
+  it('has no axe accessibility violations', async () => {
+    const { container } = renderBanner(null)
+    await expectNoAxeViolations(container)
+
+    fireEvent.click(screen.getByRole('button', { name: /manage preferences/i }))
+    await expectNoAxeViolations(container)
   })
 })

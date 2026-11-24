@@ -129,6 +129,7 @@ function LearnMorePopover({
         Learn more
       </button>
       {isOpen ? (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- popover region handles Escape key to dismiss
         <div
           id={panelId}
           className="mfa-learn-popover"
