@@ -167,6 +167,51 @@
   --shadow-lg: 0 20px 40px rgba(15, 23, 42, 0.12);
 }
 
+[data-theme="light"] body {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(15, 118, 110, 0.08),
+      transparent 32%
+    ),
+    radial-gradient(circle at right, rgba(37, 99, 235, 0.08), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #f8fafc;
+    --surface: rgba(255, 255, 255, 0.92);
+    --surface-strong: #ffffff;
+    --surface-soft: rgba(15, 23, 42, 0.04);
+    --border: rgba(15, 23, 42, 0.12);
+    --border-strong: rgba(37, 99, 235, 0.45);
+    --text: #0f172a;
+    --muted: #475569;
+    --accent: #0f766e;
+    --accent-strong: #0d9488;
+    --accent-warm: #d97706;
+    --danger: #dc2626;
+    --danger-soft: rgba(220, 38, 38, 0.08);
+    --success: #059669;
+    --success-soft: rgba(5, 150, 105, 0.08);
+    --warning: #d97706;
+    --warning-soft: rgba(217, 119, 6, 0.08);
+    --shadow-lg: 0 20px 40px rgba(15, 23, 42, 0.12);
+  }
+
+  :root:not([data-theme]) body {
+    background:
+      radial-gradient(
+        circle at top left,
+        rgba(15, 118, 110, 0.08),
+        transparent 32%
+      ),
+      radial-gradient(circle at right, rgba(37, 99, 235, 0.08), transparent 28%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  }
+}
+
 /*
  * High-Contrast theme — WCAG 2.1 AAA
  *
