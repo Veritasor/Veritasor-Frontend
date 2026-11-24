@@ -11,6 +11,8 @@ import ProofShareModal from '../components/ProofShareModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import './AttestationCertificate.print.css'
 import { useAttestations } from '../state/attestations'
+import { useLocale } from '../i18n/useLocale'
+import { formatDate, formatNumber } from '../i18n/formatters'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,13 +51,6 @@ const STATUS_STYLES: Record<VerificationStatus, { bg: string; color: string; lab
 function truncate(hash: string, chars = 12) {
   if (hash.length <= chars * 2 + 3) return hash
   return `${hash.slice(0, chars)}…${hash.slice(-chars)}`
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
 }
 
 // Grayscale-safe label/icon for the formal printed certificate. Each status
@@ -359,6 +354,7 @@ function BackLink({ className = '' }: { className?: string }) {
 export default function AttestationDetail() {
   const { id } = useParams<{ id: string }>()
   const { environment } = useEnvironment()
+  const { locale } = useLocale()
   const { getById } = useAttestations()
   const attestation = id ? getById(id) : undefined
   const stellarExplorer = STELLAR_EXPLORER_BASE[environment]
@@ -461,7 +457,7 @@ export default function AttestationDetail() {
   const currentAttestation = { ...attestation, status: retryStatus ?? attestation.status }
   const status = STATUS_STYLES[currentAttestation.status]
   const printStatus = PRINT_STATUS[currentAttestation.status]
-  const issuedOn = formatDate(attestation.timestamp)
+  const issuedOn = formatDate(attestation.timestamp, locale, 'full')
   const formattedTotal = `${attestation.totalRevenue} ${attestation.currency}`
   const timelineSteps = generateTimelineSteps(currentAttestation)
 
@@ -637,7 +633,7 @@ export default function AttestationDetail() {
       {/* ── Print-only issuer statement ────────────────────────────────── */}
       <section className="certificate-statement print-only" aria-label="Issuance statement">
         <p>
-          This document certifies that the <strong>{attestation.recordCount.toLocaleString()}</strong>{' '}
+          This document certifies that the <strong>{formatNumber(attestation.recordCount, locale)}</strong>{' '}
           revenue entries summarised below, totalling{' '}
           <strong>{formattedTotal}</strong>, were cryptographically committed to the
           Stellar public ledger under the Merkle root{' '}
@@ -827,14 +823,14 @@ export default function AttestationDetail() {
           {/* Timestamp */}
           <MetaRow label="Timestamp">
             <time dateTime={attestation.timestamp} style={{ color: 'var(--text)' }}>
-              {formatDate(attestation.timestamp)}
+              {formatDate(attestation.timestamp, locale, 'full')}
             </time>
           </MetaRow>
 
           {/* Records */}
           <MetaRow label="Records">
             <span style={{ color: 'var(--text)', fontWeight: 600 }}>
-              {attestation.recordCount.toLocaleString()}
+              {formatNumber(attestation.recordCount, locale)}
             </span>
             <span style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>included revenue entries</span>
           </MetaRow>
@@ -955,8 +951,8 @@ export default function AttestationDetail() {
             <strong>Printed</strong>{' '}
             <time dateTime={printedOn ?? now.toISOString()}>
               {printedOn
-                ? formatDate(printedOn)
-                : `${formatDate(now.toISOString())} (preview)`}
+                ? formatDate(printedOn, locale, 'full')
+                : `${formatDate(now.toISOString(), locale, 'full')} (preview)`}
             </time>
           </div>
           <div>veritasor.app / attestations / {attestation.id}</div>

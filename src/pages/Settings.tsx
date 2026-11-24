@@ -16,6 +16,8 @@ import DirtyStateBanner from '../components/DirtyStateBanner'
 import { useDirtyForm, type SaveStatus } from '../hooks/useDirtyForm'
 import { validatePassword } from '../utils/passwordPolicy'
 import { useOptionalWorkspace } from '../state/workspace'
+import { useLocale } from '../i18n/useLocale'
+import { formatCurrency, formatDate } from '../i18n/formatters'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -704,13 +706,6 @@ const MOCK_INVOICES: Invoice[] = [
 
 const INVOICES_PER_PAGE = 5;
 
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
-}
-
 function InvoiceStatusChip({ status }: { status: InvoiceStatus }) {
   const meta = INVOICE_STATUS_META[status];
   return (
@@ -810,6 +805,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 function InvoiceList() {
+  const { locale } = useLocale();
   const [page, setPage] = useState(1);
   const totalPages = Math.ceil(MOCK_INVOICES.length / INVOICES_PER_PAGE);
   const startIdx = (page - 1) * INVOICES_PER_PAGE;
@@ -916,11 +912,7 @@ function InvoiceList() {
                     </div>
                   </td>
                   <td style={tdStyle}>
-                    {due.toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "2-digit",
-                    })}
+                    {formatDate(due, locale, "medium")}
                   </td>
                   <td
                     style={{
@@ -929,7 +921,7 @@ function InvoiceList() {
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {formatCurrency(inv.amount)}
+                    {formatCurrency(inv.amount, locale)}
                   </td>
                   <td style={tdStyle}>
                     <InvoiceStatusChip status={inv.status} />
