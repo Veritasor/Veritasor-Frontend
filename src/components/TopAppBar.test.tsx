@@ -3,22 +3,41 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { IntlProvider } from 'react-intl'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import TopAppBar, { WorkspaceMetadata } from './TopAppBar'
+import { EnvironmentProvider } from './EnvironmentContext'
 import { LocaleProvider } from '../i18n/provider'
 import messages from '../i18n/messages/en.json'
+import { expectNoAxeViolations } from '../test/axe'
+import {
+  addNotification,
+  buildInitialPrefs,
+  resetNotificationsStore,
+  setNotificationPref,
+} from '../store/notificationsStore'
 
 function LocationDisplay() {
   const location = useLocation()
   return <div data-testid="location-pathname">{location.pathname}</div>
 }
 
-function renderWithProvider(ui: React.ReactElement, { initialEntries = ['/'] }: { initialEntries?: string[] } = {}) {
+function renderWithProvider(
+  ui: React.ReactElement,
+  { initialEntries = ['/'], initialEnvironment }: { initialEntries?: string[]; initialEnvironment?: 'testnet' | 'mainnet' } = {}
+) {
   return render(ui, {
     wrapper: ({ children }) => (
       <MemoryRouter initialEntries={initialEntries}>
         <LocaleProvider>
-          {children}
-          <LocationDisplay />
+          <EnvironmentProvider initialEnvironment={initialEnvironment}>
+            {children}
+            <LocationDisplay />
+          </EnvironmentProvider>
         </LocaleProvider>
+        <EnvironmentProvider>
+          <LocaleProvider>
+            {children}
+            <LocationDisplay />
+          </LocaleProvider>
+        </EnvironmentProvider>
       </MemoryRouter>
     ),
   })
@@ -600,6 +619,17 @@ describe('TopAppBar - Account Switcher', () => {
       const searchInput = screen.getByPlaceholderText('Find workspace…')
       await waitFor(() => expect(searchInput).toHaveFocus())
     })
+
+    it('has no axe accessibility violations', async () => {
+      const { container } = renderWithProvider(
+        <TopAppBar
+          workspaces={mockWorkspaces}
+          initialWorkspace="workspace-1"
+        />
+      )
+
+      await expectNoAxeViolations(container)
+    })
   })
 
   describe('Edge Cases', () => {
@@ -758,7 +788,8 @@ describe('TopAppBar - Account Switcher', () => {
           workspaces={mockWorkspaces}
           initialWorkspace="workspace-1"
           initialEnvironment="mainnet"
-        />
+        />,
+        { initialEnvironment: 'mainnet' }
       )
 
       fireEvent.click(screen.getByRole('button', { name: /environment: mainnet/i }))
@@ -960,5 +991,95 @@ describe('TopAppBar - Account Switcher', () => {
       expect(screen.getByText('Main corporate workspace')).toBeInTheDocument()
       expect(screen.getByText('Personal workspace')).toBeInTheDocument()
     })
+  })
+})
+
+describe('TopAppBar - Notifications Center', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetNotificationsStore([], buildInitialPrefs())
+  })
+
+  it('shows unread badge count and opens notifications dropdown', () => {
+    addNotification({
+      category: 'attestation-completed',
+      title: 'June attestation complete',
+      message: 'Verified on Stellar.',
+      severity: 'success',
+    })
+
+    renderWithProvider(<TopAppBar />)
+
+    const bell = screen.getByRole('button', { name: /notifications \(1 unread\)/i })
+    expect(bell).toBeInTheDocument()
+    expect(screen.getByTestId('notifications-unread-badge')).toHaveTextContent('1')
+
+    fireEvent.click(bell)
+    const popover = screen.getByRole('region', { name: /notifications/i })
+    expect(within(popover).getByText('June attestation complete')).toBeInTheDocument()
+  })
+
+  it('marks all notifications as read and hides the unread badge', () => {
+    addNotification({
+      category: 'attestation-completed',
+      title: 'Run 1',
+      message: 'Done',
+    })
+    addNotification({
+      category: 'security-alert',
+      title: 'New sign-in',
+      message: 'Chrome on Windows',
+    })
+
+    renderWithProvider(<TopAppBar />)
+    expect(screen.getByTestId('notifications-unread-badge')).toHaveTextContent('2')
+
+    fireEvent.click(screen.getByRole('button', { name: /notifications \(2 unread\)/i }))
+    fireEvent.click(screen.getByRole('button', { name: /mark all read/i }))
+
+    expect(screen.queryByTestId('notifications-unread-badge')).not.toBeInTheDocument()
+  })
+
+  it('dismisses a notification from the dropdown', () => {
+    addNotification({
+      category: 'source-connected',
+      title: 'Stripe connected',
+      message: 'Live sync active.',
+    })
+
+    renderWithProvider(<TopAppBar />)
+    fireEvent.click(screen.getByRole('button', { name: /notifications/i }))
+
+    expect(screen.getByText('Stripe connected')).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: /dismiss notification: stripe connected/i }),
+    )
+
+    expect(screen.queryByText('Stripe connected')).not.toBeInTheDocument()
+    expect(screen.getByText(/no notifications yet/i)).toBeInTheDocument()
+  })
+
+  it('does not show notifications for disabled categories', () => {
+    setNotificationPref('attestation-failed', 'inapp', false)
+    addNotification({
+      category: 'attestation-failed',
+      title: 'Suppressed failure',
+      message: 'Should not be created.',
+    })
+
+    renderWithProvider(<TopAppBar />)
+    expect(screen.queryByTestId('notifications-unread-badge')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^notifications$/i }))
+    expect(screen.queryByText('Suppressed failure')).not.toBeInTheDocument()
+    expect(screen.getByText(/no notifications yet/i)).toBeInTheDocument()
+  })
+
+  it('navigates to notification preferences from the dropdown footer', () => {
+    renderWithProvider(<TopAppBar />)
+    fireEvent.click(screen.getByRole('button', { name: /^notifications$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /notification preferences/i }))
+
+    expect(screen.getByTestId('location-pathname')).toHaveTextContent('/settings')
   })
 })

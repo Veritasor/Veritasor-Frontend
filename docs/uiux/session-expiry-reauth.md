@@ -133,11 +133,23 @@ The hook automatically detects and resets the session on:
 
 ---
 
+## Countdown Announcements
+
+The countdown text in the description is **not** a live region (it ticks every second, which would flood screen readers). Instead, a visually hidden `role="status"` / `aria-live="polite"` / `aria-atomic="true"` region announces `Your session will expire in …` only:
+
+- once when the dialog opens,
+- at each full-minute boundary, and
+- at 30 seconds and 10 seconds remaining.
+
+Covered by `src/components/SessionExpiryWarning.test.tsx` (fake timers).
+
+---
+
 ## Focus Management
 
 ### On Open
 1. Save the currently focused element (trigger)
-2. Move focus programmatically to the dialog container
+2. Move focus programmatically to the **Extend Session** button (the least destructive action); the dialog container is the fallback
 
 ### Focus Trap
 - `Tab`: wraps from last to first focusable element

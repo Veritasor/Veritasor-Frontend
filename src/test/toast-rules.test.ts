@@ -33,7 +33,7 @@ describe('toastRules constants', () => {
   })
 
   it('undo toasts extend the cadence by UNDO_EXTRA_MS', () => {
-    expect(UNDO_EXTRA_MS).toBeGreaterThan(0)
+    expect(UNDO_EXTRA_MS).toBe(3000)
   })
 })
 

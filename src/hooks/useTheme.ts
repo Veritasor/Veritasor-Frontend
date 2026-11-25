@@ -29,8 +29,12 @@ function getThemeFromStorage(key: string): Theme {
 }
 
 function getResolvedTheme(theme: Theme): 'light' | 'dark' | 'high-contrast' {
-  // The light theme is not fully supported yet; the app ships dark-only.
-  if (theme === 'high-contrast') return 'high-contrast'
+  if (theme === 'light' || theme === 'dark' || theme === 'high-contrast') {
+    return theme
+  }
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  }
   return 'dark'
 }
 
@@ -48,6 +52,8 @@ export function useTheme(userId?: string) {
   const subscribeToStore = useCallback(
     (callback: () => void): (() => void) => {
       const handleStorage = (event: StorageEvent) => {
+        // Only react to localStorage changes (not sessionStorage) for our keys.
+        if (event.storageArea && event.storageArea !== localStorage) return
         if (
           event.key === storageKey ||
           event.key === BASE_STORAGE_KEY ||

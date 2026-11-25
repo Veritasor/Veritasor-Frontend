@@ -9,7 +9,7 @@ import { render, screen, act, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { ToastProvider, useToast } from '../components/ToastContext'
 import ToastContainer from '../components/ToastContainer'
-import { MAX_VISIBLE_DESKTOP, MAX_VISIBLE_MOBILE, UNDO_EXTRA_MS } from '../components/toastRules'
+import { MAX_VISIBLE_DESKTOP, MAX_VISIBLE_MOBILE } from '../components/toastRules'
 
 /**
  * jsdom defaults matchMedia to undefined; provide a controllable stub so we
@@ -363,21 +363,6 @@ describe('Toast stacking rules', () => {
 describe('Toast dismiss cadence', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-  })
-
-  // The auto-dismiss + undo-extended cadence CONTRACT is covered exhaustively
-  // by the unit tests in `src/test/toast-rules.test.ts` (resolveAutoDismissMs).
-  // End-to-end integration of the timer loop with `vi.runAllTimersAsync` is
-  // skipped here because vitest's 10 000-timer safety guard trips on the
-  // React 18 + setInterval interplay even after the interval is cleared once
-  // `timeLeft` hits zero. Manual smoke tests through the dev server confirm
-  // both flows visually; covered by the unit-level contract here.
-  it.skip('success and info auto-dismiss after 5s by default (covered by toast-rules.test.ts)', () => {
-    // See header comment.
-  })
-
-  it.skip('undo toasts get an extended cadence (covered by toast-rules.test.ts)', () => {
-    // See header comment.
   })
 
   it('warning toasts persist past 60s of timer advancement', () => {

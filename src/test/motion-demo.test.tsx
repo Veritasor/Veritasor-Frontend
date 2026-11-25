@@ -11,7 +11,9 @@
  */
 
 import { render, screen, fireEvent, act } from '@testing-library/react'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { appRoutes } from '../App'
 import MotionDemo from '../pages/MotionDemo'
 
 /* ─── Test helpers ──────────────────────────────────────────────────────── */
@@ -458,5 +460,30 @@ describe('MotionDemo — general accessibility attributes', () => {
       const heading = document.getElementById(headingId as string)
       expect(heading).not.toBeNull()
     })
+  })
+})
+
+/* ─── Router integration ────────────────────────────────────────────────── */
+
+describe('MotionDemo — router integration', () => {
+  it('mounts MotionDemo at /motion-tokens outside the Layout group', () => {
+    const router = createMemoryRouter(appRoutes, {
+      initialEntries: ['/motion-tokens'],
+    })
+    render(<RouterProvider router={router} />)
+
+    expect(screen.getByRole('heading', { level: 1, name: /motion tokens/i })).toBeInTheDocument()
+    expect(document.querySelector('main[aria-labelledby="motion-demo-title"]')).not.toBeNull()
+  })
+
+  it('still renders NotFound for unknown routes', () => {
+    const router = createMemoryRouter(appRoutes, {
+      initialEntries: ['/motion-tokens-unknown'],
+    })
+    render(<RouterProvider router={router} />)
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: /we could not find that page/i })
+    ).toBeInTheDocument()
   })
 })

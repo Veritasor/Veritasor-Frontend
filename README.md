@@ -26,12 +26,24 @@ npm run dev      # http://localhost:5173
 
 Requires Node 18+ (CI uses Node 22).
 
+## Attestation status updates
+
+The attestations page listens for server-sent events at `GET /api/attestations/events`. Each event is JSON with an
+`id`, `attestationId`, and `status` (`pending`, `collecting`, `verifying`, `building_merkle_root`, `publishing`,
+`verified`, `failed`, or `canceled`); `step`, `message`, and `timestamp` are optional. Reconnection includes the last
+received event id as the `lastEventId` query parameter.
+
+If the event stream is unavailable, the frontend polls `GET /api/attestations/status`, passing the last received id as
+the `since` query parameter. The response is either an array of status events or an object with an `updates` array.
+Streaming and polling pause while offline and resume when connectivity returns.
+
 ## Scripts
 
 | Command | Description |
 |---|---|
 | `npm run dev` | Vite dev server (proxies `/api/*` to `http://localhost:3000`) |
 | `npm run build` | Production build into `dist/` |
+| `npm run check:bundle` | Verify the main JS entry chunk in `dist/assets/` stays within the 450 KB budget |
 | `npm run preview` | Serve the production build locally |
 | `npm run typecheck` | `tsc -b` (currently reports pre-existing type errors, mostly in tests) |
 | `npm run lint` | ESLint |
@@ -56,6 +68,17 @@ All unit tests must mock network calls (`fetch`) and use fake timers (`vi.useFak
 
 `/` landing, `/login`, `/signup`, `/forgot-password`, `/onboarding`, `/dashboard`, `/attestations`, `/attestations/:id`, `/sources`, `/connect-source/*`, `/settings`, `/api-keys`, `/help`, `/consent-preferences`, `/motion-tokens`, `/500`, anything else renders the 404 page.
 
+Route pages are code-split with `React.lazy` and wrapped in a root `Suspense` fallback (`SkeletonLoader` with `aria-busy="true"`) and router `errorElement` (`ServerError`).
+
+## Bundle-size budget
+
+After running `npm run build`, run `npm run check:bundle` to enforce the main entry chunk (`dist/assets/index-*.js`) budget:
+
+- **Default budget**: `450 KB` (raw)
+- **Override**: pass `--budget=<kb>` (e.g. `node scripts/check-bundle-size.mjs --budget=400`) or set `BUNDLE_BUDGET_KB=<kb>`.
+
+The script exits non-zero if the main entry chunk exceeds the configured budget.
+
 ## Environment variables
 
 All environment variables are optional and typed in [`src/vite-env.d.ts`](src/vite-env.d.ts). Copy [`.env.example`](.env.example) to `.env` to customize local settings (never commit secrets):
@@ -67,6 +90,7 @@ cp .env.example .env
 | Variable | Default | Description |
 |---|---|---|
 | `VITE_API_URL` | `http://localhost:3000` | Base URL for backend API requests |
+| `VITE_USE_MOCKS` | `true` | Use in-memory mock API adapters (`false` enables live HTTP requests) |
 | `VITE_SESSION_DURATION_MINUTES` | `30` | Session timeout duration in minutes |
 | `VITE_SESSION_WARNING_BEFORE_MINUTES` | `5` | Minutes before session expiry to show the warning modal |
 

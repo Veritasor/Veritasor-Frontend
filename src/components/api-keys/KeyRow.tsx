@@ -22,6 +22,7 @@ export default function KeyRow({
   onRotate,
   onRevoke,
   onCopyMasked,
+  onDetails,
 }: {
   keyItem: ApiKey
   mintedOnce: string | null
@@ -34,6 +35,7 @@ export default function KeyRow({
   onCopyMasked: (key: ApiKey) => void
   onRotate: (id: string) => void
   onRevoke: (id: string) => void
+  onDetails: (key: ApiKey) => void
 }) {
   const meta = useMemo(() => statusMeta(keyItem.status), [keyItem.status])
   const { addToast } = useToast()
@@ -175,6 +177,15 @@ export default function KeyRow({
               type="button"
               className="app-button app-button-secondary"
               style={{ width: 'auto' }}
+              onClick={() => onDetails(keyItem)}
+              aria-label={`View details for ${keyItem.label}`}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              className="app-button app-button-secondary"
+              style={{ width: 'auto' }}
               disabled={!canRotate}
               onClick={() => setRotateOpen(true)}
             >
@@ -227,3 +238,10 @@ export default function KeyRow({
     </div>
   )
 }
+import type { ApiKey, ApiKeyStatus } from './apiKeyTypes'
+    <li
+          title="Revoke API key?"
+          description="Revoking immediately invalidates the key. This action cannot be undone."
+          confirmText="Revoke"
+          tone="danger"
+    </li>

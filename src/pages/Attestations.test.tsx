@@ -15,14 +15,34 @@ function renderPage(options?: {
   initialEntries?: string[]
   initialAttestations?: Attestation[]
 }) {
+function renderPage(initialEntries: string[] = ['/attestations']) {
   return render(
     <AttestationsProvider initialAttestations={options?.initialAttestations}>
       <ToastProvider>
         <MemoryRouter initialEntries={options?.initialEntries}>
+        <MemoryRouter initialEntries={initialEntries}>
           <Attestations />
         </MemoryRouter>
       </ToastProvider>
     </AttestationsProvider>,
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import Attestations from './Attestations'
+import { AttestationsProvider } from '../state/attestations'
+import type { RealtimeService } from '../services/realtime'
+
+const testRealtimeService: RealtimeService = {
+  subscribe: () => () => {},
+}
+
+function renderAttestations() {
+  return render(
+    <MemoryRouter>
+      <AttestationsProvider service={testRealtimeService}>
+        <Attestations />
+      </AttestationsProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -222,5 +242,45 @@ describe('Attestations Page — pagination and filtering with 2,000 items', () =
 
     expect(within(pagination).getByText('Page 1 of 4')).toBeInTheDocument()
     expect(screen.getAllByRole('article')).toHaveLength(PAGE_SIZE)
+  it('reads status and date range query params into filters and filters the list', () => {
+    renderPage(['/attestations?status=failed&from=2026-05-19&to=2026-05-21'])
+
+    expect(screen.getByLabelText('Filter by status')).toHaveValue('failed')
+    expect(screen.getByLabelText('Filter from date')).toHaveValue('2026-05-19')
+    expect(screen.getByLabelText('Filter to date')).toHaveValue('2026-05-21')
+
+    const links = screen.getAllByRole('link', { name: /view details/i })
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', '/attestations/att-003')
+  })
+
+  it('shows filtered empty state and clears filters when requested', () => {
+    renderPage(['/attestations?status=verified&from=2026-01-01&to=2026-01-02'])
+
+    expect(screen.getByText(/no attestations match the selected filters/i)).toBeInTheDocument()
+    const clearButtons = screen.getAllByRole('button', { name: /clear filters/i })
+    fireEvent.click(clearButtons[0])
+
+    expect(screen.getAllByRole('link', { name: /view details/i }).length).toBeGreaterThanOrEqual(3)
+  it('renders the attestation progress and status history', () => {
+    renderAttestations()
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading).toBeInTheDocument()
+    expect(heading).toHaveTextContent('Attestations')
+    expect(screen.getByRole('region', { name: 'Attestation progress' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Attestation status timeline' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start attestation' })).toBeInTheDocument()
+  })
+
+  it('shows realtime connection state and an empty status history', () => {
+    renderAttestations()
+    expect(screen.getByText('Realtime updates: offline')).toBeInTheDocument()
+    expect(screen.getByText('No status updates received yet.')).toBeInTheDocument()
+  })
+
+  it('displays the empty attestations state', () => {
+    renderAttestations()
+    expect(screen.getByRole('region', { name: 'Attestations empty state' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Run a revenue report' })).toHaveAttribute('href', '/')
   })
 })

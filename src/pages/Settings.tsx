@@ -1,8 +1,9 @@
 import { createContext, useContext, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useBlocker, useLocation, useNavigate } from 'react-router-dom'
+import { useIntl } from 'react-intl'
 import LocalePickerField from '../components/LocalePicker/LocalePickerField'
 import AuditLogTimeline, { type AuditLogEntry } from '../components/audit-log/AuditLogTimeline'
-import type { AuditLogEntryDetail } from '../components/audit-log/AuditLogDetailDrawer'
+import { auditLogApi } from '../services/auditLogApi'
 import TokensExport from '../components/tokens/TokensExport'
 import TokensDiffViewer from '../components/tokens/TokensDiffViewer'
 import A11yAuditPanel from '../components/a11y/A11yAuditPanel'
@@ -10,11 +11,19 @@ import A11yCoverageMatrix from '../components/a11y/A11yCoverageMatrix'
 import SettingsIntegrationsPanel from './SettingsIntegrationsPanel'
 import MfaManagementPanel from '../components/MfaManagementPanel'
 import WebhookRetryPanel from '../components/WebhookRetryPanel'
-import type { WebhookDelivery } from '../components/api-keys/apiKeyTypes'
+import WebhookCreateForm from '../components/webhooks/WebhookCreateForm'
+import WebhookSecretRotationDialog, { type RotatingSecret } from '../components/WebhookSecretRotationDialog'
+import { webhooksStore, useWebhooks } from '../store/webhooksStore'
 import DensityToggle from '../components/DensityToggle'
 import DirtyStateBanner from '../components/DirtyStateBanner'
 import { useDirtyForm, type SaveStatus } from '../hooks/useDirtyForm'
 import { validatePassword } from '../utils/passwordPolicy'
+import {
+  NOTIFICATION_CATEGORIES,
+  CHANNEL_META,
+  useNotifications,
+  type NotificationChannel,
+} from '../store/notificationsStore'
 import { useOptionalWorkspace } from '../state/workspace'
 import { TeamPanel as ExtractedTeamPanel } from '../components/team/TeamPanel'
 
@@ -25,6 +34,7 @@ const TABS = [
   { id: "appearance", label: "Appearance" },
   { id: "team", label: "Team" },
   { id: "integrations", label: "Integrations" },
+  { id: "webhooks", label: "Webhooks" },
   { id: "api-keys", label: "API Keys" },
   { id: "tokens", label: "Tokens" },
   { id: "billing", label: "Billing" },
@@ -306,208 +316,186 @@ function ProfilePanel() {
   );
 }
 
-type NotificationChannel = "email" | "inapp" | "webhook";
-
-interface NotificationCategory {
-  id: string;
-  title: string;
-  description: string;
-  defaults: Record<NotificationChannel, boolean>;
-}
-
-const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
-  {
-    id: "attestation-completed",
-    title: "Attestation completed",
-    description:
-      "A revenue attestation run finished successfully with a valid Merkle root.",
-    defaults: { email: true, inapp: true, webhook: true },
-  },
-  {
-    id: "attestation-failed",
-    title: "Attestation failed",
-    description:
-      "An attestation run timed out, returned an error, or produced invalid evidence.",
-    defaults: { email: true, inapp: true, webhook: true },
-  },
-  {
-    id: "source-connected",
-    title: "Revenue source connected",
-    description:
-      "A new data source (Stripe, QuickBooks, Plaid, etc.) was linked to the workspace.",
-    defaults: { email: true, inapp: true, webhook: false },
-  },
-  {
-    id: "source-disconnected",
-    title: "Revenue source disconnected",
-    description:
-      "A previously connected data source lost authorization or was removed by a team member.",
-    defaults: { email: true, inapp: true, webhook: true },
-  },
-  {
-    id: "invoice-generated",
-    title: "Billing invoice generated",
-    description:
-      "A new subscription invoice is ready. Receipts are also available in Billing.",
-    defaults: { email: true, inapp: false, webhook: false },
-  },
-  {
-    id: "payment-failed",
-    title: "Payment failed",
-    description:
-      "A subscription charge could not be processed. Service may be interrupted.",
-    defaults: { email: true, inapp: true, webhook: true },
-  },
-  {
-    id: "team-invite",
-    title: "Team member invite or removal",
-    description:
-      "Someone was invited to the workspace, accepted, or was removed by an admin.",
-    defaults: { email: true, inapp: true, webhook: false },
-  },
-  {
-    id: "api-key-rotated",
-    title: "API key rotated or revoked",
-    description:
-      "A workspace API key was rotated, revoked, or is about to expire.",
-    defaults: { email: true, inapp: true, webhook: true },
-  },
-  {
-    id: "security-alert",
-    title: "Security alerts",
-    description:
-      "Sign-in from a new device, MFA method changes, or recovery code usage.",
-    defaults: { email: true, inapp: true, webhook: true },
-  },
-];
-
-const CHANNEL_META: Record<
-  NotificationChannel,
-  { label: string; icon: string; help: string }
-> = {
-  email: {
-    label: "Email",
-    icon: "✉",
-    help: "Delivered to your verified inbox with reply-to support.",
-  },
-  inapp: {
-    label: "In-app",
-    icon: "🔔",
-    help: "Shown in the product bell menu and marked as read/unread.",
-  },
-  webhook: {
-    label: "Webhook",
-    icon: "🔗",
-    help: "POST event payload to the configured endpoint URL.",
-  },
-};
-
-function buildInitialPrefs(): Record<
-  string,
-  Record<NotificationChannel, boolean>
-> {
-  const prefs: Record<string, Record<NotificationChannel, boolean>> = {};
-  for (const cat of NOTIFICATION_CATEGORIES) {
-    prefs[cat.id] = { ...cat.defaults };
-  }
-  return prefs;
-}
+const NOTIFICATION_CHANNELS: NotificationChannel[] = ["email", "inapp", "webhook"];
 
 function NotificationsPanel() {
   const registry = useDirtyRegistry();
-  const notificationItems = [
-    "Attestation completed",
-    "Attestation failed",
-    "New revenue source connected",
-    "Billing invoice generated",
-  ] as const;
-  type NotifItem = (typeof notificationItems)[number];
+  const { preferences, setPreference, setPreferences, resetPreferences } =
+    useNotifications();
+  const initialSnapshotRef = useRef(preferences);
+  const [isDirty, setIsDirty] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-  const initialNotifs: Record<NotifItem, boolean> = {
-    "Attestation completed": true,
-    "Attestation failed": true,
-    "New revenue source connected": true,
-    "Billing invoice generated": true,
-  };
+  const save = useCallback(async () => {
+    setSaveStatus("saving");
+    initialSnapshotRef.current = preferences;
+    setIsDirty(false);
+    setSaveStatus("saved");
+    setLastSavedAt(new Date());
+  }, [preferences]);
 
-  const form = useDirtyForm({
-    storageKey: "veritasor_settings_notifications_draft",
-    initialValues: initialNotifs,
-    autoSave: true,
-    autoSaveIntervalMs: 2500,
-  });
+  const reset = useCallback(() => {
+    setPreferences(initialSnapshotRef.current);
+    setIsDirty(false);
+    setSaveStatus("idle");
+  }, [setPreferences]);
 
   useEffect(() => {
     registry.register("notifications", {
-      isDirty: form.isDirty,
-      saveStatus: form.saveStatus,
-      lastSavedAt: form.lastSavedAt,
-      save: form.save,
-      reset: form.reset,
+      isDirty,
+      saveStatus,
+      lastSavedAt,
+      save,
+      reset,
     });
     return () => registry.unregister("notifications");
   }, [
     registry.register,
     registry.unregister,
-    form.isDirty,
-    form.saveStatus,
-    form.lastSavedAt,
-    form.save,
-    form.reset,
+    isDirty,
+    saveStatus,
+    lastSavedAt,
+    save,
+    reset,
   ]);
 
   return (
     <div style={{ display: "grid", gap: "1rem" }}>
       <DirtyStateBanner
-        isDirty={form.isDirty}
-        saveStatus={form.saveStatus}
-        lastSavedAt={form.lastSavedAt}
-        onSave={form.save}
-        onDiscard={form.reset}
+        isDirty={isDirty}
+        saveStatus={saveStatus}
+        lastSavedAt={lastSavedAt}
+        onSave={save}
+        onDiscard={reset}
         formLabel="Notifications"
       />
-      <div>
-        <h2>Notifications</h2>
-        <p style={{ color: "var(--muted)" }}>
-          Choose which events trigger email notifications.
-        </p>
-        <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
-          <legend className="sr-only">Email notification preferences</legend>
-          <ul
-            style={{
-              listStyle: "none",
-              padding: 0,
-              display: "grid",
-              gap: "0.75rem",
-              maxWidth: 480,
-            }}
-          >
-            {notificationItems.map((item) => (
-              <li
-                key={item}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+        <div>
+          <h2>Notifications</h2>
+          <p style={{ color: "var(--muted)" }}>
+            Choose which events trigger email, in-app bell, and webhook notifications.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            resetPreferences();
+            setIsDirty(true);
+            setSaveStatus("dirty");
+          }}
+          style={{
+            padding: "0.45rem 0.85rem",
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "transparent",
+            color: "var(--text)",
+            cursor: "pointer",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+          }}
+        >
+          Reset to defaults
+        </button>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            minWidth: 480,
+          }}
+        >
+          <thead>
+            <tr>
+              <th
+                scope="col"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
+                  textAlign: "left",
+                  padding: "0.65rem 0.75rem",
+                  borderBottom: "1px solid var(--border)",
+                  fontSize: "0.78rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  color: "var(--muted)",
                 }}
               >
-                <input
-                  id={`notif-${item}`}
-                  type="checkbox"
-                  checked={form.values[item]}
-                  onChange={(e) => form.setField(item, e.target.checked)}
-                  style={{ width: 16, height: 16 }}
-                />
-                <label
-                  htmlFor={`notif-${item}`}
-                  style={{ fontSize: "0.95rem" }}
+                Event
+              </th>
+              {NOTIFICATION_CHANNELS.map((ch) => (
+                <th
+                  key={ch}
+                  scope="col"
+                  title={CHANNEL_META[ch].help}
+                  style={{
+                    textAlign: "center",
+                    padding: "0.65rem 0.75rem",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: "0.78rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    color: "var(--muted)",
+                    whiteSpace: "nowrap",
+                  }}
                 >
-                  {item}
-                </label>
-              </li>
+                  <span aria-hidden="true" style={{ marginRight: "0.3rem" }}>
+                    {CHANNEL_META[ch].icon}
+                  </span>
+                  {CHANNEL_META[ch].label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {NOTIFICATION_CATEGORIES.map((cat) => (
+              <tr
+                key={cat.id}
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
+                <td style={{ padding: "0.75rem" }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.92rem" }}>
+                    {cat.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.82rem",
+                      color: "var(--muted)",
+                      marginTop: "0.15rem",
+                    }}
+                  >
+                    {cat.description}
+                  </div>
+                </td>
+                {NOTIFICATION_CHANNELS.map((ch) => {
+                  const checked = preferences[cat.id]?.[ch] ?? cat.defaults[ch];
+                  return (
+                    <td
+                      key={ch}
+                      style={{
+                        textAlign: "center",
+                        padding: "0.75rem",
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <input
+                        id={`notif-${cat.id}-${ch}`}
+                        type="checkbox"
+                        checked={checked}
+                        aria-label={`${cat.title} — ${CHANNEL_META[ch].label}`}
+                        onChange={(e) => {
+                          setPreference(cat.id, ch, e.target.checked);
+                          setIsDirty(true);
+                          setSaveStatus("dirty");
+                        }}
+                        style={{ width: 16, height: 16, cursor: "pointer" }}
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
             ))}
-          </ul>
-        </fieldset>
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -559,17 +547,6 @@ function ApiKeysPanel() {
   );
 }
 
-type InvoiceStatus = "paid" | "open" | "overdue" | "void";
-
-interface Invoice {
-  id: string;
-  period: string;
-  amount: number;
-  status: InvoiceStatus;
-  dueDate: string;
-  pdfUrl: string;
-}
-
 const INVOICE_STATUS_META: Record<
   InvoiceStatus,
   { label: string; bg: string; border: string; color: string; dot: string }
@@ -604,113 +581,7 @@ const INVOICE_STATUS_META: Record<
   },
 };
 
-const MOCK_INVOICES: Invoice[] = [
-  {
-    id: "inv_001",
-    period: "June 2026",
-    amount: 49.0,
-    status: "paid",
-    dueDate: "2026-06-01",
-    pdfUrl: "#invoice-001",
-  },
-  {
-    id: "inv_002",
-    period: "May 2026",
-    amount: 49.0,
-    status: "paid",
-    dueDate: "2026-05-01",
-    pdfUrl: "#invoice-002",
-  },
-  {
-    id: "inv_003",
-    period: "April 2026",
-    amount: 49.0,
-    status: "paid",
-    dueDate: "2026-04-01",
-    pdfUrl: "#invoice-003",
-  },
-  {
-    id: "inv_004",
-    period: "July 2026",
-    amount: 49.0,
-    status: "open",
-    dueDate: "2026-07-15",
-    pdfUrl: "#invoice-004",
-  },
-  {
-    id: "inv_005",
-    period: "March 2026",
-    amount: 29.0,
-    status: "overdue",
-    dueDate: "2026-03-15",
-    pdfUrl: "#invoice-005",
-  },
-  {
-    id: "inv_006",
-    period: "February 2026",
-    amount: 29.0,
-    status: "void",
-    dueDate: "2026-02-15",
-    pdfUrl: "#invoice-006",
-  },
-  {
-    id: "inv_007",
-    period: "January 2026",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2026-01-15",
-    pdfUrl: "#invoice-007",
-  },
-  {
-    id: "inv_008",
-    period: "December 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-12-15",
-    pdfUrl: "#invoice-008",
-  },
-  {
-    id: "inv_009",
-    period: "November 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-11-15",
-    pdfUrl: "#invoice-009",
-  },
-  {
-    id: "inv_010",
-    period: "October 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-10-15",
-    pdfUrl: "#invoice-010",
-  },
-  {
-    id: "inv_011",
-    period: "September 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-09-15",
-    pdfUrl: "#invoice-011",
-  },
-  {
-    id: "inv_012",
-    period: "August 2025",
-    amount: 29.0,
-    status: "paid",
-    dueDate: "2025-08-15",
-    pdfUrl: "#invoice-012",
-  },
-];
-
 const INVOICES_PER_PAGE = 5;
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
-}
 
 function InvoiceStatusChip({ status }: { status: InvoiceStatus }) {
   const meta = INVOICE_STATUS_META[status];
@@ -811,10 +682,12 @@ const inputStyle: React.CSSProperties = {
 };
 
 function InvoiceList() {
+  const { invoices } = useBilling();
+  const { locale } = useLocale();
   const [page, setPage] = useState(1);
-  const totalPages = Math.ceil(MOCK_INVOICES.length / INVOICES_PER_PAGE);
+  const totalPages = Math.ceil(invoices.length / INVOICES_PER_PAGE);
   const startIdx = (page - 1) * INVOICES_PER_PAGE;
-  const pageInvoices = MOCK_INVOICES.slice(
+  const pageInvoices = invoices.slice(
     startIdx,
     startIdx + INVOICES_PER_PAGE,
   );
@@ -852,8 +725,8 @@ function InvoiceList() {
         </div>
         <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
           Showing {startIdx + 1}–
-          {Math.min(startIdx + INVOICES_PER_PAGE, MOCK_INVOICES.length)} of{" "}
-          {MOCK_INVOICES.length}
+          {Math.min(startIdx + INVOICES_PER_PAGE, invoices.length)} of{" "}
+          {invoices.length}
         </div>
       </div>
 
@@ -917,11 +790,7 @@ function InvoiceList() {
                     </div>
                   </td>
                   <td style={tdStyle}>
-                    {due.toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "2-digit",
-                    })}
+                    {formatDate(due, locale, "medium")}
                   </td>
                   <td
                     style={{
@@ -930,7 +799,7 @@ function InvoiceList() {
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {formatCurrency(inv.amount)}
+                    {formatCurrency(inv.amount, locale)}
                   </td>
                   <td style={tdStyle}>
                     <InvoiceStatusChip status={inv.status} />
@@ -1030,19 +899,6 @@ function InvoiceList() {
   );
 }
 
-type CardBrand = "visa" | "mastercard" | "amex" | "discover";
-type PaymentMethodStatus = "ok" | "expiring" | "expired";
-
-interface PaymentMethod {
-  id: string;
-  brand: CardBrand;
-  last4: string;
-  expMonth: number;
-  expYear: number;
-  status: PaymentMethodStatus;
-  isDefault: boolean;
-}
-
 const CARD_BRAND_META: Record<
   CardBrand,
   { label: string; gradient: string; pattern: string }
@@ -1068,36 +924,6 @@ const CARD_BRAND_META: Record<
     pattern: "■",
   },
 };
-
-const MOCK_PAYMENT_METHODS: PaymentMethod[] = [
-  {
-    id: "pm_001",
-    brand: "visa",
-    last4: "4242",
-    expMonth: 12,
-    expYear: 2028,
-    status: "ok",
-    isDefault: true,
-  },
-  {
-    id: "pm_002",
-    brand: "mastercard",
-    last4: "5678",
-    expMonth: 8,
-    expYear: 2026,
-    status: "expiring",
-    isDefault: false,
-  },
-  {
-    id: "pm_003",
-    brand: "amex",
-    last4: "0005",
-    expMonth: 3,
-    expYear: 2025,
-    status: "expired",
-    isDefault: false,
-  },
-];
 
 function getPaymentStatusMeta(status: PaymentMethodStatus) {
   if (status === "expired")
@@ -1178,15 +1004,11 @@ function CardArt({ method }: { method: PaymentMethod }) {
 }
 
 function PaymentMethodsPanel() {
-  const [methods, setMethods] = useState<PaymentMethod[]>(MOCK_PAYMENT_METHODS);
+  const { paymentMethods: methods, setDefaultMethod, removeMethod } = useBilling();
   const [showAdd, setShowAdd] = useState(false);
 
   function setDefault(id: string) {
-    setMethods((prev) => prev.map((m) => ({ ...m, isDefault: m.id === id })));
-  }
-
-  function removeMethod(id: string) {
-    setMethods((prev) => prev.filter((m) => m.id !== id));
+    setDefaultMethod(id);
   }
 
   return (
@@ -1236,7 +1058,6 @@ function PaymentMethodsPanel() {
       </div>
 
       <ul
-        role="list"
         style={{
           listStyle: "none",
           padding: 0,
@@ -1515,119 +1336,6 @@ function PaymentMethodsPanel() {
 
 // ─── Plan Comparison ─────────────────────────────────────────────────────────
 
-type PlanId = "starter" | "growth" | "enterprise";
-
-interface PlanFeature {
-  label: string;
-  values: Record<PlanId, string | boolean>;
-}
-
-interface PlanMeta {
-  id: PlanId;
-  name: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  description: string;
-  badge?: string;
-  recommended?: boolean;
-}
-
-const PLANS: PlanMeta[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    monthlyPrice: 29,
-    annualPrice: 290,
-    description: "For small teams getting started with attestations.",
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    monthlyPrice: 49,
-    annualPrice: 490,
-    description: "For growing businesses that need more capacity.",
-    badge: "Current plan",
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    monthlyPrice: 99,
-    annualPrice: 990,
-    description: "For organizations with advanced compliance needs.",
-    recommended: true,
-  },
-];
-
-const PLAN_FEATURES: PlanFeature[] = [
-  {
-    label: "Attestations per month",
-    values: { starter: "1,000", growth: "10,000", enterprise: "Unlimited" },
-  },
-  {
-    label: "Team members",
-    values: { starter: "3", growth: "10", enterprise: "Unlimited" },
-  },
-  {
-    label: "API access",
-    values: { starter: true, growth: true, enterprise: true },
-  },
-  {
-    label: "Webhook integrations",
-    values: { starter: "5", growth: "20", enterprise: "Unlimited" },
-  },
-  {
-    label: "Audit log retention",
-    values: { starter: "30 days", growth: "90 days", enterprise: "365 days" },
-  },
-  {
-    label: "Custom branding",
-    values: { starter: false, growth: true, enterprise: true },
-  },
-  {
-    label: "Priority support",
-    values: { starter: false, growth: "Email", enterprise: "24/7 Phone + Email" },
-  },
-  {
-    label: "SSO / SAML",
-    values: { starter: false, growth: false, enterprise: true },
-  },
-  {
-    label: "Dedicated account manager",
-    values: { starter: false, growth: false, enterprise: true },
-  },
-  {
-    label: "SLA guarantee",
-    values: { starter: "99.5%", growth: "99.9%", enterprise: "99.99%" },
-  },
-];
-
-const CURRENT_PLAN_ID: PlanId = "growth";
-const BILLING_CYCLE = "monthly";
-
-function getPrice(plan: PlanMeta, cycle: string) {
-  return cycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
-}
-
-function formatProratedImpact(from: PlanMeta, to: PlanMeta): {
-  label: string;
-  amount: string;
-  isCredit: boolean;
-} {
-  const fromPrice = getPrice(from, BILLING_CYCLE);
-  const toPrice = getPrice(to, BILLING_CYCLE);
-  const diff = Math.abs(toPrice - fromPrice);
-  const isCredit = toPrice < fromPrice;
-  // Prorate for remaining ~15 days in a 30-day cycle
-  const prorated = ((diff / 30) * 15).toFixed(2);
-  return {
-    label: isCredit
-      ? `Prorated credit for remaining billing period`
-      : `Prorated charge for remaining billing period`,
-    amount: `$${prorated}`,
-    isCredit,
-  };
-}
-
 function PlanCard({
   plan,
   isCurrent,
@@ -1639,12 +1347,11 @@ function PlanCard({
   onSelect: (id: PlanId) => void;
   selected: PlanId | null;
 }) {
-  const price = getPrice(plan, BILLING_CYCLE);
+  const { currentPlan, billingCycle } = useBilling();
+  const price = getPrice(plan, billingCycle);
   const isSelected = selected === plan.id;
-  const isDowngrade =
-    !isCurrent && plan.id !== CURRENT_PLAN_ID && plan.monthlyPrice < PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
-  const isUpgrade =
-    !isCurrent && plan.monthlyPrice > PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+  const isDowngrade = !isCurrent && plan.monthlyPrice < currentPlan.monthlyPrice;
+  const isUpgrade = !isCurrent && plan.monthlyPrice > currentPlan.monthlyPrice;
 
   return (
     <div
@@ -1674,7 +1381,7 @@ function PlanCard({
       }}
     >
       {/* Badges */}
-      {plan.badge && (
+      {isCurrent && (
         <span
           aria-label={`Current plan: ${plan.name}`}
           style={{
@@ -1692,7 +1399,7 @@ function PlanCard({
             textTransform: "uppercase",
           }}
         >
-          {plan.badge}
+          Current plan
         </span>
       )}
       {plan.recommended && !isCurrent && (
@@ -1777,10 +1484,7 @@ function PlanCard({
           >
             <span style={{ color: "var(--muted)", fontSize: "0.82rem" }}>
               {(() => {
-                const impact = formatProratedImpact(
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
-                  plan,
-                );
+                const impact = formatProratedImpact(currentPlan, plan, billingCycle);
                 return impact.label;
               })()}
             </span>
@@ -1792,10 +1496,7 @@ function PlanCard({
               }}
             >
               {(() => {
-                const impact = formatProratedImpact(
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
-                  plan,
-                );
+                const impact = formatProratedImpact(currentPlan, plan, billingCycle);
                 return `${impact.isCredit ? "−" : "+"}${impact.amount}`;
               })()}
             </span>
@@ -1870,7 +1571,9 @@ function PlanComparisonTable({
 }: {
   selectedPlan: PlanId | null;
 }) {
-  const isComparing = selectedPlan != null && selectedPlan !== CURRENT_PLAN_ID;
+  const { plan: currentPlanId, billingCycle } = useBilling();
+  const isComparing = selectedPlan != null && selectedPlan !== currentPlanId;
+  void isComparing;
 
   return (
     <section aria-labelledby="plan-comparison-heading">
@@ -1914,7 +1617,7 @@ function PlanComparisonTable({
                     ...thStyle,
                     width: "23.33%",
                     color:
-                      plan.id === CURRENT_PLAN_ID
+                      plan.id === currentPlanId
                         ? "var(--accent)"
                         : plan.recommended
                           ? "var(--accent)"
@@ -1932,7 +1635,7 @@ function PlanComparisonTable({
                       marginTop: "0.15rem",
                     }}
                   >
-                    ${getPrice(plan, BILLING_CYCLE)}/mo
+                    ${getPrice(plan, billingCycle)}/{billingCycle === "annual" ? "yr" : "mo"}
                   </div>
                 </th>
               ))}
@@ -1965,11 +1668,11 @@ function PlanComparisonTable({
                     style={{
                       ...tdStyle,
                       color:
-                        plan.id === CURRENT_PLAN_ID
+                        plan.id === currentPlanId
                           ? "var(--accent)"
                           : "var(--text)",
                       fontWeight:
-                        plan.id === CURRENT_PLAN_ID ? 600 : 400,
+                        plan.id === currentPlanId ? 600 : 400,
                     }}
                   >
                     {typeof feature.values[plan.id] === "boolean" ? (
@@ -2029,7 +1732,7 @@ function PlanComparisonTable({
               padding: "1rem",
               borderRadius: "var(--radius-sm)",
               border: `1px solid ${
-                plan.id === CURRENT_PLAN_ID
+                plan.id === currentPlanId
                   ? "var(--border-strong)"
                   : "var(--border)"
               }`,
@@ -2041,13 +1744,13 @@ function PlanComparisonTable({
                 margin: 0,
                 fontSize: "1rem",
                 color:
-                  plan.id === CURRENT_PLAN_ID
+                  plan.id === currentPlanId
                     ? "var(--accent)"
                     : "var(--text)",
               }}
             >
               {plan.name}
-              {plan.id === CURRENT_PLAN_ID && (
+              {plan.id === currentPlanId && (
                 <span
                   style={{
                     fontSize: "0.72rem",
@@ -2069,13 +1772,12 @@ function PlanComparisonTable({
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              ${getPrice(plan, BILLING_CYCLE)}
+              ${getPrice(plan, billingCycle)}
               <span style={{ fontSize: "0.85rem", fontWeight: 400, color: "var(--muted)" }}>
-                /mo
+                /{billingCycle === "annual" ? "yr" : "mo"}
               </span>
             </div>
             <ul
-              role="list"
               style={{
                 listStyle: "none",
                 padding: 0,
@@ -2121,6 +1823,7 @@ function PlanComparisonTable({
 }
 
 function PlanComparison() {
+  const { plan: currentPlanId, currentPlan, billingCycle, changePlan } = useBilling();
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
 
   return (
@@ -2160,7 +1863,7 @@ function PlanComparison() {
           <PlanCard
             key={plan.id}
             plan={plan}
-            isCurrent={plan.id === CURRENT_PLAN_ID}
+            isCurrent={plan.id === currentPlanId}
             onSelect={setSelectedPlan}
             selected={selectedPlan}
           />
@@ -2171,7 +1874,7 @@ function PlanComparison() {
       <PlanComparisonTable selectedPlan={selectedPlan} />
 
       {/* Action footer when a plan is selected */}
-      {selectedPlan && selectedPlan !== CURRENT_PLAN_ID && (
+      {selectedPlan && selectedPlan !== currentPlanId && (
         <div
           role="status"
           aria-live="polite"
@@ -2197,9 +1900,7 @@ function PlanComparison() {
             >
               {(() => {
                 const plan = PLANS.find((p) => p.id === selectedPlan)!;
-                const isUpgrade =
-                  plan.monthlyPrice >
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+                const isUpgrade = plan.monthlyPrice > currentPlan.monthlyPrice;
                 return isUpgrade
                   ? `Ready to upgrade to ${plan.name}?`
                   : `Ready to downgrade to ${plan.name}?`;
@@ -2209,10 +1910,7 @@ function PlanComparison() {
               Changes will apply to your next billing cycle.{" "}
               {(() => {
                 const plan = PLANS.find((p) => p.id === selectedPlan)!;
-                const impact = formatProratedImpact(
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!,
-                  plan,
-                );
+                const impact = formatProratedImpact(currentPlan, plan, billingCycle);
                 return `${impact.label}: ${impact.isCredit ? "−" : "+"}${impact.amount}`;
               })()}
             </div>
@@ -2236,6 +1934,10 @@ function PlanComparison() {
             </button>
             <button
               type="button"
+              onClick={() => {
+                changePlan(selectedPlan);
+                setSelectedPlan(null);
+              }}
               className="app-button app-button-primary"
               style={{
                 width: "auto",
@@ -2246,9 +1948,7 @@ function PlanComparison() {
             >
               {(() => {
                 const plan = PLANS.find((p) => p.id === selectedPlan)!;
-                const isUpgrade =
-                  plan.monthlyPrice >
-                  PLANS.find((p) => p.id === CURRENT_PLAN_ID)!.monthlyPrice;
+                const isUpgrade = plan.monthlyPrice > currentPlan.monthlyPrice;
                 return `Confirm ${isUpgrade ? "upgrade" : "downgrade"}`;
               })()}
             </button>
@@ -2260,6 +1960,10 @@ function PlanComparison() {
 }
 
 function BillingPanel() {
+  const { currentPlan, billingCycle } = useBilling();
+  const price = getPrice(currentPlan, billingCycle);
+  const periodUnit = billingCycle === "annual" ? "year" : "month";
+
   return (
     <div style={{ display: "grid", gap: "2rem" }}>
       <div>
@@ -2277,7 +1981,7 @@ function BillingPanel() {
           }}
         >
           <dt style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Plan</dt>
-          <dd style={{ margin: 0, fontWeight: 600 }}>Growth</dd>
+          <dd style={{ margin: 0, fontWeight: 600 }}>{currentPlan.name}</dd>
           <dt style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
             Next billing date
           </dt>
@@ -2290,7 +1994,7 @@ function BillingPanel() {
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            $49.00 / month
+            {formatCurrency(price)} / {periodUnit}
           </dd>
         </dl>
       </div>
@@ -2819,93 +2523,112 @@ function SecurityPanel() {
 }
 
 function WebhooksPanel() {
-  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const { endpoints, deliveries } = useWebhooks();
+  const [statusFilter, setStatusFilter] = useState<"all" | "delivered" | "failed" | "retrying">("all");
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null);
+  const [rotation, setRotation] = useState<{
+    endpointId: string;
+    oldSecret: RotatingSecret;
+    newSecret: RotatingSecret;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const mockDeliveries: WebhookDelivery[] = [
-    {
-      id: "wh_001",
-      event: "attestation.completed",
-      triggeredAt: "2026-07-28T09:30:00Z",
-      status: "failed",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-28T09:30:00Z",
-          statusCode: null,
-          error: "Connection refused",
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-28T09:31:00Z",
-          statusCode: 503,
-          error: "Service Unavailable",
-          backoffSeconds: 120,
-        },
-        {
-          attempt: 3,
-          at: "2026-07-28T09:33:00Z",
-          statusCode: 500,
-          error: "Internal Server Error",
-        },
-      ],
-    },
-    {
-      id: "wh_002",
-      event: "source.connected",
-      triggeredAt: "2026-07-28T08:00:00Z",
-      status: "retrying",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-28T08:00:00Z",
-          statusCode: 503,
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-28T08:01:00Z",
-          statusCode: 503,
-          backoffSeconds: 180,
-        },
-      ],
-    },
-    {
-      id: "wh_003",
-      event: "attestation.failed",
-      triggeredAt: "2026-07-27T18:45:00Z",
-      status: "delivered",
-      attempts: [
-        {
-          attempt: 1,
-          at: "2026-07-27T18:45:00Z",
-          statusCode: 503,
-          backoffSeconds: 60,
-        },
-        {
-          attempt: 2,
-          at: "2026-07-27T18:46:00Z",
-          statusCode: 200,
-        },
-      ],
-    },
-  ];
+  function handleCreate(data: { url: string; description: string; events: string[] }) {
+    try {
+      const created = webhooksStore.createEndpoint(data);
+      setCreatedSecret(created.signingSecret);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to create webhook endpoint.');
+    }
+  }
 
   function handleRetry(id: string) {
-    setRetryingId(id);
-    setTimeout(() => {
-      setRetryingId(null);
-      // Real app: trigger retry via API
-    }, 2000);
+    if (!webhooksStore.retryDelivery(id)) return;
+    window.setTimeout(() => {
+      webhooksStore.completeRetry(id, {
+        statusCode: null,
+        error: 'Retry transport is not configured in this frontend.',
+      });
+    }, 1000);
   }
 
   return (
     <div>
       <h2>Webhooks</h2>
       <p style={{ color: "var(--muted)" }}>
-        View webhook delivery history and retry failed attempts. Each delivery
-        shows its backoff intervals and final status.
+        Manage secure endpoints and review persistent delivery history.
       </p>
+      {error && <p role="alert" style={{ color: "var(--danger)" }}>{error}</p>}
+      {createdSecret && (
+        <div role="status" style={{ marginTop: "1rem", padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+          <strong>Save this signing secret now; it will not be shown again.</strong>
+          <p><code>{createdSecret}</code></p>
+          <button type="button" className="app-button app-button-secondary" onClick={() => setCreatedSecret(null)}>Dismiss</button>
+        </div>
+      )}
+      <section aria-labelledby="webhook-endpoints-heading" style={{ marginTop: "1.5rem" }}>
+        <h3 id="webhook-endpoints-heading">Endpoints</h3>
+        <WebhookCreateForm
+          existingUrls={endpoints.map((endpoint) => endpoint.url)}
+          onSubmit={handleCreate}
+        />
+        <div style={{ display: "grid", gap: "0.75rem", maxWidth: 900, marginTop: "1.25rem" }}>
+          {endpoints.map((endpoint) => (
+            <article key={endpoint.id} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+              <strong>{endpoint.description || endpoint.url}</strong>
+              {endpoint.description && <p style={{ margin: "0.25rem 0", color: "var(--muted)" }}>{endpoint.url}</p>}
+              <p style={{ margin: "0.5rem 0", color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+                {endpoint.enabled ? "Enabled" : "Disabled"} · {endpoint.events.join(", ")} · Signing secret {endpoint.signingSecretMasked}
+              </p>
+              {endpoint.previousSecretExpiresAt && (
+                <p style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+                  Previous secret valid until <time dateTime={endpoint.previousSecretExpiresAt}>{new Date(endpoint.previousSecretExpiresAt).toLocaleString()}</time>
+                </p>
+              )}
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="app-button app-button-secondary"
+                  disabled={!endpoint.enabled}
+                  onClick={() => webhooksStore.disableEndpoint(endpoint.id)}
+                >
+                  Disable endpoint
+                </button>
+                <button
+                  type="button"
+                  className="app-button app-button-secondary"
+                  disabled={!endpoint.enabled}
+                  onClick={() => {
+                    try {
+                      setRotation({ endpointId: endpoint.id, ...webhooksStore.rotateSecret(endpoint.id) });
+                      setError(null);
+                    } catch (reason) {
+                      setError(reason instanceof Error ? reason.message : 'Unable to rotate signing secret.');
+                    }
+                  }}
+                >
+                  Rotate secret
+                </button>
+              </div>
+            </article>
+          ))}
+          {endpoints.length === 0 && <p style={{ color: "var(--muted)" }}>No webhook endpoints configured.</p>}
+        </div>
+      </section>
+      <section aria-labelledby="webhook-deliveries-heading" style={{ marginTop: "2rem" }}>
+        <h3 id="webhook-deliveries-heading">Delivery history</h3>
+        <label htmlFor="webhook-delivery-status">Filter by status</label>{" "}
+        <select
+          id="webhook-delivery-status"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+        >
+          <option value="all">All statuses</option>
+          <option value="delivered">Delivered</option>
+          <option value="failed">Failed</option>
+          <option value="retrying">Retrying</option>
+        </select>
       <div
         style={{
           marginTop: "1.5rem",
@@ -2914,15 +2637,33 @@ function WebhooksPanel() {
           gap: "1rem",
         }}
       >
-        {mockDeliveries.map((delivery) => (
+        {deliveries.filter((delivery) => statusFilter === "all" || delivery.status === statusFilter).map((delivery) => (
           <WebhookRetryPanel
             key={delivery.id}
             delivery={delivery}
             onRetry={handleRetry}
-            isRetrying={retryingId === delivery.id}
+            isRetrying={delivery.status === "retrying"}
           />
         ))}
       </div>
+      {deliveries.filter((delivery) => statusFilter === "all" || delivery.status === statusFilter).length === 0 && (
+        <p style={{ color: "var(--muted)" }}>No deliveries match this status.</p>
+      )}
+      </section>
+      {rotation && (
+        <WebhookSecretRotationDialog
+          open
+          endpointLabel={endpoints.find((endpoint) => endpoint.id === rotation.endpointId)?.url ?? "Webhook endpoint"}
+          oldSecret={rotation.oldSecret}
+          newSecret={rotation.newSecret}
+          onConfirm={() => setRotation(null)}
+          onCancelRotation={() => {
+            webhooksStore.cancelRotation(rotation.endpointId);
+            setRotation(null);
+          }}
+          onClose={() => setRotation(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2998,98 +2739,10 @@ const MOCK_AUDIT_ENTRIES: AuditLogEntry[] = [
   },
 ];
 
-// Simulated detail data for each audit log entry.
-// In production this would be fetched from the API by entry id.
-const MOCK_AUDIT_DETAILS: Record<string, Partial<AuditLogEntryDetail>> = {
-  "1": {
-    actor: "joel@example.com",
-    ip: "203.0.113.42",
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    method: "POST",
-    path: "/api/v1/attestations",
-    statusCode: 200,
-    requestHeaders: {
-      "content-type": "application/json",
-      "authorization": "Bearer vrt_live_••••3f9a",
-      "x-request-id": "req_01j8abc123xyz",
-    },
-    requestPayload: {
-      source: "stripe",
-      period: "2026-06",
-      recordCount: 1247,
-    },
-    responsePayload: {
-      id: "att_01j8xyz",
-      merkleRoot: "0x7f3a2c9b1d8e4f06a5c2b7e3d1f09a4c",
-      status: "completed",
-      timestamp: "2026-07-28T08:12:00Z",
-      event: "Attestation completed",
-      details: "Merkle root: 0x7f...3a",
-      severity: "info",
-    },
-  },
-  "2": {
-    id: "2",
-    timestamp: "2026-07-28T08:14:00Z",
-    event: "Attestation completed",
-    details: "Merkle root: 0x7f...3a",
-    severity: "info",
-  },
-  "3": {
-    id: "3",
-    timestamp: "2026-07-28T08:15:00Z",
-    event: "Attestation completed",
-    details: "Merkle root: 0x7f...3a",
-    severity: "info",
-  },
-  "4": {
-    id: "4",
-    timestamp: "2026-07-28T09:00:00Z",
-    event: "Revenue source connected",
-    details: "Provider: Stripe",
-    severity: "info",
-  },
-  "5": {
-    id: "5",
-    timestamp: "2026-07-27T14:30:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "6": {
-    id: "6",
-    timestamp: "2026-07-27T14:31:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "7": {
-    id: "7",
-    timestamp: "2026-07-27T14:32:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "8": {
-    id: "8",
-    timestamp: "2026-07-27T14:33:00Z",
-    event: "Attestation failed",
-    details: "Timeout after 30s",
-    severity: "error",
-  },
-  "9": {
-    id: "9",
-    timestamp: "2026-07-26T10:00:00Z",
-    event: "API key rotated",
-    severity: "warn",
-  },
-};
-
 function AuditLogPanel() {
-  const intl = { formatMessage: ({ defaultMessage }: { defaultMessage: string }) => defaultMessage };
+  const intl = useIntl();
   const handleFetchDetail = useCallback(async (id: string) => {
-    // TODO: Replace with actual API call
-    return MOCK_AUDIT_DETAILS[id] ?? { id };
+    return auditLogApi.getAuditEventDetail(id);
   }, []);
   return (
     <div>
@@ -3172,6 +2825,7 @@ const PANELS: Record<TabId, () => JSX.Element> = {
   appearance: AppearancePanel,
   team: ExtractedTeamPanel,
   integrations: SettingsIntegrationsPanel,
+  webhooks: WebhooksPanel,
   "api-keys": ApiKeysPanel,
   tokens: TokensPanel,
   billing: BillingPanel,
@@ -3581,6 +3235,7 @@ export default function Settings() {
       </div>
 
       {pendingLeave !== null && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click cancels leave; Escape key is handled via keydown listener
         <div
           className="modal-backdrop"
           onClick={cancelLeave}
@@ -3595,6 +3250,7 @@ export default function Settings() {
             padding: "1rem",
           }}
         >
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
           <div
             ref={dialogRef}
             role="alertdialog"

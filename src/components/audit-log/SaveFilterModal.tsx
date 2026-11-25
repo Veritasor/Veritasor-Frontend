@@ -22,9 +22,7 @@ import {
   MAX_FILTER_NAME_LENGTH,
   validateFilterName,
 } from '../../utils/auditLogFilters'
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+import { useDialogA11y } from '../../hooks/useDialogA11y'
 
 export interface SaveFilterModalProps {
   isOpen: boolean
@@ -59,54 +57,21 @@ export default function SaveFilterModal({
   const errorId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const triggerRef = useRef<HTMLElement | null>(null)
 
   const [name, setName] = useState(initialName)
 
   // Reset whenever the dialog opens so callers can pass a fresh default.
   useEffect(() => {
-    if (isOpen) {
-      setName(initialName)
-      triggerRef.current = document.activeElement as HTMLElement
-      // Focus is moved in a microtask to ensure the dialog is mounted.
-      window.setTimeout(() => inputRef.current?.focus(), 0)
-    } else {
-      triggerRef.current?.focus()
-    }
+    if (isOpen) setName(initialName)
   }, [isOpen, initialName])
+
+  // Escape, focus trap and return focus
+  useDialogA11y({ open: isOpen, containerRef: dialogRef, onClose, initialFocus: inputRef })
 
   const validation = useMemo(
     () => validateFilterName(name, existingNames),
     [name, existingNames],
   )
-
-  // Focus trap loop
-  useEffect(() => {
-    if (!isOpen) return
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab' || !dialogRef.current) return
-      const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE),
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [isOpen, onClose])
 
   if (!isOpen) return null
 
@@ -124,11 +89,13 @@ export default function SaveFilterModal({
   const showError = name.length > 0 && !validation.ok
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click dismisses modal; Escape key is handled via keydown listener
     <div
       className="modal-backdrop"
       onClick={handleBackdrop}
       data-testid="save-filter-modal-backdrop"
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops click propagation from dialog to backdrop */}
       <div
         ref={dialogRef}
         role="dialog"

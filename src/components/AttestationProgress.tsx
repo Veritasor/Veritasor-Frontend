@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ResultAnimation from './ResultAnimation'
+import { useEffect, useState } from 'react'
+import { getStatusStep, useAttestations } from '../state/attestations'
+import type { AttestationStatus } from '../services/realtime'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +81,22 @@ const ACTOR_OPTIONS: { value: Actor | 'all'; label: string }[] = [
   { value: 'user', label: 'User' },
   { value: 'integration', label: 'Integration' },
 ]
+type AttestationPhase = 'idle' | 'running' | 'complete' | 'failed' | 'canceled'
+
+type StepStatus = 'completed' | 'active' | 'failed' | 'pending'
+
+function getStepStatus(index: number, activeStep: number, phase: AttestationPhase): StepStatus {
+  if (phase === 'complete') {
+    return 'completed'
+  }
+
+  if (phase === 'failed' && index + 1 === activeStep) {
+    return 'failed'
+  }
+
+  if (index + 1 < activeStep) {
+    return 'completed'
+  }
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,6 +171,11 @@ function useTimelineFilters() {
   }
 
   return { eventTypeFilter, actorFilter, setEventTypeFilter, setActorFilter, clearFilters }
+  if (phase === 'failed') {
+    return 'Attestation failed'
+  }
+
+  return 'Ready to begin attestation processing'
 }
 
 // ---------------------------------------------------------------------------
@@ -508,6 +532,11 @@ function ExpandableStep({ step, stepStatus, index, defaultExpanded = false }: Ex
       </div>
     </li>
   )
+  if (phase === 'failed') {
+    return 'var(--danger)'
+  }
+
+  return 'var(--accent)'
 }
 
 // ---------------------------------------------------------------------------
@@ -516,13 +545,54 @@ function ExpandableStep({ step, stepStatus, index, defaultExpanded = false }: Ex
 
 interface AttestationProgressProps {
   stepDurationMs?: number
+  attestationId?: string
 }
 
-export default function AttestationProgress({ stepDurationMs = 1100 }: AttestationProgressProps) {
+function getPhase(status: AttestationStatus): AttestationPhase {
+  if (status === 'verified') return 'complete'
+  if (status === 'failed') return 'failed'
+  if (status === 'canceled') return 'canceled'
+  if (status === 'pending') return 'idle'
+  return 'running'
+}
+
+function getRemoteMessage(status: AttestationStatus) {
+  switch (status) {
+    case 'pending':
+      return 'Attestation is queued for processing.'
+    case 'collecting':
+      return 'Collecting monthly revenue from connected sources.'
+    case 'verifying':
+      return 'Verifying the connected revenue sources.'
+    case 'building_merkle_root':
+      return 'Building the Merkle root for this attestation.'
+    case 'publishing':
+      return 'Publishing the attestation to Stellar.'
+    case 'verified':
+      return 'Attestation successfully published on Stellar.'
+    case 'failed':
+      return 'Attestation processing failed.'
+    case 'canceled':
+      return 'Attestation processing was canceled.'
+  }
+}
+
+export default function AttestationProgress({ stepDurationMs = 1100, attestationId }: AttestationProgressProps) {
+  const { latestUpdate, updatesByAttestation } = useAttestations()
+  const remoteUpdate = attestationId
+    ? updatesByAttestation[attestationId]?.[updatesByAttestation[attestationId].length - 1]
+    : latestUpdate
   const [phase, setPhase] = useState<AttestationPhase>('idle')
   const [activeStep, setActiveStep] = useState(0)
   const [message, setMessage] = useState('Ready to generate a new revenue attestation.')
   const [wasCanceled, setWasCanceled] = useState(false)
+  const [ignoredEventId, setIgnoredEventId] = useState<string>()
+  const isRemoteUpdateActive = remoteUpdate !== undefined && remoteUpdate.id !== ignoredEventId
+  const displayedPhase = isRemoteUpdateActive ? getPhase(remoteUpdate.status) : phase
+  const displayedStep = isRemoteUpdateActive ? getStatusStep(remoteUpdate.status, remoteUpdate.step) : activeStep
+  const displayedMessage = isRemoteUpdateActive
+    ? remoteUpdate.message ?? getRemoteMessage(remoteUpdate.status)
+    : message
 
   const { eventTypeFilter, actorFilter, setEventTypeFilter, setActorFilter, clearFilters } =
     useTimelineFilters()
@@ -537,6 +607,9 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
   // Step advancement
   useEffect(() => {
     if (phase !== 'running' || activeStep === 0) return undefined
+    if (isRemoteUpdateActive || phase !== 'running' || activeStep === 0) {
+      return undefined
+    }
 
     const currentStep = ATTESTATION_STEPS[activeStep - 1]
     setMessage(`${currentStep.title} is in progress.`)
@@ -558,6 +631,11 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
   }, [activeStep, phase, wasCanceled, stepDurationMs])
 
   function startAttestation() {
+    return () => clearTimeout(stepTimer)
+  }, [activeStep, isRemoteUpdateActive, phase, stepDurationMs, wasCanceled])
+
+  const startAttestation = () => {
+    setIgnoredEventId(remoteUpdate?.id)
     setWasCanceled(false)
     setPhase('running')
     setActiveStep(1)
@@ -565,12 +643,16 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
   }
 
   function cancelAttestation() {
+  const cancelAttestation = () => {
+    setIgnoredEventId(remoteUpdate?.id)
     setPhase('canceled')
     setWasCanceled(true)
     setMessage('Attestation processing was canceled. Start again when you are ready.')
   }
 
   function resetAttestation() {
+  const resetAttestation = () => {
+    setIgnoredEventId(remoteUpdate?.id)
     setPhase('idle')
     setActiveStep(0)
     setWasCanceled(false)
@@ -584,6 +666,8 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
         ? 'Start another attestation'
         : 'Start attestation'
   const actionHandler = phase === 'running' ? cancelAttestation : startAttestation
+  const actionLabel = displayedPhase === 'running' ? 'Cancel attestation' : displayedPhase === 'complete' ? 'Start another attestation' : 'Start attestation'
+  const actionHandler = displayedPhase === 'running' ? cancelAttestation : startAttestation
 
   const exportDate = new Date().toLocaleDateString(undefined, {
     year: 'numeric', month: 'long', day: 'numeric',
@@ -612,12 +696,12 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
           >
             Attestation progress
           </p>
-          <p style={{ margin: '0.5rem 0 0', color: 'var(--muted)' }}>{message}</p>
+          <p style={{ margin: '0.5rem 0 0', color: 'var(--muted)' }}>{displayedMessage}</p>
         </div>
 
         <div style={{ display: 'grid', gap: '0.75rem', alignItems: 'start' }}>
-          <p style={{ margin: 0, color: getStatusTone(phase), fontWeight: 700 }}>
-            {getStatusLabel(phase, activeStep)}
+          <p style={{ margin: 0, color: getStatusTone(displayedPhase), fontWeight: 700 }}>
+            {getStatusLabel(displayedPhase, displayedStep)}
           </p>
           <button
             type="button"
@@ -636,6 +720,7 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
             {actionLabel}
           </button>
           {phase === 'canceled' && (
+          {displayedPhase === 'canceled' ? (
             <button
               type="button"
               onClick={resetAttestation}
@@ -666,7 +751,7 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
           background: 'rgba(94,234,212,0.08)',
         }}
       >
-        <p style={{ margin: 0, color: 'var(--text)' }}>{message}</p>
+        <p style={{ margin: 0, color: 'var(--text)' }}>{displayedMessage}</p>
       </div>
 
       {/* ── Result animation (#529) ── shown after the attestation completes.
@@ -727,6 +812,36 @@ export default function AttestationProgress({ stepDurationMs = 1100 }: Attestati
           })}
         </ol>
       )}
+      <ol style={{ listStyle: 'none', margin: '1.5rem 0 0', padding: 0, display: 'grid', gap: '1rem' }}>
+        {ATTESTATION_STEPS.map((step, index) => {
+          const stepStatus = getStepStatus(index, displayedStep, displayedPhase)
+          const isCurrent = stepStatus === 'active'
+          return (
+            <li
+              key={step.title}
+              aria-current={isCurrent ? 'step' : undefined}
+              style={{
+                display: 'grid',
+                gap: '0.5rem',
+                padding: '1rem',
+                borderRadius: 14,
+                border: '1px solid var(--border)',
+                background: stepStatus === 'completed' ? 'rgba(52, 211, 153, 0.14)' : stepStatus === 'failed' ? 'var(--danger-soft)' : 'transparent',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                <span style={{ fontWeight: 700, color: stepStatus === 'completed' ? 'var(--success)' : stepStatus === 'failed' ? 'var(--danger)' : isCurrent ? 'var(--accent)' : 'var(--muted)' }}>
+                  {step.title}
+                </span>
+                <span style={{ color: stepStatus === 'completed' ? 'var(--success)' : stepStatus === 'failed' ? 'var(--danger)' : isCurrent ? 'var(--accent)' : 'var(--muted)' }}>
+                  {stepStatus === 'completed' ? 'Done' : stepStatus === 'failed' ? 'Failed' : isCurrent ? 'In progress' : 'Pending'}
+                </span>
+              </div>
+              <p style={{ margin: 0, color: 'var(--muted)' }}>{step.detail}</p>
+            </li>
+          )
+        })}
+      </ol>
     </section>
   )
 }

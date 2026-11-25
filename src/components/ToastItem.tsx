@@ -5,6 +5,8 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 export type ToastAnimationState = 'entering' | 'idle' | 'exiting'
 
+const TOAST_TICK_MS = 50
+
 interface ToastItemProps {
   toast: Toast
   onRemove: (id: string) => void
@@ -33,7 +35,6 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
   )
   const timerRef = useRef<number | null>(null)
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastTickRef = useRef<number>(Date.now())
   const removingRef = useRef<boolean>(false)
 
   // Mark entrance complete after animation duration
@@ -92,14 +93,9 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
       return
     }
 
-    lastTickRef.current = Date.now()
     timerRef.current = window.setInterval(() => {
-      const now = Date.now()
-      const delta = now - lastTickRef.current
-      lastTickRef.current = now
-
       setTimeLeft((prev) => {
-        const next = prev - delta
+        const next = prev - TOAST_TICK_MS
         if (next <= 0) {
           // Clear the interval the moment we cross zero so it cannot keep
           // firing tick updates (or trigger infinite loops under vitest's
@@ -114,7 +110,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
         }
         return next
       })
-    }, 50)
+    }, TOAST_TICK_MS)
 
     return () => {
       if (timerRef.current !== null) {
@@ -186,7 +182,7 @@ export default function ToastItem({ toast, onRemove, disableMotion = false }: To
   }
 
   const progressPercent = initialDuration > 0 ? (timeLeft / initialDuration) * 100 : 0
-  const ariaRole = type === 'error' ? 'alert' : 'status'
+  const ariaRole = type === 'error' || type === 'warning' ? 'alert' : 'status'
 
   const animationClass = effectiveDisableMotion
     ? ''

@@ -29,7 +29,7 @@ Status of the tooling this checklist relies on:
 | Vitest | **Installed** (`npm test`) | Component tests, including `A11yAuditPanel.test.tsx` |
 | In-app audit panel | **Available** | `src/components/a11y/A11yAuditPanel.tsx` (Settings, Accessibility tab) |
 | Coverage matrix | **Available** | `src/components/a11y/A11yCoverageMatrix.tsx`, see [a11y-coverage-matrix.md](./uiux/a11y-coverage-matrix.md) |
-| `eslint-plugin-jsx-a11y` | **Not installed yet** | Optional, see below |
+| `eslint-plugin-jsx-a11y` | **Installed** (`npm run lint`) | `eslint.config.js` enables `jsxA11y.flatConfigs.recommended` for `**/*.tsx` |
 | `jest-axe` / `@axe-core/react` | **Not installed yet** | Optional, see below |
 
 ```bash
@@ -37,21 +37,21 @@ Status of the tooling this checklist relies on:
 # https://www.deque.com/axe/browser-extensions/
 
 # Still to add (optional):
-# Automated linting (catches ~30-40% of WCAG issues at author time)
-npm install --save-dev eslint-plugin-jsx-a11y
-
 # Unit-test accessibility assertions (Vitest is already configured)
 npm install --save-dev jest-axe
 ```
 
-`eslint.config.js` (add the plugin once installed):
+`eslint.config.js` (active for `**/*.tsx` files):
 ```js
 import jsxA11y from 'eslint-plugin-jsx-a11y'
 
-export default [
+export default tseslint.config(
   // ...existing config
-  jsxA11y.flatConfigs.recommended,
-]
+  {
+    ...jsxA11y.flatConfigs.recommended,
+    files: ['**/*.tsx'],
+  },
+)
 ```
 
 ---

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 
 export interface OfflineBannerProps {
@@ -25,33 +26,59 @@ export default function OfflineBanner({
   hasStaleData = false,
 }: OfflineBannerProps) {
   const { isOnline, retry } = useOnlineStatus(apiBaseUrl)
+  const [isRetrying, setIsRetrying] = useState(false)
+  const [retryFeedback, setRetryFeedback] = useState<'success' | 'failure' | null>(null)
 
-  if (isOnline) return null
+  async function handleRetry() {
+    setIsRetrying(true)
+    setRetryFeedback(null)
+    try {
+      const ok = await retry()
+      setRetryFeedback(ok ? 'success' : 'failure')
+    } catch {
+      setRetryFeedback('failure')
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
+  if (isOnline && retryFeedback !== 'success') return null
 
   return (
     <div
       className="offline-banner"
       role="status"
       aria-live="polite"
-      aria-label="You are offline. Displayed data may be stale."
+      aria-label={
+        retryFeedback === 'success'
+          ? 'Connection restored. You are back online.'
+          : 'You are offline. Displayed data may be stale.'
+      }
     >
       <span className="offline-banner-icon" aria-hidden="true">⚡</span>
       <span className="offline-banner-text">
-        You are offline — showing cached data.
+        {retryFeedback === 'success'
+          ? 'Connection restored — you are back online.'
+          : retryFeedback === 'failure'
+            ? 'Still offline — unable to reach the server.'
+            : 'You are offline — showing cached data.'}
       </span>
-      {hasStaleData && (
+      {!isOnline && retryFeedback !== 'success' && hasStaleData && (
         <span className="offline-banner-stale-chip" aria-label="Data may be outdated">
           Stale
         </span>
       )}
-      <button
-        type="button"
-        className="offline-banner-retry"
-        onClick={retry}
-        aria-label="Retry connecting to the server"
-      >
-        Retry
-      </button>
+      {!isOnline && retryFeedback !== 'success' && (
+        <button
+          type="button"
+          className="offline-banner-retry"
+          onClick={handleRetry}
+          disabled={isRetrying}
+          aria-label="Retry connecting to the server"
+        >
+          {isRetrying ? 'Retrying…' : 'Retry'}
+        </button>
+      )}
     </div>
   )
 }

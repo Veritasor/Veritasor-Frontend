@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scorePassword, validatePassword } from "./passwordPolicy";
+import { scorePassword, strengthLevel, validatePassword } from "./passwordPolicy";
 
 describe("password policy", () => {
   it.each([
@@ -33,5 +33,17 @@ describe("password policy", () => {
   it("scores the number of satisfied rules", () => {
     expect(scorePassword("Abcdefgh12!x")).toBe(5);
     expect(scorePassword("abcdefg1")).toBe(2);
+  });
+
+  it.each([
+    ["empty password", "", 0],
+    ["one satisfied rule", "abcdefgh", 1],
+    ["two satisfied rules", "abcdefg1", 2],
+    ["three satisfied rules", "Abcdefgh1", 3],
+    ["four satisfied rules", "Abcdefgh12x", 3],
+    ["all rules satisfied", "Abcdefgh12!x", 4],
+  ] as const)("maps %s to strength level %i", (_label, password, expectedLevel) => {
+    expect(strengthLevel(password)).toBe(expectedLevel);
+    expect(strengthLevel(password) === 4).toBe(validatePassword(password).valid);
   });
 });

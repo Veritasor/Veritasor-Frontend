@@ -5,6 +5,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { EnvironmentProvider } from '../components/EnvironmentContext'
 import AttestationDetail from './AttestationDetail'
 import { ToastProvider } from '../components/ToastContext'
+import { LocaleProvider } from '../i18n/provider'
+import { AttestationsProvider } from '../state/attestations'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -12,14 +14,28 @@ afterEach(() => {
 
 function renderDetail(path: string) {
   return render(
-    <ToastProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/attestations" element={<AttestationDetail />} />
-          <Route path="/attestations/:id" element={<AttestationDetail />} />
-        </Routes>
-      </MemoryRouter>
-    </ToastProvider>,
+    <LocaleProvider>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/attestations" element={<AttestationDetail />} />
+            <Route path="/attestations/:id" element={<AttestationDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </LocaleProvider>,
+    <AttestationsProvider>
+      <EnvironmentProvider>
+        <ToastProvider>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/attestations" element={<AttestationDetail />} />
+              <Route path="/attestations/:id" element={<AttestationDetail />} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </EnvironmentProvider>
+    </AttestationsProvider>,
   )
 }
 
@@ -34,11 +50,11 @@ describe('AttestationDetail', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('No attestation ID provided.')
   })
 
-  it('shows a not-found state for an unknown attestation ID', () => {
+  it('shows a not-found state for an unknown attestation ID', async () => {
     renderDetail('/attestations/missing-id')
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Attestation missing-id was not found.')
-    expect(screen.getByRole('link', { name: 'Attestations' })).toHaveAttribute('href', '/attestations')
+    expect(await screen.findByRole('heading', { name: /we could not find that page/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /review attestations/i })).toHaveAttribute('href', '/attestations')
   })
 
   it('renders the verified certificate and completed lifecycle', () => {

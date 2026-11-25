@@ -5,13 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Veritasor — Revenue Attestations</title>
+    <script src="/theme-init.js"></script>
     <script>
       (function() {
         var key = 'veritasor-theme';
         var theme;
         try { theme = localStorage.getItem(key); } catch(e) {}
-        theme = 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'light' || theme === 'dark' || theme === 'high-contrast') {
+          document.documentElement.setAttribute('data-theme', theme);
+        } else {
+          var resolved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', resolved);
+        }
       })();
     </script>
   </head>

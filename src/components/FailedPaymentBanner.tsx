@@ -29,12 +29,12 @@ function formatDate(iso: string) {
 }
 
 export default function FailedPaymentBanner({ failure, onDismiss }: Props) {
-  const [dismissed, setDismissed] = useState(false)
+  const [dismissedId, setDismissedId] = useState<string | null>(null)
 
-  if (!failure || dismissed) return null
+  if (!failure || dismissedId === failure.id) return null
 
   function handleDismiss() {
-    setDismissed(true)
+    setDismissedId(failure?.id ?? null)
     onDismiss?.()
   }
 

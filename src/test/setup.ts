@@ -38,6 +38,19 @@ if (typeof window.matchMedia !== 'function') {
   }) as MediaQueryList
 }
 
+let objectUrlCounter = 0
+
+if (typeof URL.createObjectURL !== 'function') {
+  URL.createObjectURL = () => {
+    objectUrlCounter += 1
+    return `blob:test-${objectUrlCounter}`
+  }
+}
+
+if (typeof URL.revokeObjectURL !== 'function') {
+  URL.revokeObjectURL = () => {}
+}
+
 // ─── IntersectionObserver polyfill for JSDOM ────────────────────────────────
 if (typeof IntersectionObserver === 'undefined') {
   globalThis.IntersectionObserver = class IntersectionObserver {

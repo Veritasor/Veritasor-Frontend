@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import LocalePicker from "./LocalePicker/LocalePicker";
 import { useEnvironment } from "./EnvironmentContext";
 import ConfirmDialog from "./ConfirmDialog";
+import NotificationsDropdown from "./NotificationsDropdown";
 import { ROUTES } from "../routes";
 import { useOptionalWorkspace } from "../state/workspace";
 
@@ -748,6 +749,7 @@ export default function TopAppBar({
                   ).length === 0 && (
                     <li
                       role="option"
+                      aria-selected={false}
                       aria-disabled="true"
                       tabIndex={-1}
                       style={{
@@ -762,7 +764,6 @@ export default function TopAppBar({
                   )}
                 {workspaceSearch.trim() === "" && (
                   <li
-                    role="none"
                     aria-hidden="true"
                     style={{
                       padding: "0.5rem 0.9rem",
@@ -816,6 +817,7 @@ export default function TopAppBar({
                 <button
                   type="button"
                   role="option"
+                  aria-selected={false}
                   tabIndex={0}
                   onClick={openCreateWorkspace}
                   onKeyDown={(e) => {
@@ -941,6 +943,8 @@ export default function TopAppBar({
             onClose={() => setConfirmMainnetOpen(false)}
           />
 
+          <NotificationsDropdown />
+
           <div style={{ position: "relative" }}>
             <button
               ref={accountBtnRef}
@@ -991,7 +995,6 @@ export default function TopAppBar({
                   onKeyDown={handleAccountMenuKeyDown}
                 >
                   <li
-                    role="none"
                     aria-hidden="true"
                     style={{
                       padding: "0.75rem 0.9rem",

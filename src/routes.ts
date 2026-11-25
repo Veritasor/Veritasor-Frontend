@@ -12,6 +12,7 @@ export const ROUTES = {
   forgotPassword: '/forgot-password',
   onboarding: '/onboarding',
   serverError: '/500',
+  motionTokens: '/motion-tokens',
 
   dashboard: '/dashboard',
   attestations: '/attestations',
@@ -20,6 +21,7 @@ export const ROUTES = {
   settings: '/settings',
   apiKeys: '/api-keys',
   help: '/help',
+  helpArticle: '/help/:slug',
   consentPreferences: '/consent-preferences',
 
   connectSource: '/connect-source',

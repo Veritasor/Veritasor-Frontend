@@ -1,10 +1,13 @@
 import { memo, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import TriggerAttestationFAB from '../components/TriggerAttestationFAB'
 import AttestationConfirmModal, { type FeeInfo } from '../components/AttestationConfirmModal'
 import { AttestationCalendar } from '../components/scheduling/AttestationCalendar'
 import { getAttestationChartGeometry, getAttestationChartLabelIndices } from '../utils/attestationChartData'
+import { extractIsoDate, isValidIsoDate } from '../utils/dashboardSelectors'
 import { EmptyStateIllustration } from '../components/EmptyStateIllustrations'
+import { AttestationsSkeleton } from '../components/SkeletonLoader'
 import SearchFilter, { parseFilterState, type ChipDef } from '../components/SearchFilter'
 import { useToast } from '../components/ToastContext'
 import { useAttestations, type Attestation } from '../state/attestations'
@@ -16,6 +19,10 @@ import {
   useSchedules,
   type ScheduleRule,
 } from '../store/scheduleStore'
+import { track } from '../analytics'
+import { Link } from 'react-router-dom'
+import AttestationProgress from '../components/AttestationProgress'
+import StatusTimeline from '../components/StatusTimeline'
 
 export const PAGE_SIZE = 50
 
@@ -744,13 +751,23 @@ function AttestationScheduleView() {
     </div>
   )
 }
+const VALID_STATUS_FILTERS = new Set<AttestationStatus>(['verified', 'pending', 'failed'])
 
 export default function Attestations() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { list: attestations, trigger } = useAttestations()
+  const {
+    list: attestations,
+    status: loadStatus,
+    error: loadError,
+    hasMore,
+    isLoadingMore,
+    loadMore,
+    refresh,
+    trigger,
+  } = useAttestations()
   const { addToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeView, setActiveView] = useState<'overview' | 'schedule'>('overview')
@@ -791,6 +808,44 @@ export default function Attestations() {
     return filteredAttestations.slice(startIndex, startIndex + PAGE_SIZE)
   }, [filteredAttestations, currentPage])
 
+  const rawStatus = searchParams.get('status')?.toLowerCase() ?? ''
+  const statusFilter: AttestationStatus | 'all' = VALID_STATUS_FILTERS.has(rawStatus as AttestationStatus)
+    ? (rawStatus as AttestationStatus)
+    : 'all'
+  const rawFrom = searchParams.get('from') ?? undefined
+  const rawTo = searchParams.get('to') ?? undefined
+  const fromFilter = isValidIsoDate(rawFrom) ? rawFrom : ''
+  const toFilter = isValidIsoDate(rawTo) ? rawTo : ''
+  const hasActiveFilters = statusFilter !== 'all' || Boolean(fromFilter) || Boolean(toFilter)
+
+  const filteredAttestations = useMemo(() => {
+    return attestations.filter((item) => {
+      if (statusFilter !== 'all' && item.status !== statusFilter) return false
+      const itemDate = extractIsoDate(item)
+      if (fromFilter && (!itemDate || itemDate < fromFilter)) return false
+      if (toFilter && (!itemDate || itemDate > toFilter)) return false
+      return true
+    })
+  }, [attestations, statusFilter, fromFilter, toFilter])
+
+  function updateFilterParam(key: 'status' | 'from' | 'to', value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (!value || value === 'all') {
+      next.delete(key)
+    } else {
+      next.set(key, value)
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  function clearFilters() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('status')
+    next.delete('from')
+    next.delete('to')
+    setSearchParams(next, { replace: true })
+  }
+
   function setPage(nextPage: number) {
     const clamped = Math.max(1, Math.min(totalPages, nextPage))
     setSearchParams(
@@ -821,6 +876,11 @@ export default function Attestations() {
 
     try {
       await trigger(DEFAULT_TRIGGER_DETAILS)
+      track('attestation_created', {
+        source: DEFAULT_TRIGGER_DETAILS.source,
+        period: DEFAULT_TRIGGER_DETAILS.period,
+        recordCount: DEFAULT_TRIGGER_DETAILS.recordCount,
+      })
       addToast('Attestation submitted successfully.', 'success')
       setModalOpen(false)
     } catch (err) {
@@ -836,6 +896,14 @@ export default function Attestations() {
         <header style={{ display: 'grid', gap: 'var(--density-row-gap)' }}>
           <h1 style={{ margin: 0 }}>Attestations</h1>
           <p
+      <AttestationProgress />
+      <StatusTimeline />
+
+      {attestations.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <section aria-label="Attestation history" style={{ marginTop: '1.75rem' }}>
+          <ol
             style={{
               color: 'var(--muted)',
               margin: 0,
@@ -848,6 +916,7 @@ export default function Attestations() {
           </p>
         </header>
 
+        {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- focus is managed on child role="tab" buttons via roving tabIndex */}
         <div
           role="tablist"
           aria-label="Attestations sections"
@@ -903,10 +972,220 @@ export default function Attestations() {
           hidden={activeView !== 'overview'}
         >
           {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
+        {attestations.length > 0 && <AttestationTrendChart attestations={filteredAttestations} />}
 
-          <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
-          {attestations.length === 0 ? (
+        <section
+          aria-label="Filter attestations"
+          className="attestations-filter-bar"
+          style={{
+            marginTop: '1.25rem',
+            padding: 'var(--density-padding)',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'flex-end',
+            gap: '0.75rem',
+          }}
+        >
+          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            <span>Status</span>
+            <select
+              aria-label="Filter by status"
+              value={statusFilter}
+              onChange={(e) => updateFilterParam('status', e.target.value)}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.4rem 0.65rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+              }}
+            >
+              <option value="all">All statuses</option>
+              <option value="verified">Verified</option>
+              <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
+            </select>
+          </label>
+
+          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            <span>From</span>
+            <input
+              type="date"
+              aria-label="Filter from date"
+              value={fromFilter}
+              max={toFilter || undefined}
+              onChange={(e) => updateFilterParam('from', e.target.value)}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.4rem 0.65rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+              }}
+            />
+          </label>
+
+          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            <span>To</span>
+            <input
+              type="date"
+              aria-label="Filter to date"
+              value={toFilter}
+              min={fromFilter || undefined}
+              onChange={(e) => updateFilterParam('to', e.target.value)}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.4rem 0.65rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-strong)',
+                color: 'var(--text)',
+              }}
+            />
+          </label>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              style={{
+                minHeight: 'var(--density-touch-min)',
+                padding: '0.45rem 0.75rem',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'rgba(148, 163, 184, 0.08)',
+                color: 'var(--text)',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+        </section>
+          {loadStatus === 'loading' && attestations.length === 0 ? (
+            <div style={{ marginTop: '1.5rem' }}>
+              <AttestationsSkeleton />
+            </div>
+          ) : loadStatus === 'error' && attestations.length === 0 ? (
+            <div
+              role="alert"
+              style={{
+                marginTop: '1.5rem',
+                padding: '1.5rem',
+                borderRadius: 12,
+                border: '1px solid var(--danger)',
+                background: 'var(--danger-soft)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <strong style={{ display: 'block', marginBottom: '0.25rem' }}>
+                  Failed to load attestations
+                </strong>
+                <span>{loadError ?? 'An unexpected error occurred.'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                style={{
+                  minHeight: 'var(--density-touch-min)',
+                  padding: '0.5rem 1rem',
+                  borderRadius: 10,
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'var(--text)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              {attestations.length > 0 && <AttestationTrendChart attestations={attestations} />}
+
+              <section aria-label="Attestation runs" style={{ marginTop: '1.5rem' }}>
+                {loadStatus === 'error' && loadError && (
+                  <div
+                    role="alert"
+                    style={{
+                      marginBottom: '1rem',
+                      padding: '1rem',
+                      borderRadius: 12,
+                      border: '1px solid var(--danger)',
+                      background: 'var(--danger-soft)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span>{loadError}</span>
+                    <button
+                      type="button"
+                      onClick={() => void (hasMore ? loadMore() : refresh())}
+                      style={{
+                        padding: '0.4rem 0.85rem',
+                        borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {attestations.length === 0 ? (
             <EmptyState onRunReport={handleOpenModal} />
+          ) : filteredAttestations.length === 0 ? (
+            <div
+              role="status"
+              style={{
+                padding: 'var(--density-padding)',
+                borderRadius: 12,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                display: 'grid',
+                gap: '0.75rem',
+              }}
+            >
+              <p style={{ margin: 0, color: 'var(--muted)' }}>
+                No attestations match the selected filters.
+              </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  style={{
+                    minHeight: 'var(--density-touch-min)',
+                    padding: '0.5rem 0.85rem',
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: 'rgba(148, 163, 184, 0.12)',
+                    color: 'var(--text)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            </div>
           ) : (
             <>
               <SearchFilter
@@ -992,11 +1271,42 @@ export default function Attestations() {
                       </button>
                     </nav>
                   )}
+
+                  {hasMore && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.25rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => void loadMore()}
+                        disabled={isLoadingMore}
+                        aria-busy={isLoadingMore}
+                        style={{
+                          minHeight: 'var(--density-touch-min)',
+                          padding: '0.55rem 1.25rem',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface)',
+                          color: 'var(--text)',
+                          fontWeight: 700,
+                          cursor: isLoadingMore ? 'not-allowed' : 'pointer',
+                          opacity: isLoadingMore ? 0.7 : 1,
+                        }}
+                      >
+                        {isLoadingMore ? 'Loading…' : 'Load more'}
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </>
+            <ol style={{ margin: 0, padding: 0 }}>
+              {filteredAttestations.map((item) => (
+                <TimelineRow key={item.id} item={item} />
+              ))}
+            </ol>
           )}
-          </section>
+              </section>
+            </>
+          )}
         </section>
       </div>
 

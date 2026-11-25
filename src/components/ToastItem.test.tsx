@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import ToastItem from './ToastItem'
 import type { Toast } from './ToastContext'
+import { expectNoAxeViolations } from '../test/axe'
 
 function makeToast(overrides: Partial<Toast> = {}): Toast {
   return { id: 't1', type: 'success', message: 'Saved successfully', ...overrides }
@@ -421,5 +422,14 @@ describe('ToastItem - prefers-reduced-motion', () => {
       vi.advanceTimersByTime(200)
     })
     expect(onRemove).toHaveBeenCalledWith('t1')
+  })
+})
+
+describe('ToastItem - accessibility', () => {
+  it('has no axe accessibility violations', async () => {
+    const { container } = render(
+      <ToastItem toast={makeToast({ onUndo: vi.fn() })} onRemove={vi.fn()} disableMotion />,
+    )
+    await expectNoAxeViolations(container)
   })
 })

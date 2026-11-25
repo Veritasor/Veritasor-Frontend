@@ -97,8 +97,8 @@ describe('CreateApiKeyModal', () => {
     const selectAllBtn = screen.getByRole('button', { name: /select all scopes/i });
     fireEvent.click(selectAllBtn);
     
-    // Total scopes length is 8 (4 groups * 2 scopes)
-    expect(screen.getByText(/8 \/ 8 selected/)).toBeInTheDocument();
+    // Four groups contain two scopes, and Administration contains one.
+    expect(screen.getByText(/9 \/ 9 selected/)).toBeInTheDocument();
   });
 
   it('handles valid submission and confirmation', () => {
@@ -117,7 +117,14 @@ describe('CreateApiKeyModal', () => {
     fireEvent.click(confirmBtn);
 
     expect(mockOnMinted).toHaveBeenCalledTimes(1);
-    expect(mockOnMinted).toHaveBeenCalledWith(expect.any(String), expect.any(String));
+    expect(mockOnMinted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expect.stringMatching(/^key_/),
+        label: 'Admin key',
+        scopes: ['read:attestations'],
+      }),
+      expect.stringMatching(/^vtsr_live_[a-f0-9]{48}$/),
+    )
   });
 
   it('cancels confirmation dialog', () => {
@@ -141,7 +148,7 @@ describe('CreateApiKeyModal', () => {
     fireEvent.click(readSourcesScope);
     
     // Init state has 1 selected (read:attestations), now we selected another -> 2
-    expect(screen.getByText(/2 \/ 8 selected/)).toBeInTheDocument();
+    expect(screen.getByText(/2 \/ 9 selected/)).toBeInTheDocument();
   });
 
   it('toggles a whole group of scopes', () => {
@@ -152,10 +159,10 @@ describe('CreateApiKeyModal', () => {
     // Init state has 'read:attestations' selected. Toggling group should select the rest if it was 'some' or deselect if 'all'
     // It's 'some', so it should select all in Attestations
     fireEvent.click(attestationsToggle);
-    expect(screen.getByText(/2 \/ 8 selected/)).toBeInTheDocument(); // write:attestations also selected
+    expect(screen.getByText(/2 \/ 9 selected/)).toBeInTheDocument(); // write:attestations also selected
     
     // Click again to deselect all in group
     fireEvent.click(attestationsToggle);
-    expect(screen.getByText(/0 \/ 8 selected/)).toBeInTheDocument();
+    expect(screen.getByText(/0 \/ 9 selected/)).toBeInTheDocument();
   });
 });

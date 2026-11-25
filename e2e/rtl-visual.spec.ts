@@ -3,7 +3,8 @@ import AxeBuilder from '@axe-core/playwright'
 import { gotoRTL } from './rtl-helper'
 
 const pagesToTest = [
-  { name: 'Dashboard', path: '/' },
+  { name: 'Landing', path: '/' },
+  { name: 'Dashboard', path: '/dashboard' },
   { name: 'Attestations', path: '/attestations' },
   { name: 'Settings', path: '/settings' },
   { name: 'Login', path: '/login' },

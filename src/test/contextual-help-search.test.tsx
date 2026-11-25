@@ -381,4 +381,18 @@ describe('ContextualHelpSearch', () => {
       expect(new Set(ids).size).toBe(ids.length)
     })
   })
+
+  describe('navigation', () => {
+    it('all article hrefs point to slug-based help routes', () => {
+      HELP_ARTICLES.forEach((article) => {
+        expect(article.href).toMatch(/^\/help\/[a-z-]+$/)
+      })
+    })
+
+    it('article hrefs match the article id', () => {
+      HELP_ARTICLES.forEach((article) => {
+        expect(article.href).toBe(`/help/${article.id}`)
+      })
+    })
+  })
 })

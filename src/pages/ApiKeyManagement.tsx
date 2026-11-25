@@ -199,3 +199,8 @@ export const ApiKeyManagement: React.FC = () => {
     </div>
   );
 };
+  scopes: ('read' | 'write' | 'admin')[];
+      scopes: ['read'],
+      scopes: ['read', 'write'],
+    const activeAdminKeys = keys.filter(k => k.status === 'active' && k.scopes.includes('admin'));
+    if (targetKey?.scopes.includes('admin') && activeAdminKeys.length <= 1) {

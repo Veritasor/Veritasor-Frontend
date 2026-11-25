@@ -21,6 +21,7 @@
  */
 
 import type { WebhookAttempt, WebhookDelivery, WebhookDeliveryStatus } from './api-keys/apiKeyTypes'
+import { WEBHOOK_MAX_ATTEMPTS } from '../store/webhooksStore'
 
 interface Props {
   delivery: WebhookDelivery
@@ -93,6 +94,7 @@ function AttemptStatusChip({ attempt }: { attempt: WebhookAttempt }) {
 function BackoffChip({ seconds }: { seconds: number }) {
   return (
     <div
+      className="webhook-backoff-chip"
       aria-hidden="true"
       style={{
         display: 'flex',
@@ -187,7 +189,8 @@ function FinalStatusFooter({ delivery }: { delivery: WebhookDelivery }) {
 }
 
 export default function WebhookRetryPanel({ delivery, onRetry, isRetrying = false }: Props) {
-  const canRetry = delivery.status === 'failed'
+  const canRetry = delivery.status === 'failed' && delivery.attempts.length < WEBHOOK_MAX_ATTEMPTS
+  const retryInFlight = isRetrying || delivery.status === 'retrying'
 
   return (
     <article
@@ -234,17 +237,17 @@ export default function WebhookRetryPanel({ delivery, onRetry, isRetrying = fals
         </div>
 
         {/* Retry now button (only for failed deliveries) */}
-        {canRetry && (
+        {(canRetry || retryInFlight) && (
           <button
             type="button"
             className="app-button app-button-primary"
             style={{ width: 'auto', minHeight: 44, fontSize: 'var(--text-sm)', flexShrink: 0 }}
-            disabled={isRetrying}
-            aria-busy={isRetrying}
-            aria-label={`Retry delivery for ${delivery.event}`}
+            disabled={retryInFlight}
+            aria-busy={retryInFlight}
+            aria-label={`${retryInFlight ? 'Retrying' : 'Retry'} delivery for ${delivery.event}`}
             onClick={() => onRetry(delivery.id)}
           >
-            {isRetrying ? 'Retrying…' : 'Retry now'}
+            {retryInFlight ? 'Retrying…' : 'Retry now'}
           </button>
         )}
       </div>
