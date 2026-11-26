@@ -42,6 +42,7 @@ import {
 } from '../components/billing/plans'
 import { useLocale } from '../i18n/useLocale'
 import { formatCurrency, formatDate } from '../i18n/formatters'
+import { generateRecoveryCodes } from '../services/mockAuth'
 
 // Tab definitions ordered by frequency of use
 const TABS = [
@@ -2040,19 +2041,6 @@ function BillingPanel() {
       <InvoiceList />
     </div>
   );
-}
-
-const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-function generateRecoveryCodes(): string[] {
-  return Array.from({ length: 10 }, () => {
-    const seg = () =>
-      Array.from(
-        { length: 4 },
-        () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)],
-      ).join("");
-    return `${seg()}-${seg()}-${seg()}`;
-  });
 }
 
 interface ActiveSession {

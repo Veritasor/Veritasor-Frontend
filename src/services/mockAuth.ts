@@ -96,20 +96,37 @@ export const DEMO_CODES_READONLY: readonly string[] = Object.freeze([
 
 // ─── Code generation (post re-enrollment) ────────────────────────────────────
 /**
- * Generate a fresh set of 10 recovery codes using `crypto.getRandomValues`.
+ * Pick a single unbiased random character from RECOVERY_CODE_CHARS using
+ * rejection sampling.  Because RECOVERY_CODE_CHARS.length (32) divides 2^8
+ * evenly, bias would only arise if the alphabet size were not a power of two;
+ * the rejection loop is included for correctness in the general case and to
+ * make the intent explicit.
+ */
+function randomChar(): string {
+  const ALPHABET_LEN = RECOVERY_CODE_CHARS.length;
+  // The largest multiple of ALPHABET_LEN that fits in a byte (0–255).
+  const limit = 256 - (256 % ALPHABET_LEN);
+  const buf = new Uint8Array(1);
+  let n: number;
+  do {
+    crypto.getRandomValues(buf);
+    n = buf[0];
+  } while (n >= limit);
+  return RECOVERY_CODE_CHARS[n % ALPHABET_LEN];
+}
+
+/**
+ * Generate a fresh set of 10 recovery codes using `crypto.getRandomValues`
+ * with rejection sampling to avoid modulo bias.
  *
  * Format: XXXX-XXXX-XXXX (three groups of 4 chars from RECOVERY_CODE_CHARS).
  *
- * This replaces the `Math.random`-based `generateRecoveryCodes` that was
- * previously inlined in Login.tsx.
+ * This is the single source of truth for recovery-code generation; the
+ * `Math.random`-based copy that was previously inlined in Settings.tsx has
+ * been removed and callers import this function instead.
  */
 export function generateRecoveryCodes(): string[] {
-  return Array.from({ length: 10 }, () => {
-    const seg = (): string => {
-      const buf = new Uint32Array(4);
-      crypto.getRandomValues(buf);
-      return Array.from(buf, (n) => RECOVERY_CODE_CHARS[n % RECOVERY_CODE_CHARS.length]).join("");
-    };
-    return `${seg()}-${seg()}-${seg()}`;
-  });
+  const seg = (): string =>
+    Array.from({ length: 4 }, () => randomChar()).join("");
+  return Array.from({ length: 10 }, () => `${seg()}-${seg()}-${seg()}`);
 }
