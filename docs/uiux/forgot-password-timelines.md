@@ -60,7 +60,7 @@ The design prioritizes user anxiety reduction, accessibility (WCAG 2.2 AA), and 
 ## Timelines and Expectations
 
 - **Email Delivery**: Inform users of expected 1-5 minute delivery; suggest spam checks.
-- **Reset Link Validity**: 24 hours; communicate expiration clearly.
+- **Reset Link Validity**: 15 minutes; communicate expiration clearly.
 - **Session Limits**: Reset resend count after 24 hours or successful reset.
 
 ## Validation Criteria

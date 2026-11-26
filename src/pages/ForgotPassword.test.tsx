@@ -1,9 +1,13 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import ForgotPassword from './ForgotPassword'
 import { ToastProvider } from '../components/ToastContext'
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 function renderPage(initialEntries = ['/forgot-password']) {
   return render(
@@ -55,6 +59,44 @@ describe('ForgotPassword Page', () => {
   })
 
   describe('Requested State', () => {
+    it('disables resend during the cooldown and enables it after 60 seconds', () => {
+      vi.useFakeTimers()
+      renderPage()
+
+      fireEvent.change(screen.getByLabelText(/Verified email/i), {
+        target: { value: 'test@veritasor.com' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: /Send reset link/i }))
+
+      const resendButton = screen.getByRole('button', { name: /available in 1:00/i })
+      expect(resendButton).toBeDisabled()
+
+      act(() => {
+        vi.advanceTimersByTime(60_000)
+      })
+
+      expect(screen.getByRole('button', { name: /Resend reset link/i })).toBeEnabled()
+    })
+
+    it('restarts the cooldown after a resend', () => {
+      vi.useFakeTimers()
+      renderPage()
+
+      fireEvent.change(screen.getByLabelText(/Verified email/i), {
+        target: { value: 'test@veritasor.com' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: /Send reset link/i }))
+      act(() => {
+        vi.advanceTimersByTime(60_000)
+      })
+      fireEvent.click(screen.getByRole('button', { name: /Resend reset link/i }))
+
+      expect(screen.getByRole('button', { name: /available in 1:00/i })).toBeDisabled()
+      expect(
+        screen.getByText(/If the address is registered, a fresh reset link has been sent/i),
+      ).toBeInTheDocument()
+    })
+
     it('allows trying a different email', async () => {
       const user = userEvent.setup()
       renderPage()
@@ -91,6 +133,14 @@ describe('ForgotPassword Page', () => {
       // it should re-render without state=expired since `useNavigate` goes to `/forgot-password`.
       expect(screen.getByRole('heading', { name: /Reset your password/i })).toBeInTheDocument()
     })
+
+    it('renders an invalid-link state without exposing token details', () => {
+      renderPage(['/forgot-password?state=invalid'])
+
+      expect(screen.getByRole('heading', { name: /Invalid link/i })).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent(/invalid or has already been used/i)
+      expect(screen.getByRole('button', { name: /Send a new link/i })).toBeInTheDocument()
+    })
   })
 
   describe('New Password State', () => {
@@ -98,6 +148,11 @@ describe('ForgotPassword Page', () => {
       renderPage(['/forgot-password?state=reset'])
       expect(screen.getByRole('heading', { name: /Incomplete link/i })).toBeInTheDocument()
       expect(screen.getByText(/missing required information/i)).toBeInTheDocument()
+    })
+
+    it('renders incomplete link error for a blank token', () => {
+      renderPage(['/forgot-password?state=reset&token=%20'])
+      expect(screen.getByRole('heading', { name: /Incomplete link/i })).toBeInTheDocument()
     })
 
     it('renders new password form if token is provided', () => {
@@ -119,7 +174,9 @@ describe('ForgotPassword Page', () => {
       await user.type(confirmPasswordInput, 'StrongPassword123') // mismatch
       await user.click(submitButton)
 
-      expect(screen.getByText(/Passwords do not match/i)).toBeInTheDocument()
+      expect(screen.getByText('Passwords do not match.')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Set new password/i })).toBeInTheDocument()
+      expect(confirmPasswordInput).toHaveAttribute('aria-invalid', 'true')
     })
 
     it('shows error if password is too weak on submit', async () => {

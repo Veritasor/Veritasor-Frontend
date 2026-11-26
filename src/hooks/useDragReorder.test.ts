@@ -811,3 +811,45 @@ describe('onReorder callback', () => {
     ITEMS.forEach((item) => expect(ids.has(item.id)).toBe(true))
   })
 })
+
+describe('disabled reordering', () => {
+  it('cancels an active drag when reordering becomes disabled', () => {
+    const onReorder = vi.fn<[Item[]], void>()
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useDragReorder(ITEMS, onReorder, getLabel, enabled),
+      { initialProps: { enabled: true } },
+    )
+
+    act(() => {
+      result.current.handlePointerDown(0)(noopEvent)
+      result.current.handlePointerEnter(2)()
+    })
+    rerender({ enabled: false })
+
+    expect(result.current.grabbedIndex).toBeNull()
+    expect(result.current.dropTargetIndex).toBeNull()
+    expect(result.current.announcement).toContain('Reorder cancelled')
+
+    act(() => result.current.handlePointerUp())
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  it('ignores pointer, keyboard, and move actions while disabled', () => {
+    const onReorder = vi.fn<[Item[]], void>()
+    const { result } = renderHook(() =>
+      useDragReorder(ITEMS, onReorder, getLabel, false),
+    )
+
+    act(() => {
+      result.current.handlePointerDown(0)(noopEvent)
+      result.current.handleKeyboardGrab(0)
+      result.current.moveDown(0)
+      result.current.moveUp(1)
+    })
+
+    expect(result.current.grabbedIndex).toBeNull()
+    expect(result.current.dropTargetIndex).toBeNull()
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+})

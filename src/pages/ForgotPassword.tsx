@@ -16,9 +16,10 @@ const STRENGTH_COPY: Record<number, string> = {
 // Expired-link state — #258
 // ---------------------------------------------------------------------------
 
-function ExpiredLinkState() {
+function ExpiredLinkState({ reason }: { reason: "expired" | "invalid" }) {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const isExpired = reason === "expired";
 
   const handleSendNew = () => {
     navigate("/forgot-password");
@@ -38,8 +39,12 @@ function ExpiredLinkState() {
   return (
     <AuthShell
       eyebrow="Recovery"
-      title="Link expired"
-      description="Password reset links are valid for 15 minutes. This one has expired — request a fresh link below."
+      title={isExpired ? "Link expired" : "Invalid link"}
+      description={
+        isExpired
+          ? "Password reset links are valid for 15 minutes. This one has expired — request a fresh link below."
+          : "This password reset link is invalid or has already been used. Request a fresh link below."
+      }
       footerPrompt="Remembered your credentials?"
       footerLinkLabel="Return to sign in"
       footerLinkHref="/login"
@@ -135,8 +140,9 @@ function ExpiredLinkState() {
         <span aria-hidden="true" className="auth-message-icon">
           ⚠
         </span>
-        This reset link has expired. Reset links are single-use and valid for 15
-        minutes. Request a new one using the button below.
+        {isExpired
+          ? "This reset link has expired. Reset links are single-use and valid for 15 minutes. Request a new one using the button below."
+          : "This reset link is invalid or has already been used. Request a new one using the button below."}
       </div>
 
       <div className="auth-actions">
@@ -432,7 +438,6 @@ function RequestedState({
   onResend: (email: string) => void;
   onRequestAgain: () => void;
 }) {
-  const navigate = useNavigate();
   const { addToast } = useToast();
   const [resendCountdown, setResendCountdown] = useState(60);
   const [lastSentAt, setLastSentAt] = useState<Date>(new Date());
@@ -849,7 +854,7 @@ function RequestLinkState({
 type ForgotPasswordUiState =
   | { kind: "request" }
   | { kind: "requested"; email: string }
-  | { kind: "expired" }
+  | { kind: "expired" | "invalid" }
   | { kind: "reset"; token: string | null };
 
 export default function ForgotPassword() {
@@ -858,14 +863,14 @@ export default function ForgotPassword() {
   const token = searchParams.get("token");
 
   const [ui, setUi] = useState<ForgotPasswordUiState>(() => {
-    if (state === "expired") return { kind: "expired" };
+    if (state === "expired" || state === "invalid") return { kind: state };
     if (state === "reset") return { kind: "reset", token };
     return { kind: "request" };
   });
 
   // React to URL param changes
   useEffect(() => {
-    if (state === "expired") setUi({ kind: "expired" });
+    if (state === "expired" || state === "invalid") setUi({ kind: state });
     else if (state === "reset") setUi({ kind: "reset", token });
     // 'requested' state is only reached via internal state transitions
     // (not URL) to prevent enumeration by URL tampering.
@@ -883,8 +888,8 @@ export default function ForgotPassword() {
     );
   }
 
-  if (ui.kind === "expired") {
-    return <ExpiredLinkState />;
+  if (ui.kind === "expired" || ui.kind === "invalid") {
+    return <ExpiredLinkState reason={ui.kind} />;
   }
 
   if (ui.kind === "reset") {

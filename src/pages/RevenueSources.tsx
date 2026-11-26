@@ -459,15 +459,17 @@ const HANDLE_SIZE = 20
 interface DragHandleProps {
   label: string
   isGrabbed: boolean
+  disabled: boolean
   onPointerDown: (e: { preventDefault(): void }) => void
   onKeyDown: (e: { key: string; preventDefault(): void }) => void
   onClick: () => void
 }
 
-function DragHandle({ label, isGrabbed, onPointerDown, onKeyDown, onClick }: DragHandleProps) {
+function DragHandle({ label, isGrabbed, disabled, onPointerDown, onKeyDown, onClick }: DragHandleProps) {
   return (
     <button
       type="button"
+      disabled={disabled}
       aria-label={isGrabbed ? `Release ${label}` : `Reorder ${label}`}
       aria-pressed={isGrabbed}
       data-testid="drag-handle"
@@ -485,6 +487,7 @@ function DragHandle({ label, isGrabbed, onPointerDown, onKeyDown, onClick }: Dra
         border: isGrabbed ? '1px solid rgba(94,234,212,0.45)' : '1px solid transparent',
         borderRadius: '0.4rem',
         cursor: isGrabbed ? 'grabbing' : 'grab',
+        opacity: disabled ? 0.45 : 1,
         color: 'var(--muted)',
         display: 'flex',
         alignItems: 'center',
@@ -522,6 +525,7 @@ interface SourceRowProps {
   totalCount: number
   isGrabbed: boolean
   isDropTarget: boolean
+  reorderDisabled: boolean
   onReconnect: (id: string) => void
   onDisconnect: (source: Source) => void
   onPointerDown: (e: { preventDefault(): void }) => void
@@ -538,6 +542,7 @@ function SourceRow({
   totalCount,
   isGrabbed,
   isDropTarget,
+  reorderDisabled,
   onReconnect,
   onDisconnect,
   onPointerDown,
@@ -582,6 +587,7 @@ function SourceRow({
       <DragHandle
         label={source.provider}
         isGrabbed={isGrabbed}
+        disabled={reorderDisabled}
         onPointerDown={onPointerDown}
         onKeyDown={onKeyDown}
         onClick={onHandleClick}
@@ -600,12 +606,12 @@ function SourceRow({
         <button
           type="button"
           aria-label={`Move ${source.provider} up`}
-          disabled={index === 0}
+          disabled={reorderDisabled || index === 0}
           data-testid={`move-up-${index}`}
           onClick={onMoveUp}
           style={{
             ...moveBtn,
-            visibility: index === 0 ? 'hidden' : 'visible',
+            visibility: reorderDisabled || index === 0 ? 'hidden' : 'visible',
           }}
         >
           ▲
@@ -613,12 +619,12 @@ function SourceRow({
         <button
           type="button"
           aria-label={`Move ${source.provider} down`}
-          disabled={index === totalCount - 1}
+          disabled={reorderDisabled || index === totalCount - 1}
           data-testid={`move-down-${index}`}
           onClick={onMoveDown}
           style={{
             ...moveBtn,
-            visibility: index === totalCount - 1 ? 'hidden' : 'visible',
+            visibility: reorderDisabled || index === totalCount - 1 ? 'hidden' : 'visible',
           }}
         >
           ▼
@@ -708,6 +714,22 @@ function SourceRow({
 export default function RevenueSources() {
   const { addToast } = useToast()
   const sources = useSources()
+  const [providerFilter, setProviderFilter] = useState('all')
+  const [healthFilter, setHealthFilter] = useState<HealthStatus | 'all'>('all')
+  const providerOptions = useMemo(
+    () => Array.from(new Set(sources.map((source) => source.provider))).sort(),
+    [sources],
+  )
+  const filteringActive = providerFilter !== 'all' || healthFilter !== 'all'
+  const filteredSources = useMemo(
+    () =>
+      sources.filter(
+        (source) =>
+          (providerFilter === 'all' || source.provider === providerFilter) &&
+          (healthFilter === 'all' || source.status === healthFilter),
+      ),
+    [healthFilter, providerFilter, sources],
+  )
   const reorderMutation = useMutation<Source[], Source[]>({
     mutationKey: 'revenue-sources-reorder',
     mutationFn: async (nextSources) => {
@@ -751,7 +773,7 @@ export default function RevenueSources() {
     moveDown,
   } = useDragReorder(sources, (nextSources) => {
     void reorderMutation.mutate(nextSources)
-  }, getLabel)
+  }, getLabel, !filteringActive)
 
   function handleReconnect(id: string) {
     sourcesStore.update(id, { status: 'healthy', lastSync: new Date().toISOString(), tokenExpiredAt: undefined })
@@ -802,6 +824,56 @@ export default function RevenueSources() {
         Drag or use the handle's keyboard controls to set attestation priority order.
       </p>
 
+      <div
+        role="group"
+        aria-label="Revenue source filters"
+        style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginTop: '1.25rem' }}
+      >
+        <label style={{ display: 'grid', gap: '0.35rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
+          Provider
+          <select
+            aria-label="Filter by provider"
+            value={providerFilter}
+            onChange={(event) => setProviderFilter(event.target.value)}
+            style={{ minWidth: '12rem', padding: '0.5rem 0.65rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+          >
+            <option value="all">All providers</option>
+            {providerOptions.map((provider) => (
+              <option key={provider} value={provider}>{provider}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: '0.35rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
+          Health status
+          <select
+            aria-label="Filter by health status"
+            value={healthFilter}
+            onChange={(event) => {
+              const status = event.target.value
+              if (
+                status === 'all' ||
+                status === 'healthy' ||
+                status === 'warning' ||
+                status === 'error'
+              ) {
+                setHealthFilter(status)
+              }
+            }}
+            style={{ minWidth: '12rem', padding: '0.5rem 0.65rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+          >
+            <option value="all">All health statuses</option>
+            {Object.entries(STATUS_META).map(([status, meta]) => (
+              <option key={status} value={status}>{meta.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {filteringActive && (
+        <p role="note" style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: '0.75rem 0 0' }}>
+          Reordering is disabled while filters are active. Clear filters to reorder all sources.
+        </p>
+      )}
+
       {/* aria-live region for drag/keyboard announcements */}
       <div
         role="status"
@@ -844,6 +916,10 @@ export default function RevenueSources() {
             Connect a source
           </Link>
         </section>
+      ) : filteredSources.length === 0 ? (
+        <p role="status" style={{ color: 'var(--muted)', marginTop: '2rem' }}>
+          No revenue sources match the selected filters.
+        </p>
       ) : (
         <ul
           aria-label="Connected revenue sources"
@@ -852,14 +928,15 @@ export default function RevenueSources() {
           onPointerMove={handlePointerMove}
           style={{ listStyle: 'none', margin: '2rem 0 0', padding: 0, display: 'grid', gap: '0.75rem' }}
         >
-          {sources.map((source, index) => (
+          {filteredSources.map((source, index) => (
             <SourceRow
               key={source.id}
               source={source}
               index={index}
-              totalCount={sources.length}
+              totalCount={filteredSources.length}
               isGrabbed={grabbedIndex === index}
               isDropTarget={dropTargetIndex === index && grabbedIndex !== null && grabbedIndex !== index}
+              reorderDisabled={filteringActive}
               onReconnect={handleReconnect}
               onDisconnect={handleDisconnectRequest}
               onPointerDown={handlePointerDown(index)}

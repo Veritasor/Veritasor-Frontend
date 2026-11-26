@@ -4,11 +4,15 @@
 
 import { MemoryRouter } from 'react-router-dom'
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
-import { describe, expect, it, afterEach, beforeEach } from 'vitest'
+import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest'
 import { ToastProvider } from '../components/ToastContext'
 import RevenueSources from '../pages/RevenueSources'
 import { LocaleProvider } from '../i18n/provider'
 import { sourcesStore } from '../store/sourcesStore'
+
+vi.mock('../utils/secureRandom', () => ({
+  newId: (prefix: string) => `${prefix}test-id`,
+}))
 
 afterEach(() => cleanup())
 
@@ -54,6 +58,75 @@ describe('RevenueSources — page structure', () => {
     expect(screen.getAllByText('Stripe').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Shopify').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('QuickBooks').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Filters
+// ---------------------------------------------------------------------------
+
+describe('RevenueSources — filters', () => {
+  it('filters by provider and health status', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by provider/i }), {
+      target: { value: 'Shopify' },
+    })
+    expect(screen.getByRole('listitem', { name: /shopify, priority 1 of 1/i })).toBeInTheDocument()
+    expect(screen.queryByRole('listitem', { name: /stripe/i })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by provider/i }), {
+      target: { value: 'all' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by health status/i }), {
+      target: { value: 'error' },
+    })
+    expect(screen.getByRole('listitem', { name: /quickbooks, priority 1 of 1/i })).toBeInTheDocument()
+    expect(screen.queryByRole('listitem', { name: /shopify/i })).not.toBeInTheDocument()
+  })
+
+  it('shows an empty message when filters have no matching source', () => {
+    renderPage()
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by provider/i }), {
+      target: { value: 'Shopify' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by health status/i }), {
+      target: { value: 'healthy' },
+    })
+
+    expect(screen.getByText(/no revenue sources match the selected filters/i)).toBeInTheDocument()
+  })
+
+  it('disables reordering while filtered and preserves the global source order', () => {
+    renderPage()
+    const originalOrder = sourcesStore.getAll().map((source) => source.id)
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by health status/i }), {
+      target: { value: 'warning' },
+    })
+
+    expect(screen.getByText(/reordering is disabled while filters are active/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /reorder shopify/i })).toBeDisabled()
+    expect(screen.getByTestId('move-down-0')).toBeDisabled()
+
+    fireEvent.pointerDown(screen.getByTestId('drag-handle'))
+    fireEvent.keyDown(screen.getByTestId('drag-handle'), { key: 'ArrowDown' })
+    fireEvent.click(screen.getByTestId('move-down-0'))
+
+    expect(sourcesStore.getAll().map((source) => source.id)).toEqual(originalOrder)
+  })
+
+  it('re-enables reorder controls after clearing filters', () => {
+    renderPage()
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by provider/i }), {
+      target: { value: 'Shopify' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: /filter by provider/i }), {
+      target: { value: 'all' },
+    })
+
+    expect(screen.getByRole('button', { name: /reorder stripe/i })).toBeEnabled()
+    expect(screen.getByTestId('move-down-0')).toBeEnabled()
+    expect(screen.queryByText(/reordering is disabled while filters are active/i)).not.toBeInTheDocument()
   })
 })
 
