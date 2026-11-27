@@ -406,3 +406,75 @@ describe('useTheme - every accepted theme', () => {
     void mm
   })
 })
+
+// ─── Anti-flash script logic (index.html inline script) ──────────────────
+//
+// The inline script in index.html mirrors getResolvedTheme: it must apply
+// 'high-contrast' before the first paint when that value is stored, and
+// default to 'dark' for every other value (including missing / invalid).
+//
+// These tests exercise the equivalent JS logic so the contract is encoded
+// in the test suite rather than only in the HTML comment.
+
+/** Replicates the index.html anti-flash IIFE. */
+function antiFlash(storedValue: string | null): string {
+  return storedValue === 'high-contrast' ? 'high-contrast' : 'dark'
+}
+
+describe('anti-flash script logic (index.html)', () => {
+  it('applies high-contrast when that value is stored', () => {
+    expect(antiFlash('high-contrast')).toBe('high-contrast')
+  })
+
+  it('defaults to dark when nothing is stored', () => {
+    expect(antiFlash(null)).toBe('dark')
+  })
+
+  it('defaults to dark for an unknown stored value', () => {
+    expect(antiFlash('solarized')).toBe('dark')
+  })
+
+  it('defaults to dark for an empty string', () => {
+    expect(antiFlash('')).toBe('dark')
+  })
+
+  it('defaults to dark when stored value is "light"', () => {
+    expect(antiFlash('light')).toBe('dark')
+  })
+
+  it('defaults to dark when stored value is "system"', () => {
+    expect(antiFlash('system')).toBe('dark')
+  })
+
+  it('applies correct theme via localStorage before React hydrates', () => {
+    localStorage.setItem(BASE_KEY, 'high-contrast')
+    let stored: string | null = null
+    try {
+      stored = localStorage.getItem(BASE_KEY)
+    } catch (_e) {
+      // blocked storage — fall through to default
+    }
+    const theme = antiFlash(stored)
+    document.documentElement.setAttribute('data-theme', theme)
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('high-contrast')
+  })
+
+  it('survives blocked localStorage without throwing', () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError')
+    })
+
+    let stored: string | null = null
+    expect(() => {
+      try {
+        stored = localStorage.getItem(BASE_KEY)
+      } catch (_e) {
+        // intentionally swallowed — mirrors the script's try/catch
+      }
+    }).not.toThrow()
+
+    expect(antiFlash(stored)).toBe('dark')
+    getItem.mockRestore()
+  })
+})
