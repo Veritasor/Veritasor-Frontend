@@ -2026,19 +2026,6 @@ function BillingPanel() {
   );
 }
 
-const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-function generateRecoveryCodes(): string[] {
-  return Array.from({ length: 10 }, () => {
-    const seg = () =>
-      Array.from(
-        { length: 4 },
-        () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)],
-      ).join("");
-    return `${seg()}-${seg()}-${seg()}`;
-  });
-}
-
 interface ActiveSession {
   id: string;
   device: string;
